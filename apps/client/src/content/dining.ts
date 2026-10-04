@@ -43,3 +43,6 @@ export function buildDining(): number[][] {
   for (const [x, y] of DINING_EXIT) set(x, y, RT.DOOR);
   return m;
 }
+
+/** where your family waits on Wednesday afternoons, by the canteen (dining tiles) */
+export const VISITOR_SPOT: [number, number] = [16.5, 11.4];

@@ -10,11 +10,11 @@ export function liftOf(b: Building): number {
   return doorsOf(b).some((d) => d.side === 'n') ? 0 : 1;
 }
 /** façade height in tiles (taller buildings look taller) */
-const FACADE: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 4, yemekhane: 3, cemiyet: 3, spor: 3, teknik: 3 };
+const FACADE: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 4, kutuphane: 3, yemekhane: 3, cemiyet: 3, spor: 3, teknik: 3 };
 /** extra pixels left and right for side entrance canopies */
 export const PAD = 10;
 
-const FLOORS: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 3, yemekhane: 2, cemiyet: 2, spor: 1, teknik: 2 };
+const FLOORS: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 3, kutuphane: 2, yemekhane: 2, cemiyet: 2, spor: 1, teknik: 2 };
 
 const ROOF = {
   grey: { base: '#bcc3c9', dark: '#a6aeb5', light: '#d3d9de', rim: '#e6eaed', rimDark: '#8f979e' },
@@ -38,7 +38,7 @@ function doorsOf(b: Building): Door[] {
 }
 
 /** groups neighbouring door tiles on the same side into one entrance */
-function entrances(b: Building): Array<{ side: Door['side']; x: number; y: number; n: number; revir: boolean }> {
+export function entrances(b: Building): Array<{ side: Door['side']; x: number; y: number; n: number; revir: boolean }> {
   const out: Array<{ side: Door['side']; x: number; y: number; n: number; revir: boolean }> = [];
   const ds = doorsOf(b).sort((a, c) => a.y - c.y || a.x - c.x);
   for (const d of ds) {

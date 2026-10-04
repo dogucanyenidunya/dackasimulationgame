@@ -4,9 +4,9 @@ import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, keepsakeName, capitalize, type Attributes, type CharacterData } from '../content/character';
 import { BOOKS } from '../content/quiz';
 import { currentPeriod, fmtTime, isWeekend, PERIODS, periodLabel, phaseOf, subjectFor } from './schedule';
-import { DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_FOR_EXAM, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, type MealId, type PlayerState, type SportId } from './state';
+import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_FOR_EXAM, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { missionById, reached, type MissionCtx } from './missions';
-import { BUS_BOARDING, BUS_LEAVES, VISIT_END, VISIT_START, isFriday, isSunday } from './weekend';
+import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday } from './weekend';
 import { NPCS, friendLevel, type NpcDef } from '../content/npcs';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
@@ -34,6 +34,8 @@ export interface GameCtx {
   beltNear(): boolean;
   /** evci: take the bus home and come back on Sunday evening */
   goHome(summary: string): void;
+  /** courts: ask friends who are around to come and play; returns why not, or null when they're on their way */
+  callFriends(sport: CourtSport): string | null;
 }
 
 /** reason text when a feature is still locked behind a mission */
@@ -59,12 +61,17 @@ export const SPORTS: Array<{ id: SportId; name: Text; where: Text; tryout: Text;
   { id: 'chess', name: { tr: 'Satranç', en: 'Chess' }, where: { tr: 'Kütüphane', en: 'Library' }, tryout: { tr: 'Hamle zamanlaması', en: 'Move timing' }, zone: 0.26, speed: 1.0 },
 ];
 
+/** Şakir Abi's canteen */
 const KANTIN: Array<{ id: string; name: Text; price: number; hunger: number; mood: number }> = [
-  { id: 'simit', name: { tr: 'Simit', en: 'Simit' }, price: 5, hunger: 20, mood: 2 },
-  { id: 'ayran', name: { tr: 'Ayran', en: 'Ayran' }, price: 4, hunger: 10, mood: 3 },
-  { id: 'tost', name: { tr: 'Kaşarlı tost', en: 'Cheese toastie' }, price: 12, hunger: 35, mood: 4 },
-  { id: 'sandvic', name: { tr: 'Sandviç', en: 'Sandwich' }, price: 15, hunger: 40, mood: 8 },
+  { id: 'sosisli', name: { tr: 'Şakir\'in sosislisi', en: "Şakir's hot dog" }, price: 15, hunger: 35, mood: 8 },
+  { id: 'hamburger', name: { tr: 'Hamburger', en: 'Hamburger' }, price: 25, hunger: 50, mood: 10 },
+  { id: 'tantuni', name: { tr: 'Tantuni', en: 'Tantuni wrap' }, price: 30, hunger: 55, mood: 12 },
+  { id: 'tost', name: { tr: 'Kaşarlı tost', en: 'Cheese toastie' }, price: 12, hunger: 30, mood: 5 },
+  { id: 'atistirmalik', name: { tr: 'Cips & çikolata', en: 'Crisps & chocolate' }, price: 8, hunger: 10, mood: 6 },
+  { id: 'ayran', name: { tr: 'Ayran', en: 'Ayran' }, price: 4, hunger: 8, mood: 3 },
 ];
+/** a phone card for the dorm payphone */
+const PHONE_CARD = { price: 25, units: 30, perCall: 10 };
 
 function doneToday(ctx: GameCtx, key: string) { return ctx.st.daily[key] === ctx.clock.day; }
 function markToday(ctx: GameCtx, key: string) { ctx.st.daily[key] = ctx.clock.day; }
@@ -123,10 +130,10 @@ function cemiyet(ctx: GameCtx): PanelView {
             },
           },
           {
-            id: 'draw', label: T('Sınıf kurası çek', 'Draw your class'), hint: T('4-A, 4-B, 4-C ya da 4-D', '4-A, 4-B, 4-C or 4-D'),
+            id: 'draw', label: T('Sınıf kurası çek', 'Draw your class'), hint: T(`${grade(ctx.st.year)}-A'dan ${grade(ctx.st.year)}-E'ye beş sınıf`, `Five classes, ${grade(ctx.st.year)}-A to ${grade(ctx.st.year)}-E`),
             locked: needMission(ctx, 'sinif') ?? (ctx.st.once.classDrawn ? T(`Sınıfın: ${s.classLabel}`, `Your class: ${s.classLabel}`) : undefined),
             run: async () => {
-              const classes = ['4-A', '4-B', '4-C', '4-D'];
+              const classes = CLASS_LETTERS.map((l) => `${grade(ctx.st.year)}-${l}`);
               const pick = classes[Math.floor(Math.random() * classes.length)];
               await ctx.panel.roulette(T('Sınıf kurası', 'Class draw'), classes, pick);
               s.classLabel = pick;
@@ -200,18 +207,9 @@ function muze(ctx: GameCtx): PanelView {
 }
 
 /** the academic building: 'desk' = your seat in the classroom, 'corridor' = the rest of the building */
-export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): PanelView {
+/** the library (its own building): textbooks, borrowing and reading, the librarian's book chat */
+function libraryActionsFor(ctx: GameCtx): ActionView[] {
   const s = ctx.st.school;
-  const { day, minutes } = ctx.clock;
-  const p = currentPeriod(day, minutes);
-  const lessonKey = p ? `${day}-${p.id}` : '';
-  const subject = p && p.kind === 'lesson' ? subjectFor(day, p.id) : null;
-
-  let lessonLock: string | undefined = needMission(ctx, 'derse_gir') ?? needRegistration(ctx);
-  if (!lessonLock && !s.books) lessonLock = T('Ders kitapların yok. Kütüphane\'den al.', 'You have no textbooks. Get them at the library.');
-  if (!lessonLock && !subject) lessonLock = T(`Şu an ders yok. Sıradaki: ${nextOf(ctx, 'lesson')}`, `No lesson right now. Next: ${nextOf(ctx, 'lesson')}`);
-  if (!lessonLock && s.attended.includes(lessonKey)) lessonLock = T('Bu derse zaten girdin.', 'You already attended this lesson.');
-
   const reading = ctx.st.reading;
   const book = BOOKS.find((b) => b.id === reading.book);
 
@@ -272,6 +270,30 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       run: () => { ctx.st.favor.stage = 'done'; ctx.advance(5); ctx.gain({ xp: 10 }); ctx.toast(T(`Kitap iade edildi. ${giver.name}'ye haber ver!`, `Book returned. Go tell ${giver.name}!`), 'good'); },
     });
   }
+
+  return libraryActions;
+}
+
+export function kutuphane(ctx: GameCtx): PanelView {
+  return {
+    title: T('Kütüphane', 'Library'), sub: T('Ders kitapları · okuma salonu', 'Textbooks · reading room'), status: status(ctx),
+    rooms: [
+      { id: 'kutuphane', name: T('Okuma salonu', 'Reading room'), note: T('Kütüphaneci Nermin Hanım: "Sessiz lütfen… ama hoş geldin!"', 'Librarian Ms. Nermin: "Quiet please… but welcome!"'), actions: [...libraryActionsFor(ctx), { id: 'out', label: T('Kütüphaneden çık', 'Leave the library'), run: () => { ctx.panel.close(); ctx.leaveDorm(); } }] },
+    ],
+  };
+}
+
+export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): PanelView {
+  const s = ctx.st.school;
+  const { day, minutes } = ctx.clock;
+  const p = currentPeriod(day, minutes);
+  const lessonKey = p ? `${day}-${p.id}` : '';
+  const subject = p && p.kind === 'lesson' ? subjectFor(day, p.id) : null;
+
+  let lessonLock: string | undefined = needMission(ctx, 'derse_gir') ?? needRegistration(ctx);
+  if (!lessonLock && !s.books) lessonLock = T('Ders kitapların yok. Kütüphane binasından al.', 'You have no textbooks. Get them at the library building.');
+  if (!lessonLock && !subject) lessonLock = T(`Şu an ders yok. Sıradaki: ${nextOf(ctx, 'lesson')}`, `No lesson right now. Next: ${nextOf(ctx, 'lesson')}`);
+  if (!lessonLock && s.attended.includes(lessonKey)) lessonLock = T('Bu derse zaten girdin.', 'You already attended this lesson.');
 
   const attendedCount = s.attended.length;
   const examAction: ActionView = {
@@ -399,7 +421,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
     rooms: [
       {
         id: 'koridor', name: T('Koridor', 'Corridor'),
-        note: T('Uzun bir koridor: bir yanda sınıfın, karşıda öğretmenler odası, ortada Kütüphane.', 'A long corridor: your classroom on one side, the teachers\' room opposite, the library in the middle.'),
+        note: T('Uzun bir koridor: bir yanda sınıfın, karşıda öğretmenler odası. Kütüphane karşıdaki ayrı binada.', 'A long corridor: your classroom on one side, the teachers\' room opposite. The library is in its own building across the plaza.'),
         actions: [{ id: 'out', label: T('Binadan çık', 'Leave the building'), run: () => { ctx.panel.close(); ctx.leaveDorm(); } }],
       },
       {
@@ -419,7 +441,8 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
           },
         }],
       },
-      { id: 'kutuphane', name: T('Kütüphane', 'Library'), note: T('Kütüphaneci Nermin Hanım: "Sessiz lütfen… ama hoş geldin!"', 'Librarian Ms. Nermin: "Quiet please… but welcome!"'), actions: libraryActions },
+      musicRoom(ctx),
+      councilRoom(ctx),
       { id: 'lise', name: T('Lise kanadı', 'High school wing'), locked: T('Lise kanadı hazırlık yılında açılır.', 'The high school wing opens in the prep year.'), actions: [] },
     ],
   };
@@ -475,22 +498,54 @@ export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): Panel
   const kantinOpen = minutes >= 8 * 60 && minutes < 18 * 60;
   const rooms: RoomView[] = [
       {
-        id: 'kantin', name: T('Kantin', 'Canteen'),
-        note: kantinOpen ? T(`Cebinde ${ctx.st.money} ₺ var.`, `You have ${ctx.st.money} ₺.`) : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).'),
-        actions: KANTIN.map((k) => ({
-          id: k.id, label: `${L(k.name)} · ${k.price} ₺`, hint: T(`+${k.hunger} tokluk · +${k.mood} moral`, `+${k.hunger} fullness · +${k.mood} mood`),
-          locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < k.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
-          run: () => {
-            ctx.gain({ money: -k.price, hunger: k.hunger, mood: k.mood });
-            ctx.advance(5);
-            ctx.toast(T(`${L(k.name)} aldın.`, `You bought: ${L(k.name)}.`));
+        id: 'kantin', name: T('Şakir Abi\'nin Kantini', "Şakir's canteen"),
+        note: kantinOpen
+          ? T(`Şakir Abi: "Ne alırsın evlat?" · Cebinde ${ctx.st.money} ₺ · telefon kartın ${ctx.st.phoneUnits} kontör`, `Şakir: "What'll it be, kid?" · You have ${ctx.st.money} ₺ · ${ctx.st.phoneUnits} phone units`)
+          : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).'),
+        actions: [
+          ...visitActions(ctx),
+          ...KANTIN.map((k) => ({
+            id: k.id, label: `${L(k.name)} · ${k.price} ₺`, hint: T(`+${k.hunger} tokluk · +${k.mood} moral`, `+${k.hunger} fullness · +${k.mood} mood`),
+            locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < k.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
+            run: () => {
+              ctx.gain({ money: -k.price, hunger: k.hunger, mood: k.mood });
+              ctx.advance(10);
+              ctx.toast(T(`${L(k.name)} · afiyet olsun!`, `${L(k.name)} · enjoy!`));
+            },
+          })),
+          {
+            id: 'movie', label: T('🎬 Kantinde film izle', '🎬 Watch a film in the canteen'), hint: T('90 dk · +12 moral · günde bir', '90 min · +12 mood · once a day'),
+            locked: !kantinOpen ? T('Kapalı', 'Closed')
+              : !isWeekend(ctx.clock.day) && minutes < 15 * 60 + 20 ? T('Filmler dersler bittikten sonra (15:20) ya da hafta sonu.', 'Films are on after lessons (15:20) or at weekends.')
+                : doneToday(ctx, 'movie') ? T('Bugün zaten film izledin.', 'You already watched a film today.') : undefined,
+            run: async () => {
+              markToday(ctx, 'movie'); ctx.advance(90); ctx.gain({ mood: 12, energy: -5, xp: 10 });
+              const films = [T('eski bir Kemal Sunal filmi', 'an old Kemal Sunal comedy'), T('bir uzay macerası', 'a space adventure'), T('bir animasyon', 'an animated film'), T('bir futbol belgeseli', 'a football documentary')];
+              await ctx.panel.message(T('Film saati', 'Film time'), T(`Kantinin köşesindeki televizyonda ${films[ctx.clock.day % films.length]} vardı. Şakir Abi herkese patlamış mısır dağıttı.`, `The TV in the corner showed ${films[ctx.clock.day % films.length]}. Şakir handed out popcorn to everyone.`));
+            },
           },
-        })),
+          {
+            id: 'hangout', label: T('Masada takıl', 'Hang out at a table'), hint: T('30 dk · +4 moral', '30 min · +4 mood'),
+            locked: !kantinOpen ? T('Kapalı', 'Closed') : undefined,
+            run: () => {
+              ctx.advance(30); ctx.gain({ mood: 4, attrs: { social: Math.random() < 0.3 ? 1 : 0 } });
+              const pals = NPCS.filter((n) => (ctx.st.friends[n.id] ?? 0) > 0);
+              const pal = pals[Math.floor(Math.random() * pals.length)];
+              if (pal) { ctx.befriend(pal.id, 3); ctx.toast(T(`${pal.name} de geldi; biraz sohbet ettiniz.`, `${pal.name} turned up and you chatted for a bit.`), 'good'); }
+              else ctx.toast(T('Kantin kalabalığını izledin.', 'You people-watched the busy canteen.'));
+            },
+          },
+          {
+            id: 'phonecard', label: T(`☎️ Telefon kartı · ${PHONE_CARD.price} ₺`, `☎️ Phone card · ${PHONE_CARD.price} ₺`), hint: T(`${PHONE_CARD.units} kontör · yurttaki ankesörlü telefon için`, `${PHONE_CARD.units} units · for the payphone in your dorm`),
+            locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < PHONE_CARD.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
+            run: () => { ctx.gain({ money: -PHONE_CARD.price }); ctx.st.phoneUnits += PHONE_CARD.units; ctx.toast(T(`Telefon kartı aldın: ${ctx.st.phoneUnits} kontör.`, `Phone card bought: ${ctx.st.phoneUnits} units.`), 'good'); },
+          },
+        ],
       },
       {
         id: 'konferans', name: T('Konferans salonu', 'Auditorium'),
         note: T('Kırmızı koltuklar ve büyük bir sahne. Törenler ve tiyatro gösterileri burada yapılır.', 'Red seats and a big stage. Ceremonies and plays happen here.'),
-        actions: [{
+        actions: [...councilHallActions(ctx), {
           id: 'karne', label: T('Karne törenine katıl', 'Attend the report card ceremony'), hint: T('1. yılın sonu', 'The end of Year 1'),
           locked: needMission(ctx, 'karne') ?? (ctx.st.yearDone ? T('Karneni aldın. 🎓', 'You have your report card. 🎓')
             : ctx.st.xp < YEAR1_XP ? T(`Önce ${YEAR1_XP} XP topla (${ctx.st.xp}/${YEAR1_XP}).`, `Earn ${YEAR1_XP} XP first (${ctx.st.xp}/${YEAR1_XP}).`) : undefined),
@@ -523,6 +578,51 @@ const belletmenName = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? 'Hatice Han�
 const dormTitle = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? T('Kız Yurdu', "Girls' Dorm") : T('Erkek Yurdu', "Boys' Dorm"));
 
 /** your desk in the study room: homework, reading, drawing */
+/** İstiklal Marşı: write it out and memorise it stanza by stanza at evening study, then recite it to the belletmen */
+function anthemActions(ctx: GameCtx): ActionView[] {
+  const st = ctx.st;
+  const a = st.anthem;
+  if (a.recited) return [];
+  const etut = phaseOf(ctx.clock.minutes) === 'etut';
+  const belletmen = ctx.ch.gender === 'girl' ? 'Hatice Hanım' : 'Mehmet Bey';
+  const notAtStudy = etut ? undefined : T('Etüt saatinde çalışılır (18:00–20:00).', 'Done during evening study (18:00–20:00).');
+  if (a.stanzas < ANTHEM_STANZAS) {
+    return [{
+      id: 'anthem', label: T(`🇹🇷 İstiklal Marşı'nı yaz ve ezberle (${a.stanzas}/${ANTHEM_STANZAS} kıta)`, `🇹🇷 Write out and memorise the İstiklal Marşı (${a.stanzas}/${ANTHEM_STANZAS} stanzas)`),
+      hint: T('40 dk · etütte, günde bir · deftere güzel yazıyla', '40 min · at study, once a day · in your neatest handwriting'),
+      locked: needRegistration(ctx) ?? notAtStudy ?? (doneToday(ctx, 'anthem') ? T('Bugünkü kıtalarını çalıştın.', "You've done today's stanzas.") : undefined),
+      run: async () => {
+        markToday(ctx, 'anthem');
+        const hits = await ctx.panel.timing(T('Kıtayı deftere yaz', 'Copy the stanza into your notebook'), 3, 0.24, 1.1);
+        const learned = Math.min(ANTHEM_STANZAS - a.stanzas, hits >= 2 ? 2 : 1);
+        a.stanzas += learned;
+        ctx.advance(40);
+        ctx.gain({ xp: 10 + hits * 4, energy: -4, attrs: { discipline: 1 } });
+        ctx.toast(a.stanzas >= ANTHEM_STANZAS
+          ? T(`On kıtanın hepsi defterinde ve aklında! Şimdi ${belletmen}'e ezberden oku.`, `All ten stanzas are in your notebook and in your head! Now recite them to ${belletmen}.`)
+          : T(`"Korkma, sönmez bu şafaklarda yüzen al sancak…" · ${a.stanzas}/${ANTHEM_STANZAS} kıta`, `"Korkma, sönmez bu şafaklarda yüzen al sancak…" · ${a.stanzas}/${ANTHEM_STANZAS} stanzas`), 'good');
+      },
+    }];
+  }
+  return [{
+    id: 'recite', label: T(`🎤 ${belletmen}'e İstiklal Marşı'nı ezberden oku`, `🎤 Recite the İstiklal Marşı to ${belletmen}`), hint: T('Ritmi kaçırma: 10 kıta, en az 7 doğru', "Keep the rhythm: 10 stanzas, at least 7 right"),
+    locked: notAtStudy,
+    run: async () => {
+      const hits = await ctx.panel.rhythm(T('İstiklal Marşı', 'İstiklal Marşı'), T('Her kıta çizgiye gelince BOŞLUK\'a bas.', 'Press SPACE as each stanza crosses the line.'), 10, 0.38);
+      ctx.advance(15);
+      if (hits >= 7) {
+        a.recited = true;
+        ctx.ch.respect += 10;
+        ctx.gain({ xp: 80, mood: 10 });
+        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Pazartesi töreninde sen okuyacaksın!" +10 saygınlık`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at Monday's ceremony!" +10 respect`));
+      } else {
+        ctx.gain({ xp: 10 });
+        ctx.toast(T(`${hits}/10 · "Birkaç yerde takıldın. Yarın etütte tekrar dinlerim."`, `${hits}/10 · "You stumbled in a few places. I'll hear it again tomorrow at study."`));
+      }
+    },
+  }];
+}
+
 export function deskPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const phase = phaseOf(ctx.clock.minutes);
@@ -559,6 +659,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
             ctx.toast(T(`Okuma ${st.reading.sessions}/3`, `Reading ${st.reading.sessions}/3`), 'good');
           },
         },
+        ...anthemActions(ctx),
         {
           id: 'create', label: T('Yaratıcı ol: resim çiz, hikâye yaz', 'Get creative: draw, write a story'),
           hint: T('40 dk · +2 Yaratıcılık · +5 moral', '40 min · +2 Creativity · +5 mood'),
@@ -1142,6 +1243,7 @@ export function gatePanel(ctx: GameCtx): PanelView {
       },
     });
   }
+  actions.push(carsiAction(ctx));
   return {
     title: 'Ana Kapı', sub: evci ? T('Sen evcisin', "You're evci (home at weekends)") : T('Sen daimisin', "You're daimi (you stay at weekends)"), status: status(ctx),
     rooms: [{
@@ -1154,6 +1256,462 @@ export function gatePanel(ctx: GameCtx): PanelView {
   };
 }
 
+// ---------------- Wednesday "çarşı izni": your family visits at the canteen ----------------
+
+function guardianName(ctx: GameCtx): string {
+  return L(GUARDIANS.find((g) => g.id === ctx.ch.guardian)!.your);
+}
+
+/** on Wednesday afternoons your family waits for you at the canteen */
+function visitActions(ctx: GameCtx): ActionView[] {
+  if (!carsiNow(ctx.clock.day, ctx.clock.minutes)) return [];
+  const g = guardianName(ctx);
+  return [{
+    id: 'wedvisit', label: T(`👪 ${g} seni bekliyor!`, `👪 ${g} is waiting for you!`), hint: T('Çarşı izni · 60 dk · +18 moral · harçlık', 'Wednesday visit · 60 min · +18 mood · pocket money'),
+    locked: doneToday(ctx, 'wedvisit') ? T('Bugün ailenle zaten görüştün.', 'You already saw your family today.') : undefined,
+    run: async () => {
+      markToday(ctx, 'wedvisit');
+      ctx.advance(60);
+      ctx.gain({ mood: 18, money: 20, hunger: 30 });
+      await ctx.panel.message(T('Çarşı izni', 'Wednesday visit'), T(
+        `${g} kantinde seni bekliyordu. Şakir Abi'den iki sosisli aldınız, haftanı anlattın. Giderken eline 20 ₺ ve ev yapımı kurabiye tutuşturdu.`,
+        `${g} was waiting at the canteen. You got two of Şakir's hot dogs and told them all about your week. On the way out they slipped you 20 ₺ and homemade cookies.`,
+      ));
+    },
+  }];
+}
+
+/** from the 6th grade: a few hours in town on Wednesday afternoon */
+function carsiAction(ctx: GameCtx): ActionView {
+  const { day, minutes } = ctx.clock;
+  const st = ctx.st;
+  return {
+    id: 'carsi', label: T('🛍️ Çarşıya çık', '🛍️ Go into town'), hint: T(`Çarşamba ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · 6. sınıftan itibaren`, `Wednesdays ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · from the 6th grade`),
+    locked: st.year < CARSI_OUT_FROM_YEAR && !DEV ? T('Çarşıya 6. sınıftan itibaren çıkabilirsin.', 'You can go into town from the 6th grade.')
+      : !carsiNow(day, minutes) ? T(`Çarşı izni Çarşamba ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)}.`, `Town leave is on Wednesdays ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)}.`)
+        : minutes > CARSI_END - 60 ? T('Etüde yetişemezsin; bir dahaki çarşamba!', "You wouldn't be back for study; next Wednesday!")
+          : doneToday(ctx, 'carsi') ? T('Bugün zaten çarşıdaydın.', 'You were already in town today.') : undefined,
+    run: async () => {
+      const pick = await ctx.panel.choose(T('Çarşıda ne yapacaksın?', 'What will you do in town?'), [
+        { id: 'doner', label: T('🥙 Dönerciye git · 20 ₺', '🥙 Go for döner · 20 ₺'), hint: T('+50 tokluk · +10 moral', '+50 fullness · +10 mood') },
+        { id: 'kirtasiye', label: T('✏️ Kırtasiye & oyuncakçı · 15 ₺', '✏️ Stationery & toy shop · 15 ₺'), hint: T('+12 moral · +1 Yaratıcılık', '+12 mood · +1 Creativity') },
+        { id: 'kafe', label: T('🎮 İnternet kafe · 10 ₺', '🎮 Internet café · 10 ₺'), hint: T('+15 moral · −10 enerji', '+15 mood · −10 energy') },
+        { id: 'yuru', label: T('🚶 Sahilde yürü · ücretsiz', '🚶 Walk by the sea · free'), hint: T('+8 moral · +5 sağlık', '+8 mood · +5 health') },
+      ]);
+      if (!pick) return;
+      const cost = { doner: 20, kirtasiye: 15, kafe: 10, yuru: 0 }[pick as 'doner'] ?? 0;
+      if (st.money < cost) { ctx.toast(T('Paran yetmiyor.', "You can't afford it.")); return; }
+      markToday(ctx, 'carsi');
+      ctx.gain({ money: -cost });
+      if (pick === 'doner') ctx.gain({ hunger: 50, mood: 10 });
+      if (pick === 'kirtasiye') ctx.gain({ mood: 12, attrs: { creativity: 1 } });
+      if (pick === 'kafe') ctx.gain({ mood: 15, energy: -10 });
+      if (pick === 'yuru') { ctx.gain({ mood: 8 }); st.health = clamp(st.health + 5); }
+      ctx.advance(120);
+      await ctx.panel.message(T('Çarşı izni', 'Town leave'), T('İki saat dışarıdaydın. Kapıdaki görevli saatine baktı: "Tam zamanında, aferin."', 'You were out for two hours. The guard at the gate checked his watch: "Right on time, well done."'));
+    },
+  };
+}
+
+// ---------------- the dorm payphone ----------------
+
+export function phonePanel(ctx: GameCtx): PanelView {
+  const st = ctx.st;
+  const g = guardianName(ctx);
+  const night = phaseOf(ctx.clock.minutes) === 'night';
+  return {
+    title: T('Ankesörlü telefon', 'Payphone'), sub: T(`Telefon kartın: ${st.phoneUnits} kontör`, `Phone card: ${st.phoneUnits} units`), status: status(ctx),
+    rooms: [{
+      id: 'phone', name: T('Telefon', 'Phone'),
+      note: T('Koridordaki kartlı telefon. Önünde hep küçük bir sıra olur.', 'The card phone in the corridor. There is always a little queue.'),
+      actions: [{
+        id: 'call', label: T('📞 Evi ara', '📞 Call home'), hint: T(`${PHONE_CARD.perCall} kontör · 10 dk · +12 moral`, `${PHONE_CARD.perCall} units · 10 min · +12 mood`),
+        locked: night ? T('Işıklar söndükten sonra telefon yasak.', 'No phone calls after lights out.')
+          : st.phoneUnits < PHONE_CARD.perCall ? T('Telefon kartın yok ya da bitti. Kantinden al.', 'No phone card, or it ran out. Buy one at the canteen.')
+            : doneToday(ctx, 'call') ? T('Bugün zaten aradın; sıradakilere de yer bırak.', 'You already called today; give the others a turn.') : undefined,
+        run: async () => {
+          markToday(ctx, 'call');
+          st.phoneUnits -= PHONE_CARD.perCall;
+          ctx.advance(10);
+          ctx.gain({ mood: 12 });
+          const talks = [
+            T(`${g} sesini duyunca çok sevindi. "Yemeklerini yiyor musun?" diye üç kere sordu.`, `${g} was so happy to hear your voice and asked three times whether you were eating properly.`),
+            T(`${g} evdeki haberleri anlattı. Kapatırken "Seninle gurur duyuyoruz" dedi.`, `${g} told you the news from home. Before hanging up: "We're proud of you."`),
+            T(`Kontör bitmek üzereyken ${g.toLowerCase()} hızlıca "Hafta sonu görüşürüz!" diye yetiştirdi.`, `As the units ran out, ${g.toLowerCase()} just managed: "See you soon!"`),
+          ];
+          await ctx.panel.message(T('Telefon', 'Phone call'), talks[ctx.clock.day % talks.length]);
+        },
+      }],
+    }],
+  };
+}
+
+// ---------------- music room (academic building) ----------------
+
+const INSTRUMENTS: Array<{ id: InstrumentId; name: Text }> = [
+  { id: 'gitar', name: { tr: 'Gitar', en: 'Guitar' } },
+  { id: 'bas', name: { tr: 'Bas gitar', en: 'Bass guitar' } },
+  { id: 'davul', name: { tr: 'Davul', en: 'Drums' } },
+  { id: 'klavye', name: { tr: 'Klavye', en: 'Keyboard' } },
+  { id: 'keman', name: { tr: 'Keman', en: 'Violin' } },
+  { id: 'flut', name: { tr: 'Flüt', en: 'Flute' } },
+];
+const SHOW_SKILL = 40;
+
+function musicRoom(ctx: GameCtx): RoomView {
+  const st = ctx.st;
+  const m = st.music;
+  const inst = INSTRUMENTS.find((i) => i.id === m.instrument);
+  const lessonNow = currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson';
+  const actions: ActionView[] = [];
+  if (!m.mandolinDone) {
+    actions.push({
+      id: 'mandolin', label: T(`🪕 Mandolin dersi (${m.mandolin}/${MANDOLIN_LESSONS})`, `🪕 Mandolin lesson (${m.mandolin}/${MANDOLIN_LESSONS})`),
+      hint: T('4. sınıfta zorunlu · 45 dk · ritim oyunu', 'Compulsory in the 4th grade · 45 min · rhythm game'),
+      locked: st.year > 1 ? T('Mandolin kursu sadece 4. sınıfta açılıyor; kaçırdın.', 'The mandolin course only runs in the 4th grade; you missed it.')
+        : needRegistration(ctx) ?? (lessonNow ? T('Ders saatinde müzik odası boş değil.', 'The music room is busy during lessons.')
+          : doneToday(ctx, 'mandolin') ? T('Bugünkü dersini aldın.', 'You had your lesson today.') : undefined),
+      run: async () => {
+        markToday(ctx, 'mandolin');
+        const hits = await ctx.panel.rhythm(T('Mandolin', 'Mandolin'), T('Notalar çizgiye gelince BOŞLUK\'a bas.', 'Press SPACE as each note crosses the line.'), 8, 0.4);
+        ctx.advance(45);
+        m.mandolin++;
+        ctx.gain({ xp: 15 + hits * 2, attrs: { creativity: hits >= 6 ? 2 : 1 } });
+        if (m.mandolin >= MANDOLIN_LESSONS) {
+          m.mandolinDone = true;
+          await ctx.panel.message(T('Mandolin kursu bitti! 🎶', 'Mandolin course complete! 🎶'), T('Müzik öğretmeni Leyla Hanım sertifikanı verdi: "5. sınıftan itibaren istediğin enstrümanı seçebilirsin."', 'Your music teacher, Ms. Leyla, handed you the certificate: "From the 5th grade you can pick any instrument you like."'));
+        } else ctx.toast(T(`Mandolin ${m.mandolin}/${MANDOLIN_LESSONS} · ${hits}/8 nota`, `Mandolin ${m.mandolin}/${MANDOLIN_LESSONS} · ${hits}/8 notes`), 'good');
+      },
+    });
+  }
+  if (!m.instrument) {
+    actions.push({
+      id: 'pick', label: T('🎸 Bir enstrüman seç', '🎸 Pick an instrument'), hint: T('5. sınıftan itibaren · mandolin sertifikası gerekir', 'From the 5th grade · needs the mandolin certificate'),
+      locked: !m.mandolinDone ? T('Önce 4. sınıftaki mandolin kursunu bitirmelisin.', 'You need to finish the 4th-grade mandolin course first.')
+        : st.year < 2 && !DEV ? T('Enstrüman seçimi 5. sınıfta.', 'You pick an instrument in the 5th grade.') : undefined,
+      run: async () => {
+        const id = await ctx.panel.choose(T('Hangi enstrüman?', 'Which instrument?'), INSTRUMENTS.map((i) => ({ id: i.id, label: L(i.name) })));
+        if (!id) return;
+        m.instrument = id as InstrumentId;
+        ctx.toast(T(`Artık ${L(INSTRUMENTS.find((i) => i.id === id)!.name).toLowerCase()} çalıyorsun!`, `You now play the ${L(INSTRUMENTS.find((i) => i.id === id)!.name).toLowerCase()}!`), 'good');
+      },
+    });
+  } else {
+    actions.push({
+      id: 'practice', label: T(`🎵 ${L(inst!.name)} çalış (seviye ${m.skill})`, `🎵 Practise ${L(inst!.name).toLowerCase()} (level ${m.skill})`), hint: T('45 dk · ritim oyunu · günde bir', '45 min · rhythm game · once a day'),
+      locked: lessonNow ? T('Ders saatinde müzik odası boş değil.', 'The music room is busy during lessons.') : doneToday(ctx, 'practice') ? T('Bugün yeterince çalıştın.', "You've practised enough today.") : undefined,
+      run: async () => {
+        markToday(ctx, 'practice');
+        const hits = await ctx.panel.rhythm(L(inst!.name), T('Ritmi yakala!', 'Catch the beat!'), 10, 0.42 + m.skill / 300);
+        ctx.advance(45);
+        m.skill = Math.min(100, m.skill + 2 + Math.round(hits / 2));
+        ctx.gain({ xp: 12 + hits, attrs: { creativity: 1 } });
+        ctx.toast(T(`${L(inst!.name)} seviyesi: ${m.skill}`, `${L(inst!.name)} level: ${m.skill}`), 'good');
+      },
+    });
+    if (!m.path) {
+      actions.push({
+        id: 'path', label: T('Yolunu seç: grup mu, solo mu?', 'Choose your path: band or solo?'), hint: T(`Seviye ${SHOW_SKILL}\'tan itibaren sahneye çıkarsın`, `From level ${SHOW_SKILL} you can go on stage`),
+        run: async () => {
+          const p = await ctx.panel.choose(T('Nasıl devam edeceksin?', 'How will you carry on?'), [
+            { id: 'band', label: T('🤘 Okulun rock grubuna katıl', "🤘 Join the school's rock band"), hint: T('Rock müzik yarışmalarına katılırsınız', 'You enter rock music competitions together') },
+            { id: 'solo', label: T('🎼 Solo devam et', '🎼 Carry on solo'), hint: T('Her yıl bir solo resital verirsin', 'You give a solo recital every year') },
+          ]);
+          if (p) { m.path = p as 'band' | 'solo'; ctx.toast(p === 'band' ? T('Gruba katıldın! Provalar perşembe akşamüstü.', 'You joined the band! Rehearsals on Thursday afternoons.') : T('Solo yolunu seçtin.', 'You chose the solo path.'), 'good'); }
+        },
+      });
+    } else {
+      const band = m.path === 'band';
+      actions.push({
+        id: 'show', label: band ? T('🏆 Rock müzik yarışmasına katıl', '🏆 Enter the rock music competition') : T('🎤 Solo resital ver', '🎤 Give a solo recital'),
+        hint: T(`Yılda bir · seviye ${SHOW_SKILL}+ · ilkbaharda`, `Once a year · level ${SHOW_SKILL}+ · in spring`),
+        locked: m.shows.includes(st.year) ? T('Bu yılki sahneni yaptın.', "You've had your stage moment this year.")
+          : m.skill < SHOW_SKILL ? T(`Önce seviye ${SHOW_SKILL}\'a ulaş (${m.skill}).`, `Reach level ${SHOW_SKILL} first (${m.skill}).`) : undefined,
+        run: async () => {
+          const hits = await ctx.panel.rhythm(band ? T('Final şarkısı', 'Final song') : T('Resital', 'Recital'), T('Sahnedesin, herkes seni izliyor!', "You're on stage, everyone is watching!"), 14, 0.5 + m.skill / 250);
+          m.shows.push(st.year);
+          ctx.advance(120);
+          const great = hits >= 11;
+          ctx.gain({ xp: great ? 200 : 80, mood: great ? 20 : 8, attrs: { creativity: great ? 4 : 2, social: band ? 2 : 0 } });
+          await ctx.panel.message(band ? T('Rock yarışması', 'Rock competition') : T('Solo resital', 'Solo recital'), great
+            ? (band ? T('Grubunuz birinci oldu! 🏆 Kupayı müzik odasının rafına koydunuz.', 'Your band won! 🏆 The trophy now sits on the music room shelf.') : T('Ayakta alkışlandın! 👏', 'A standing ovation! 👏'))
+            : T(`${hits}/14 nota. Biraz heyecanlandın ama sahneye çıkmak bile cesaretti.`, `${hits}/14 notes. A bit nervous, but getting on stage took courage.`));
+        },
+      });
+    }
+  }
+  return {
+    id: 'muzik', name: T('Müzik odası', 'Music room'),
+    note: T('Duvarda mandolinler, köşede bir davul seti. Leyla Hanım: "4. sınıfta herkes mandolinle başlar."', 'Mandolins on the wall, a drum kit in the corner. Ms. Leyla: "In the 4th grade everyone starts with the mandolin."'),
+    actions,
+  };
+}
+
+// ---------------- student council ----------------
+
+/** this year's race (a new school year starts a fresh one) */
+function councilNow(ctx: GameCtx): PlayerState['council'] {
+  const c = ctx.st.council;
+  if (c.year !== ctx.st.year) Object.assign(c, { year: ctx.st.year, stage: 'none', day: 0, support: 0 });
+  return c;
+}
+
+/** a school day `plus` days from now (elections don't happen at weekends) */
+function schoolDayAfter(day: number, plus: number): number {
+  let d = day + plus;
+  while (isWeekend(d)) d++;
+  return d;
+}
+
+const whenText = (ctx: GameCtx, day: number) => {
+  const n = day - ctx.clock.day;
+  return n <= 0 ? T('bugün', 'today') : n === 1 ? T('yarın', 'tomorrow') : T(`${n} gün sonra`, `in ${n} days`);
+};
+
+const RIVALS = ['Kerem', 'Ela', 'Bora', 'Nehir', 'Arda', 'Duru', 'Kaan', 'Lina', 'Efe', 'Mira', 'Tuna', 'Asya'];
+
+/** promise + speech, then the count. Returns true if you won. */
+async function runElection(ctx: GameCtx, level: 'class' | 'grade' | 'school'): Promise<boolean> {
+  const st = ctx.st;
+  const ch = ctx.ch;
+  const c = councilNow(ctx);
+  const promise = await ctx.panel.choose(T('Seçim vaadin ne?', "What's your campaign promise?"), [
+    { id: 'kantin', label: T('🥪 Kantinde daha ucuz tost', '🥪 Cheaper toasties at the canteen'), hint: T('Herkes sever', 'Everyone loves it') },
+    { id: 'spor', label: T('⚽ Teneffüste sahalar herkese açık', '⚽ Courts open to all at break'), hint: T('Kondisyonun yardım eder', 'Your Fitness helps') },
+    { id: 'muzik', label: T('🎸 Her cuma müzik saati', '🎸 Music hour every Friday'), hint: T('Yaratıcılığın yardım eder', 'Your Creativity helps') },
+    { id: 'ders', label: T('📚 Etütte ders yardımlaşma grupları', '📚 Study-buddy groups at evening study'), hint: T('Bilgin yardım eder', 'Your Knowledge helps') },
+  ]);
+  if (!promise) return false;
+  const a = ch.attributes;
+  const promiseBonus = { kantin: 8, spor: 4 + a.fitness / 8, muzik: 4 + a.creativity / 8, ders: 4 + a.knowledge / 8 }[promise as 'kantin'] ?? 4;
+  const hits = await ctx.panel.rhythm(T('Seçim konuşması', 'Election speech'), T('Kalabalığın alkış ritmini yakala!', "Catch the crowd's clapping rhythm!"), 8, 0.42);
+  const classmates = NPCS.filter((n) => n.kind === 'classmate');
+  const friendsInClass = classmates.filter((n) => (st.friends[n.id] ?? 0) >= FRIEND_AT).length;
+  const friendsAll = NPCS.filter((n) => (st.friends[n.id] ?? 0) >= FRIEND_AT).length;
+  const reach = level === 'class' ? friendsInClass * 5 : friendsAll * 3;
+  const mine = 35 + reach + a.social * 0.5 + ch.respect * (level === 'class' ? 0.08 : 0.15) - st.discipline * 0.6 + c.support + hits * 3 + promiseBonus + Math.random() * 12;
+  const [lo, hi, count, voters] = level === 'class' ? [45, 70, 2, 25] : level === 'grade' ? [55, 80, 4, 125] : [65, 90, 2, 640];
+  const g = grade(st.year);
+  const myLetter = st.school.classLabel.split('-')[1] ?? 'A';
+  const otherLetters = CLASS_LETTERS.filter((l) => l !== myLetter);
+  const names = [...RIVALS].sort(() => Math.random() - 0.5).slice(0, count);
+  const field = [
+    { name: `${ch.first} (${T('sen', 'you')})`, score: Math.max(5, mine), you: true },
+    ...names.map((n, i) => ({ name: level === 'grade' ? `${n} (${g}-${otherLetters[i % otherLetters.length]})` : level === 'school' ? `${n} (${g}. ${T('sınıf', 'grade')})` : n, score: lo + Math.random() * (hi - lo), you: false })),
+  ];
+  const total = field.reduce((s, f) => s + f.score * f.score, 0);
+  let left = voters;
+  const results = field.map((f, i) => {
+    const v = i === field.length - 1 ? left : Math.round((voters * f.score * f.score) / total);
+    left -= v;
+    return { ...f, votes: v };
+  }).sort((x, y) => y.votes - x.votes);
+  const won = results[0].you;
+  ctx.advance(60);
+  await ctx.panel.message(won ? T('Kazandın! 🎉', 'You won! 🎉') : T('Seçim sonuçları', 'Election results'),
+    results.map((r) => `${r.you ? '▶ ' : ''}${r.name}: ${r.votes} ${T('oy', 'votes')}`).join(' · ') + ` · ${T(`Konuşman: ${hits}/8`, `Your speech: ${hits}/8`)}`);
+  return won;
+}
+
+/** the notice board in the academic building corridor: run for class rep, campaign */
+function councilRoom(ctx: GameCtx): RoomView {
+  const st = ctx.st;
+  const c = councilNow(ctx);
+  const today = ctx.clock.day;
+  const g = grade(st.year);
+  const actions: ActionView[] = [];
+  const campaign = (target: string): ActionView => ({
+    id: 'campaign', label: T(`📣 Kampanya yap (destek: ${c.support})`, `📣 Campaign (support: ${c.support})`), hint: T(`30 dk · günde bir · ${target}`, `30 min · once a day · ${target}`),
+    locked: doneToday(ctx, 'campaign') ? T('Bugün yeterince kampanya yaptın.', "You've campaigned enough today.") : undefined,
+    run: async () => {
+      const how = await ctx.panel.choose(T('Nasıl kampanya yapacaksın?', 'How will you campaign?'), [
+        { id: 'poster', label: T('🖍️ Afiş çiz ve koridora as', '🖍️ Draw posters for the corridor'), hint: T('Yaratıcılık', 'Creativity') },
+        { id: 'talk', label: T('🗣️ Kantinde herkesle sohbet et', '🗣️ Chat with everyone at the canteen'), hint: T('Sosyallik', 'Social') },
+        { id: 'help', label: T('📚 Arkadaşlarına ödevde yardım et', '📚 Help friends with homework'), hint: T('Bilgi', 'Knowledge') },
+      ]);
+      if (!how) return;
+      markToday(ctx, 'campaign');
+      const a = ctx.ch.attributes;
+      const boost = 2 + Math.round((how === 'poster' ? a.creativity : how === 'talk' ? a.social : a.knowledge) / 10);
+      c.support += boost;
+      ctx.advance(30);
+      ctx.gain({ xp: 8, attrs: { social: 1 } });
+      ctx.toast(T(`Destek +${boost} (toplam ${c.support})`, `Support +${boost} (total ${c.support})`), 'good');
+    },
+  });
+  let note = '';
+  if (c.stage === 'none') {
+    note = T(`Öğrenci Meclisi seçimleri: önce sınıfının temsilcisi ol, sonra ${g}. sınıfların 5 temsilcisi arasından sınıf başkanı seçilir. Okul başkanı yalnızca 11. sınıftan çıkar.`,
+      `Student council elections: first become your class rep, then the 5 reps of grade ${g} elect a grade president. The school president is always an 11th grader.`);
+    actions.push({
+      id: 'run', label: T(`🗳️ ${st.school.classLabel} sınıf temsilciliğine aday ol`, `🗳️ Run for class rep of ${st.school.classLabel}`), hint: T('Seçim 2 okul günü sonra · yılda bir', 'Election in 2 school days · once a year'),
+      locked: !st.once.classDrawn ? T('Önce sınıf kurasını çek.', 'Draw your class first.') : undefined,
+      run: () => {
+        Object.assign(c, { stage: 'candidate', day: schoolDayAfter(today, 2), support: 0 });
+        ctx.gain({ xp: 10 });
+        ctx.toast(T(`Adaylığın panoya asıldı! Seçim ${whenText(ctx, c.day)}.`, `Your name is on the board! The vote is ${whenText(ctx, c.day)}.`), 'good');
+      },
+    });
+  } else if (c.stage === 'candidate') {
+    note = T(`Sınıf temsilciliği seçimi ${whenText(ctx, c.day)}. Arkadaşların, sosyalliğin, saygınlığın ve kampanyan oy getirir; disiplin cezaları oy kaybettirir.`,
+      `The class rep vote is ${whenText(ctx, c.day)}. Friends, Social, respect and your campaign win votes; discipline points lose them.`);
+    if (today < c.day) actions.push(campaign(T('seçim günü oy getirir', 'counts on election day')));
+    else actions.push({
+      id: 'vote', label: T('🗳️ Seçim günü: konuşmanı yap', '🗳️ Election day: give your speech'), hint: T('Vaat seç · konuşma ritmi · oylar sayılır', 'Pick a promise · speech rhythm · the count'),
+      run: async () => {
+        const won = await runElection(ctx, 'class');
+        if (won) {
+          Object.assign(c, { stage: 'rep', day: schoolDayAfter(ctx.clock.day, 5), support: 0 });
+          c.titles.push(`${st.school.classLabel} ${T('sınıf temsilcisi', 'class rep')}`);
+          ctx.ch.respect += 15; ctx.gain({ xp: 60, mood: 12, attrs: { social: 2 } });
+          ctx.toast(T(`Artık ${st.school.classLabel} sınıf temsilcisisin! Sınıf başkanlığı seçimi ${whenText(ctx, c.day)}, Konferans salonunda.`, `You're now class rep of ${st.school.classLabel}! The grade president vote is ${whenText(ctx, c.day)}, in the auditorium.`), 'good');
+        } else { c.stage = 'lost'; ctx.gain({ xp: 15, mood: -5 }); }
+      },
+    });
+  } else if (c.stage === 'rep') {
+    note = T(`Sınıf temsilcisisin. ${g}. sınıfların başkanlık seçimi ${whenText(ctx, c.day)}, Konferans salonunda (Yemekhane).`, `You're class rep. The grade ${g} president vote is ${whenText(ctx, c.day)}, in the auditorium (dining hall).`);
+    actions.push(campaign(T('başkanlık seçiminde oy getirir', 'counts in the president vote')));
+  } else if (c.stage === 'gradePresident') {
+    note = g === SCHOOL_PRESIDENT_GRADE
+      ? (c.day > 0 ? T(`${g}. sınıfların başkanısın. Okul başkanlığı seçimi ${whenText(ctx, c.day)}, Konferans salonunda.`, `You're grade ${g} president. The school president vote is ${whenText(ctx, c.day)}, in the auditorium.`) : T('Okul başkanlığı yarışı bitti.', 'The school president race is over.'))
+      : T(`${g}. sınıfların başkanısın! Okul başkanlığına yalnızca 11. sınıfta aday olabilirsin.`, `You're grade ${g} president! You can only run for school president in the 11th grade.`);
+    if (g === SCHOOL_PRESIDENT_GRADE && c.day > 0) actions.push(campaign(T('okul seçiminde oy getirir', 'counts in the school vote')));
+  } else if (c.stage === 'schoolPresident') note = T('Okul başkanısın! Bütün okul seni tanıyor. 👑', "You're the school president! The whole school knows you. 👑");
+  else note = T('Bu yılki seçim bitti. Seneye yeniden aday olabilirsin.', "This year's race is over. You can run again next year.");
+  return { id: 'meclis', name: T('Öğrenci Meclisi', 'Student council'), note, actions };
+}
+
+/** the grade and school votes happen in the auditorium */
+function councilHallActions(ctx: GameCtx): ActionView[] {
+  const st = ctx.st;
+  const c = councilNow(ctx);
+  const g = grade(st.year);
+  const today = ctx.clock.day;
+  const out: ActionView[] = [];
+  if (c.stage === 'rep') {
+    out.push({
+      id: 'gradevote', label: T(`🗳️ ${g}. sınıflar başkanlık seçimi`, `🗳️ Grade ${g} president election`), hint: T(`5 sınıf temsilcisi yarışıyor · ${whenText(ctx, c.day)}`, `5 class reps compete · ${whenText(ctx, c.day)}`),
+      locked: today < c.day ? T(`Seçim ${whenText(ctx, c.day)}.`, `The vote is ${whenText(ctx, c.day)}.`) : undefined,
+      run: async () => {
+        const won = await runElection(ctx, 'grade');
+        if (won) {
+          Object.assign(c, { stage: 'gradePresident', day: g === SCHOOL_PRESIDENT_GRADE ? schoolDayAfter(ctx.clock.day, 5) : 0, support: 0 });
+          c.titles.push(T(`${g}. sınıflar başkanı`, `Grade ${g} president`));
+          ctx.ch.respect += 30; ctx.gain({ xp: 120, mood: 15, attrs: { social: 3 } });
+        } else { c.stage = 'gradeLost'; ctx.gain({ xp: 20, mood: -5 }); }
+      },
+    });
+  }
+  if (c.stage === 'gradePresident' && g === SCHOOL_PRESIDENT_GRADE && c.day > 0) {
+    out.push({
+      id: 'schoolvote', label: T('👑 Okul başkanlığı seçimi', '👑 School president election'), hint: T(`Bütün okul oy veriyor · ${whenText(ctx, c.day)}`, `The whole school votes · ${whenText(ctx, c.day)}`),
+      locked: today < c.day ? T(`Seçim ${whenText(ctx, c.day)}.`, `The vote is ${whenText(ctx, c.day)}.`) : undefined,
+      run: async () => {
+        const won = await runElection(ctx, 'school');
+        c.day = 0;
+        if (won) {
+          c.stage = 'schoolPresident';
+          c.titles.push(T('Okul başkanı', 'School president'));
+          ctx.ch.respect += 60; ctx.gain({ xp: 250, mood: 20, attrs: { social: 4 } });
+        } else { c.stage = 'schoolLost'; ctx.gain({ xp: 30, mood: -5 }); }
+      },
+    });
+  }
+  return out;
+}
+
+// ---------------- Cemil Emmi (boys' dorm caretaker) ----------------
+
+export function cemilPanel(ctx: GameCtx): PanelView {
+  const st = ctx.st;
+  const c = st.cemil;
+  const actions: ActionView[] = [];
+  const tooOld = st.year > PEE_LAST_YEAR;
+  if (!tooOld && (c.pee === 'none' || (c.pee === 'rewarded' && c.peeYear < st.year))) {
+    actions.push({
+      id: 'pee', label: T('Görev: Çişini tut!', 'Task: hold your pee!'), hint: T('Gece sabaha kadar dayan · 4.–5. sınıf, yılda bir', 'Last the night until morning · grades 4–5, once a year'),
+      run: async () => {
+        c.pee = 'assigned'; c.peeYear = st.year; c.peeFails = 0;
+        await ctx.panel.message('Cemil Emmi', T(
+          '"Bak evlat, yatmadan önce o koca bardak suyu içtin, gördüm. Bu gece çişin gelecek ama yataktan kalkıp tuvalete gitmek yok, belletmen yakalar! Sabaha kadar tutacaksın. Başaramazsan ertesi gece yine deneyeceksin, ta ki tutana kadar. Sonra gel, anlat."',
+          '"Listen, kid. I saw you drink that big glass of water before bed. Tonight you\'ll need to pee, but no getting up, the belletmen will catch you! Hold it until morning. If you don\'t make it, you try again the next night, and the next, until you do. Then come and tell me."',
+        ));
+      },
+    });
+  }
+  if (c.pee === 'held') {
+    actions.push({
+      id: 'report', label: T('Gece tuttuğunu anlat', 'Tell him you held it'), hint: T('Ödül', 'Reward'),
+      run: async () => {
+        c.pee = 'rewarded';
+        ctx.gain({ xp: 30, mood: 10, money: 10 });
+        await ctx.panel.message('Cemil Emmi', T('"Aferin aslanım! Al bakalım, bu şekerler senin. Dedikodular da yakında unutulur. Yakında sana yeni bir görevim olacak."', '"Well done, champ! Here, these sweets are yours. The gossip will die down soon. I\'ll have a new task for you before long."'));
+      },
+    });
+  }
+  const notes: Record<string, string> = {
+    none: tooOld ? T('"Sen artık büyüdün evlat. Yeni görevler yakında."', '"You\'re a big kid now. New tasks soon."') : T('Yaşlı hademe Cemil Emmi, elinde süpürgesiyle seni süzüyor. "Gel bakalım, sana bir görevim var."', 'Old caretaker Cemil Emmi eyes you, broom in hand. "Come here, I have a task for you."'),
+    assigned: c.peeFails > 0
+      ? T(`"Olmadı ha? (${c.peeFails} gece) Üzülme evlat, bu gece yine dene. Ama çabuk ol, koğuşta laf yayılıyor…"`, `"Didn't make it, eh? (${c.peeFails} nights) Chin up, try again tonight. But hurry, the dorm is starting to talk…"`)
+      : T('"Bu gece çişini tutacaksın, unutma! Yatağa erken gir."', '"Tonight you hold your pee, remember! Get to bed early."'),
+    held: T('"Ooo, yüzünden belli, başardın galiba!"', '"Oho, I can see it on your face, you did it!"'),
+    rewarded: T('"Yeni görevler yolda. Şimdilik dersine çalış."', '"New tasks are on the way. Study for now."'),
+  };
+  return {
+    title: 'Cemil Emmi', sub: T('Erkek Yurdu · hademe', "Boys' dorm · caretaker"), status: status(ctx),
+    rooms: [{ id: 'cemil', name: 'Cemil Emmi', note: notes[c.pee], actions }],
+  };
+}
+
+// ---------------- pick-up games on the outdoor courts ----------------
+
+const COURT_NAME: Record<CourtSport, Text> = { basketball: { tr: 'Basketbol sahası', en: 'Basketball court' }, football: { tr: 'Futbol sahası', en: 'Football pitch' } };
+
+export function courtPanel(ctx: GameCtx, sport: CourtSport): PanelView {
+  const st = ctx.st;
+  const phase = phaseOf(ctx.clock.minutes);
+  const need = COURT_PLAYERS[sport];
+  return {
+    title: L(COURT_NAME[sport]), sub: T(`Becerin: ${st.skills[sport]}/100`, `Your skill: ${st.skills[sport]}/100`), status: status(ctx),
+    rooms: [{
+      id: 'court', name: L(COURT_NAME[sport]),
+      note: sport === 'basketball' ? T(`2'ye 2 maç için senin dışında ${need} kişi lazım.`, `For a 2-on-2 game you need ${need} more players.`) : T(`3'e 3 maç için senin dışında ${need} kişi lazım.`, `For a 3-on-3 game you need ${need} more players.`),
+      actions: [{
+        id: 'call', label: T('📣 Arkadaşlarını çağır', '📣 Call your friends over'), hint: T('Yakındaki arkadaşların gelir, sen bekle', 'Friends who are around will come; wait for them here'),
+        locked: phase !== 'day' ? T('Akşam sahalar kapalı.', 'The courts are closed in the evening.')
+          : currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson' && reached('derse_gir', ctx.mc()) ? T('Ders saatinde maç olmaz!', 'No games during lessons!')
+            : st.energy < 25 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
+        run: () => {
+          const why = ctx.callFriends(sport);
+          if (why) { ctx.toast(why); return; }
+          ctx.panel.close();
+        },
+      }],
+    }],
+  };
+}
+
+/** the match itself, once enough friends have arrived */
+export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]) {
+  const st = ctx.st;
+  const skill = st.skills[sport];
+  const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800;
+  const rounds = 5;
+  const hits = await ctx.panel.timing(sport === 'basketball' ? T('Şut at!', 'Shoot!') : T('Gole vur!', 'Shoot at goal!'), rounds, zone, 1.3);
+  const theirs = Math.floor(Math.random() * 4) + 1;
+  const ours = hits + (Math.random() < 0.5 ? 1 : 0);
+  const won = ours > theirs;
+  ctx.advance(45);
+  st.skills[sport] = Math.min(100, skill + 2 + hits);
+  ctx.gain({ xp: 20 + hits * 6 + (won ? 25 : 0), mood: won ? 12 : 5, energy: -18, hunger: -10, attrs: { fitness: 1 + (won ? 1 : 0), social: 1 } });
+  for (const m of mates) ctx.befriend(m.id, won ? 4 : 2);
+  const names = mates.map((m) => m.name).join(', ');
+  await ctx.panel.message(won ? T('Kazandınız! 🎉', 'You won! 🎉') : T('Maç bitti', 'Full time'), T(
+    `Skor ${ours}–${theirs}. Oynayanlar: ${names}. ${L(COURT_NAME[sport])} becerin ${st.skills[sport]} oldu.`,
+    `Score ${ours}–${theirs}. Played with: ${names}. Your ${L(COURT_NAME[sport]).toLowerCase()} skill is now ${st.skills[sport]}.`,
+  ));
+}
+
 /** returns the interior menu for a location, or null when the door stays shut */
 export function buildingPanel(locId: string, ctx: GameCtx): PanelView | null {
   const weekendClosed = isWeekend(ctx.clock.day);
@@ -1161,6 +1719,7 @@ export function buildingPanel(locId: string, ctx: GameCtx): PanelView | null {
     case 'cemiyet': return weekendClosed ? null : cemiyet(ctx);
     case 'muze': return weekendClosed ? null : muze(ctx);
     case 'egitim': return egitim(ctx);
+    case 'kutuphane': return kutuphane(ctx);
     case 'yemekhane': return yemekhane(ctx);
     case 'revir': return revir(ctx);
     case 'spor': return spor(ctx);

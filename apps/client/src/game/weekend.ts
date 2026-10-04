@@ -25,3 +25,11 @@ export function awayForWeekend(day: number, minutes: number): boolean {
   const wd = weekday(day);
   return (wd === 4 && minutes >= BUS_LEAVES) || wd === 5 || (wd === 6 && minutes < BACK_ON_SUNDAY);
 }
+
+/** Wednesday afternoon is "çarşı izni": families visit at the canteen, and from the 6th grade you may go into town */
+export const isWednesday = (day: number) => weekday(day) === 2;
+export const CARSI_START = 15 * 60 + 30;
+export const CARSI_END = 18 * 60;
+/** going out into town is allowed from the 6th grade (school year 3) */
+export const CARSI_OUT_FROM_YEAR = 3;
+export const carsiNow = (day: number, minutes: number) => isWednesday(day) && minutes >= CARSI_START && minutes < CARSI_END;

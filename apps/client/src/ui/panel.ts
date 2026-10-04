@@ -193,6 +193,128 @@ export class Panel {
   }
 
   /** pick one option; resolves to its id, or null when cancelled */
+  /**
+   * "Hold it!" (Çiş Barajı): the bladder fills up on its own. A squeeze marker swings across the bar;
+   * press when it's in the green to clench and push the level back down. Miss and it jumps up.
+   * Survive until the timer runs out. Returns true if you made it.
+   */
+  holdOn(title: string, prompt: string, seconds = 14): Promise<boolean> {
+    const stage = this.stage();
+    return new Promise<boolean>((resolve) => {
+      stage.innerHTML = `
+        <div class="stage-card hold-game">
+          <div class="stage-top"><b>${esc(title)}</b><span class="hold-time"></span></div>
+          <p class="stage-help">${esc(prompt)}</p>
+          <div class="bladder"><div class="bladder-fill"></div><div class="bladder-line"></div></div>
+          <div class="meter squeeze"><div class="zone"></div><div class="marker"></div></div>
+          <div class="feedback"></div>
+        </div>`;
+      const fill = stage.querySelector('.bladder-fill') as HTMLElement;
+      const zoneEl = stage.querySelector('.squeeze .zone') as HTMLElement;
+      const marker = stage.querySelector('.squeeze .marker') as HTMLElement;
+      const timeEl = stage.querySelector('.hold-time') as HTMLElement;
+      const fb = stage.querySelector('.feedback') as HTMLElement;
+      let level = 35, pos = 0, dir = 1, zone = 0.3 + Math.random() * 0.4, last = performance.now(), left = seconds * 1000, raf = 0, over = false;
+      const width = 0.2;
+      zoneEl.style.left = `${(zone - width / 2) * 100}%`; zoneEl.style.width = `${width * 100}%`;
+      const end = (ok: boolean) => {
+        if (over) return;
+        over = true;
+        cancelAnimationFrame(raf);
+        this.listenKeys(null);
+        fb.textContent = ok ? L({ tr: 'Sabah oldu… tuttun! 💪', en: 'Morning… you held it! 💪' }) : L({ tr: 'Eyvah… çarşaf ıslandı. 😳', en: 'Oh no… the sheets are wet. 😳' });
+        fb.className = `feedback ${ok ? 'good' : 'bad'}`;
+        (ok ? sfx.success : sfx.warn)();
+        setTimeout(() => { stage.remove(); this.listenKeys((e) => { if (e.key === 'Escape' && !this.busy) this.close(); }); resolve(ok); }, 1400);
+      };
+      const loop = (now: number) => {
+        const dt = (now - last) / 1000; last = now;
+        left -= dt * 1000;
+        const urgency = 1 + (1 - left / (seconds * 1000)) * 1.4;   // it gets worse towards morning
+        level += dt * 9 * urgency;
+        pos += dir * dt * (0.9 + 0.5 * urgency);
+        if (pos > 1) { pos = 1; dir = -1; } if (pos < 0) { pos = 0; dir = 1; }
+        marker.style.left = `${pos * 100}%`;
+        fill.style.height = `${Math.min(100, level)}%`;
+        fill.classList.toggle('danger', level > 75);
+        timeEl.textContent = `⏰ ${Math.max(0, Math.ceil(left / 1000))}s`;
+        if (level >= 100) return end(false);
+        if (left <= 0) return end(true);
+        raf = requestAnimationFrame(loop);
+      };
+      const press = () => {
+        if (over) return;
+        if (Math.abs(pos - zone) <= width / 2) {
+          level = Math.max(0, level - 24);
+          fb.textContent = L({ tr: 'Sıkı tut!', en: 'Hold tight!' }); fb.className = 'feedback good';
+          zone = 0.15 + Math.random() * 0.7;
+          zoneEl.style.left = `${(zone - width / 2) * 100}%`;
+        } else {
+          level += 9;
+          fb.textContent = L({ tr: 'Kaçırdın!', en: 'Missed!' }); fb.className = 'feedback bad';
+        }
+      };
+      stage.querySelector('.stage-card')!.addEventListener('click', press);
+      this.listenKeys((e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); press(); } });
+      raf = requestAnimationFrame(loop);
+    });
+  }
+
+  /**
+   * Rhythm lane: notes slide towards the line; press SPACE (or click) as each one crosses it.
+   * `speed` is lane-widths per second. Returns the number of notes hit.
+   */
+  rhythm(title: string, prompt: string, notes = 8, speed = 0.45): Promise<number> {
+    const stage = this.stage();
+    return new Promise<number>((resolve) => {
+      stage.innerHTML = `
+        <div class="stage-card">
+          <div class="stage-top"><b>${esc(title)}</b><span class="rhythm-score">0/${notes}</span></div>
+          <p class="stage-help">${esc(prompt)}</p>
+          <div class="rhythm-lane"><div class="rhythm-line"></div></div>
+          <div class="feedback"></div>
+        </div>`;
+      const lane = stage.querySelector('.rhythm-lane') as HTMLElement;
+      const score = stage.querySelector('.rhythm-score') as HTMLElement;
+      const fb = stage.querySelector('.feedback') as HTMLElement;
+      const LINE = 0.15, WINDOW = 0.06;
+      // notes start off to the right, spaced like a simple melody
+      let x = 1.1;
+      const list = Array.from({ length: notes }, () => {
+        const n = { x, el: document.createElement('div'), state: 'live' as 'live' | 'hit' | 'miss' };
+        n.el.className = 'rhythm-note'; n.el.textContent = '♪';
+        lane.appendChild(n.el);
+        x += 0.22 + Math.floor(Math.random() * 3) * 0.12;
+        return n;
+      });
+      let hits = 0, last = performance.now(), raf = 0, over = false;
+      const finish = () => {
+        if (over) return;
+        over = true; cancelAnimationFrame(raf); this.listenKeys(null);
+        fb.textContent = `${hits}/${notes}`; fb.className = `feedback ${hits >= notes * 0.6 ? 'good' : 'bad'}`;
+        setTimeout(() => { stage.remove(); this.listenKeys((e) => { if (e.key === 'Escape' && !this.busy) this.close(); }); resolve(hits); }, 1000);
+      };
+      const loop = (now: number) => {
+        const dt = (now - last) / 1000; last = now;
+        for (const n of list) {
+          n.x -= speed * dt;
+          n.el.style.left = `${n.x * 100}%`;
+          if (n.state === 'live' && n.x < LINE - WINDOW) { n.state = 'miss'; n.el.classList.add('miss'); }
+        }
+        if (list[list.length - 1].x < 0) return finish();
+        raf = requestAnimationFrame(loop);
+      };
+      const press = () => {
+        if (over) return;
+        const n = list.find((k) => k.state === 'live' && Math.abs(k.x - LINE) <= WINDOW);
+        if (n) { n.state = 'hit'; n.el.classList.add('hit'); hits++; score.textContent = `${hits}/${notes}`; sfx.click(); }
+      };
+      stage.querySelector('.stage-card')!.addEventListener('click', press);
+      this.listenKeys((e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); press(); } });
+      raf = requestAnimationFrame(loop);
+    });
+  }
+
   choose(title: string, options: Array<{ id: string; label: string; hint?: string }>): Promise<string | null> {
     const stage = this.stage();
     return new Promise((resolve) => {

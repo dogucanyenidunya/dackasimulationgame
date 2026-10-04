@@ -65,7 +65,42 @@ export interface PlayerState {
   escapes: number;
   /** optional name you gave your friend group */
   groupName?: string;
+  /** pick-up games on the outdoor courts, 0–100 */
+  skills: Record<CourtSport, number>;
+  /** music room: the 4th-grade mandolin course unlocks an instrument; then a band or solo path */
+  music: {
+    mandolin: number;
+    mandolinDone: boolean;
+    instrument: InstrumentId | null;
+    skill: number;
+    path: 'band' | 'solo' | null;
+    /** school years you played at the rock competition / gave a solo recital */
+    shows: number[];
+  };
+  /** units left on your phone card (the dorm payphone) */
+  phoneUnits: number;
+  /** Cemil Emmi's tasks (boys' dorm caretaker) */
+  cemil: { pee: 'none' | 'assigned' | 'held' | 'rewarded'; peeYear: number; peeFails: number; wetDay: number };
+  /** İstiklal Marşı: written out and memorised stanza by stanza during evening study, then recited */
+  anthem: { stanzas: number; recited: boolean };
+  /** student council: class rep → grade president → (11th grade only) school president */
+  council: { year: number; stage: CouncilStage; day: number; support: number; titles: string[] };
 }
+
+export type CouncilStage = 'none' | 'candidate' | 'rep' | 'lost' | 'gradePresident' | 'gradeLost' | 'schoolPresident' | 'schoolLost';
+export const ANTHEM_STANZAS = 10;
+/** the school president is always an 11th grader */
+export const SCHOOL_PRESIDENT_GRADE = 11;
+export const CLASS_LETTERS = ['A', 'B', 'C', 'D', 'E'];
+
+export type CourtSport = 'basketball' | 'football';
+export type InstrumentId = 'gitar' | 'bas' | 'davul' | 'klavye' | 'keman' | 'flut';
+/** players you need besides yourself for a pick-up game */
+export const COURT_PLAYERS: Record<CourtSport, number> = { basketball: 3, football: 5 };
+/** the mandolin course is 6 lessons, in the 4th grade only */
+export const MANDOLIN_LESSONS = 6;
+/** Cemil Emmi's "hold your pee" challenge is for 4th and 5th graders */
+export const PEE_LAST_YEAR = 2;
 
 export function defaultState(): PlayerState {
   return {
@@ -80,6 +115,12 @@ export function defaultState(): PlayerState {
     health: 90, sick: false, everSick: false, friends: {},
     favor: { giver: null, stage: 'none' }, examPassed: false, missionsDone: [], announced: [], yearDone: false,
     year: 1, discipline: 0, lastPenaltyDay: 0, escaped: false, escapes: 0,
+    skills: { basketball: 0, football: 0 },
+    music: { mandolin: 0, mandolinDone: false, instrument: null, skill: 0, path: null, shows: [] },
+    phoneUnits: 0,
+    cemil: { pee: 'none', peeYear: 0, peeFails: 0, wetDay: -1 },
+    anthem: { stanzas: 0, recited: false },
+    council: { year: 0, stage: 'none', day: 0, support: 0, titles: [] },
   };
 }
 
@@ -92,6 +133,11 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     school: { ...d.school, ...s.school, scores: { ...d.school.scores, ...s.school?.scores } },
     reading: { ...d.reading, ...s.reading },
     favor: { ...d.favor, ...s.favor },
+    skills: { ...d.skills, ...s.skills },
+    music: { ...d.music, ...s.music },
+    cemil: { ...d.cemil, ...s.cemil },
+    anthem: { ...d.anthem, ...s.anthem },
+    council: { ...d.council, ...s.council },
   };
   // older saves stored homework as plain subject ids
   merged.school.homework = (merged.school.homework as unknown[]).map((h) => (typeof h === 'string' ? { s: h as SubjectId, day: 1 } : h as { s: SubjectId; day: number }));
@@ -99,7 +145,18 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
   for (const m of ['breakfast', 'lunch', 'dinner'] as const) {
     if (merged.daily[`meal-${m}`] !== undefined && !merged.meals.includes(m)) merged.meals.push(m);
   }
+  // a failed night used to end the task; now you keep trying until you hold it
+  if ((merged.cemil.pee as string) === 'wet') { merged.cemil.pee = 'assigned'; merged.cemil.peeFails = Math.max(1, merged.cemil.peeFails); }
   return merged;
+}
+
+/** your student council title this year, if any */
+export function councilTitle(st: PlayerState): Text | null {
+  if (st.council.year !== st.year) return null;
+  if (st.council.stage === 'schoolPresident') return { tr: 'Okul Başkanı', en: 'School President' };
+  if (st.council.stage === 'gradePresident') return { tr: 'Sınıf Başkanı', en: 'Grade President' };
+  if (st.council.stage === 'rep') return { tr: 'Sınıf Temsilcisi', en: 'Class Rep' };
+  return null;
 }
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, v));

@@ -59,3 +59,8 @@ export function buildRoom(): number[][] {
   void T;
   return m;
 }
+
+/** the payphone on the back wall (room tile x; you use it from the floor below) */
+export const PHONE_SPOT: [number, number] = [5, 1];
+/** Cemil Emmi's spot inside the boys' dorm (room tiles) */
+export const CEMIL_IN: [number, number] = [13.5, 12.2];

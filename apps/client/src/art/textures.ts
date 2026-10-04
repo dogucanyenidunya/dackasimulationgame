@@ -129,9 +129,9 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
     c.fillStyle = '#6b7176'; c.fillRect(o, 7, 32, 1);
   },
   [T.GATE]: (c, o) => {
+    // the open gateway in the west wall (its brick pillars are drawn as separate sprites)
     TILE_PAINTERS[T.PATH](c, o);
-    c.fillStyle = '#8a2d2d'; c.fillRect(o, 0, 4, 32); c.fillRect(o + 28, 0, 4, 32);
-    c.fillStyle = '#a94040'; c.fillRect(o, 0, 4, 3); c.fillRect(o + 28, 0, 4, 3);
+    c.fillStyle = 'rgba(138,45,45,0.35)'; c.fillRect(o + 13, 0, 6, 32);
   },
   // ----- interior tiles (dorm study room / sleeping room) -----
   17: (c, o) => { // wooden floor
@@ -324,6 +324,36 @@ export function generateTextures(scene: Phaser.Scene) {
     const blob = (x: number, y: number, rad: number, col: string) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill(); };
     blob(24, 30, 19, '#2a6036'); blob(24, 27, 19, '#2f6b3b'); blob(16, 24, 13, '#3d7f47'); blob(32, 22, 12, '#3d7f47');
     blob(24, 15, 13, '#4a9152'); blob(18, 13, 6, '#67ad62'); blob(29, 10, 4, '#7cc070');
+  });
+  // Atatürk bust (40x64): marble pedestal with a gold plaque, bronze head and shoulders
+  canvas('bust', 40, 64, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(21, 60, 18, 4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#b9b2a3'; c.fillRect(2, 52, 36, 8); c.fillStyle = '#cfc8b9'; c.fillRect(2, 52, 36, 2);
+    c.fillStyle = '#e4dfd3'; c.fillRect(7, 30, 26, 22); c.fillStyle = '#c9c2b3'; c.fillRect(28, 30, 5, 22);
+    c.fillStyle = '#f2eee6'; c.fillRect(6, 28, 28, 3);
+    c.fillStyle = '#b08d3c'; c.fillRect(12, 38, 14, 7); c.fillStyle = '#d8b65a'; c.fillRect(13, 39, 12, 1);
+    c.fillStyle = '#5b4a36'; c.beginPath(); c.moveTo(7, 28); c.lineTo(33, 28); c.lineTo(30, 19); c.lineTo(10, 19); c.closePath(); c.fill();
+    c.fillStyle = '#7a6247'; c.fillRect(11, 20, 7, 2);
+    c.fillStyle = '#4e3f2e'; c.fillRect(17, 15, 6, 5);
+    c.fillStyle = '#6e5a42'; c.beginPath(); c.ellipse(20, 10, 6.5, 8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#8a7255'; c.fillRect(16, 5, 3, 6);
+    c.fillStyle = '#4e3f2e'; c.fillRect(14, 2, 12, 3);
+  });
+  // the coin/card payphone on the dorm wall (16x24)
+  canvas('payphone', 16, 24, (c) => {
+    c.fillStyle = '#d9822b'; c.fillRect(1, 0, 14, 22); c.fillStyle = '#b5651d'; c.fillRect(12, 0, 3, 22);
+    c.fillStyle = '#2d3238'; c.fillRect(3, 3, 6, 3); c.fillRect(3, 8, 8, 8);
+    c.fillStyle = '#9aa1a6'; for (let y = 9; y < 15; y += 2) for (let x = 4; x < 10; x += 2) c.fillRect(x, y, 1, 1);
+    c.fillStyle = '#1f1f22'; c.fillRect(10, 2, 3, 12); c.fillRect(11, 14, 1, 8);
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(2, 22, 13, 2);
+  });
+  // brick pillar of the main gate (32x48)
+  canvas('gatepost', 32, 48, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 42, 28, 5);
+    c.fillStyle = '#8a2d2d'; c.fillRect(4, 10, 24, 34);
+    c.fillStyle = '#6f2222'; for (let y = 14; y < 44; y += 6) c.fillRect(4, y, 24, 1);
+    c.fillStyle = '#a94040'; c.fillRect(2, 4, 28, 7); c.fillStyle = '#c45a5a'; c.fillRect(2, 4, 28, 2);
+    c.fillStyle = '#f2c14e'; c.fillRect(13, 0, 6, 5);
   });
   canvas('bench', 32, 18, (c) => {
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(2, 15, 28, 3);

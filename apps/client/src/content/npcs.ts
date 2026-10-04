@@ -24,21 +24,21 @@ export interface NpcDef {
 }
 
 const HANDMADE: Array<Omit<NpcDef, 'gender'>> = [
-  { id: 'zeynep', name: 'Zeynep', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f1c9a5', hair: '#1f1612', hairStyle: 2, skirt: true }, home: [30, 12], roam: 3,
+  { id: 'zeynep', name: 'Zeynep', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f1c9a5', hair: '#1f1612', hairStyle: 2, skirt: true }, home: [36, 12], roam: 3,
     lines: [{ tr: 'Denize bayılırım. Keşke bir teknede yaşasam!', en: "I love the sea. I'd live on a boat if I could!" }, { tr: 'Matematik ödevini yaptın mı? Ben bölmede takıldım.', en: 'Did you do the math homework? I got stuck on division.' }] },
-  { id: 'mert', name: 'Mert', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#c68e63', hair: '#2b1d14', hairStyle: 1, skirt: false }, home: [43, 14], roam: 3,
+  { id: 'mert', name: 'Mert', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#c68e63', hair: '#2b1d14', hairStyle: 1, skirt: false }, home: [60, 13], roam: 3,
     lines: [{ tr: 'Teneffüste kortta maç var, gelsene!', en: "There's a game on the court at break, come!" }, { tr: 'Yemekhanede bugün mercimek çorbası var bence.', en: "I bet it's lentil soup in the dining hall today." }] },
-  { id: 'defne', name: 'Defne', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#e8b98f', hair: '#7a4a24', hairStyle: 3, skirt: true, glasses: true }, home: [30, 26], roam: 3,
+  { id: 'defne', name: 'Defne', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#e8b98f', hair: '#7a4a24', hairStyle: 3, skirt: true, glasses: true }, home: [44, 24], roam: 3,
     lines: [{ tr: 'Kütüphanede gizli bir raf varmış, duydun mu?', en: 'Have you heard there\'s a secret shelf in the library?' }, { tr: 'Resim yapmayı seviyorum. Sen ne seversin?', en: 'I love drawing. What do you like?' }] },
-  { id: 'emre', name: 'Emre', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#a8714a', hair: '#120c09', hairStyle: 0, skirt: false }, home: [43, 30], roam: 3,
+  { id: 'emre', name: 'Emre', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#a8714a', hair: '#120c09', hairStyle: 0, skirt: false }, home: [60, 33], roam: 3,
     lines: [{ tr: 'İlk gece hiç uyuyamadım. Sen?', en: "I couldn't sleep at all the first night. You?" }, { tr: 'Eskrim çok havalı görünüyor!', en: 'Fencing looks so cool!' }] },
-  { id: 'ayse', name: 'Ayşe', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f3d2b3', hair: '#c79a4a', hairStyle: 2, skirt: true }, home: [52, 36], roam: 2,
+  { id: 'ayse', name: 'Ayşe', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f3d2b3', hair: '#c79a4a', hairStyle: 2, skirt: true }, home: [38, 33], roam: 2,
     lines: [{ tr: 'Tenis kortunda kimse yokken top sektirmeyi seviyorum.', en: 'I like bouncing a ball on the tennis court when nobody is around.' }, { tr: 'Annem her pazar ziyarete gelecek.', en: 'My mum will visit every Sunday.' }] },
-  { id: 'can', name: 'Can', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#d9a77d', hair: '#3b2a20', hairStyle: 0, skirt: false }, home: [14, 18], roam: 2,
+  { id: 'can', name: 'Can', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#d9a77d', hair: '#3b2a20', hairStyle: 0, skirt: false }, home: [20, 18], roam: 2,
     lines: [{ tr: 'Müzede eski bir okul zili var, gördün mü?', en: "There's an old school bell in the museum, have you seen it?" }, { tr: 'Hüseyin Usta çok iyi biri ama atölyeye kimseyi almıyor.', en: "Hüseyin Usta is really nice, but he doesn't let anyone into the workshop." }] },
   { id: 'burak', name: 'Burak Abi', kind: 'abi', role: { tr: '11. sınıf · abi', en: 'Grade 11 · an older student' }, look: { skin: '#d9a77d', hair: '#2b1d14', hairStyle: 0, skirt: false, top: '#3f4a55', bottom: '#2d3238' }, home: [46, 9], roam: 1,
     lines: [{ tr: 'Hoş geldin ufaklık! Bir şeye ihtiyacın olursa söyle.', en: 'Welcome, little one! Tell me if you need anything.' }] },
-  { id: 'ece', name: 'Ece Abla', kind: 'abi', role: { tr: '10. sınıf · abla', en: 'Grade 10 · an older student' }, look: { skin: '#f1c9a5', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#3f4a55', bottom: '#2d3238' }, home: [28, 9], roam: 1,
+  { id: 'ece', name: 'Ece Abla', kind: 'abi', role: { tr: '10. sınıf · abla', en: 'Grade 10 · an older student' }, look: { skin: '#f1c9a5', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#3f4a55', bottom: '#2d3238' }, home: [31, 9], roam: 1,
     lines: [{ tr: 'İlk yılım aklıma geldi… Zamanla burası evin olacak.', en: 'Reminds me of my first year… this place becomes home, you\'ll see.' }] },
 ];
 
@@ -126,11 +126,11 @@ export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];
 
 /** night teachers: on duty from 18:00 to 07:00 */
 export const BELLETMENS: NpcDef[] = [
-  { id: 'bel-hatice', name: 'Hatice Hanım', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [25, 9], roam: 0,
+  { id: 'bel-hatice', name: 'Hatice Hanım', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [29, 9], roam: 0,
     lines: [{ tr: 'Etüt saatinde herkes yurtta! Ödevler bitmeden oyun yok.', en: 'Everyone in the dorm at study time! No games until homework is done.' }, { tr: 'Saat 22:00\'de ışıklar sönüyor, unutma.', en: 'Lights out at 22:00, remember.' }] },
-  { id: 'bel-mehmet', name: 'Mehmet Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [48, 9], roam: 0,
+  { id: 'bel-mehmet', name: 'Mehmet Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [66, 9], roam: 0,
     lines: [{ tr: 'Meydandan ayrılmak yok. Sizi buradan görebiliyorum!', en: 'Nobody leaves the plaza. I can see you all from here!' }, { tr: 'Yarın sabah erken kalkacaksınız, haydi bakalım.', en: 'Early start tomorrow, off you go.' }] },
-  { id: 'bel-selim', name: 'Selim Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [37, 12], roam: 5,
+  { id: 'bel-selim', name: 'Selim Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [48, 13], roam: 5,
     lines: [{ tr: 'Gece nöbetindeyim. Fenerim her yeri görür!', en: "I'm on night patrol. My torch sees everything!" }] },
 ];
 

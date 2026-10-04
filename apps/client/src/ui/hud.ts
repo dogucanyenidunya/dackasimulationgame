@@ -170,6 +170,14 @@ export class Hud {
   onProfile: () => void = () => {};
   onMissions: () => void = () => {};
   onChatSend: (text: string) => void = () => {};
+  onViewToggle: () => void = () => {};
+
+  /** the 2D/3D button shows the view you'd switch to */
+  setViewMode(mode: '2d' | '3d') {
+    const b = this.root.querySelector('.view-btn') as HTMLButtonElement;
+    b.textContent = mode === '3d' ? '2D' : '3D β';
+    b.title = mode === '3d' ? L({ tr: '2D görünüme geç', en: 'Switch to the 2D view' }) : L({ tr: '3D görünüme geç (deneme)', en: 'Switch to the 3D view (preview)' });
+  }
   chatOpen = false;
 
   /** shows the chat box (online only) */
@@ -226,6 +234,7 @@ export class Hud {
           <button class="profile-btn" type="button"></button>
           <button class="lang-btn" type="button"></button>
           <button class="mute-btn" type="button"></button>
+          <button class="view-btn" type="button"></button>
           <button class="reset-btn" type="button">↺</button>
         </div>
       </div>
@@ -236,6 +245,7 @@ export class Hud {
       <div class="hud-countdown hidden"></div>
       <div class="hud-toasts"></div>
       <div class="hud-prompt hidden"></div>
+      <div class="hud-banner hidden"><span></span><button type="button" class="secondary"></button></div>
       <div class="chat hidden">
         <div class="chat-log"></div>
         <form class="chat-form hidden"><input type="text" maxlength="140" id="chat-input" autocomplete="off"><button type="submit" class="primary">↵</button></form>
@@ -304,6 +314,7 @@ export class Hud {
     const setMute = () => { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; };
     mute.addEventListener('click', () => { sfx.toggle(); setMute(); });
     setMute();
+    q('.view-btn').addEventListener('click', () => this.onViewToggle());
     q('.tracker').addEventListener('click', () => this.onMissions());
     q('.reset-btn').addEventListener('click', async () => { if (await askConfirm(t('reset_confirm'), t('menu_reset'), L({ tr: 'Vazgeç', en: 'Cancel' }))) this.onReset(); });
     onLangChange(() => this.refreshStatic());
@@ -394,6 +405,18 @@ export class Hud {
 
   setDiscovery(found: number, total: number) {
     this.discovery.innerHTML = `${t('discovered')}: <b>${found}/${total}</b><div class="bar"><span style="width:${(found / total) * 100}%"></span></div>`;
+  }
+
+  /** a status strip at the top (sleeping, waiting for friends…), with an optional button */
+  setBanner(text: string | null, button?: { label: string; onClick: () => void }) {
+    const el = this.root.querySelector('.hud-banner') as HTMLElement;
+    el.classList.toggle('hidden', !text);
+    if (!text) return;
+    const span = el.querySelector('span')!;
+    if (span.textContent !== text) span.textContent = text;
+    const b = el.querySelector('button') as HTMLButtonElement;
+    b.classList.toggle('hidden', !button);
+    if (button) { b.textContent = button.label; b.onclick = button.onClick; }
   }
 
   setCountdown(text: string | null, urgent = false) {

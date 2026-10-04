@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  BENCHES, COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  BENCHES, BUST, CEMIL_OUT, COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorStandTile, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -10,18 +10,19 @@ import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
 import { makeBuildingArt, type BuildingArt } from '../art/buildings3d';
+import { World3D, type Host3D } from '../three/World3D';
 import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { saveToCloud } from '../net/cloudSave';
 import type { NetUser } from '../main';
 import { Panel } from '../ui/panel';
-import { bedPanel, buildingPanel, deskPanel, exitPanel, lockerPanel, matePanel, npcPanel, tvPanel, type GameCtx, type Gain } from '../game/buildings';
+import { bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, exitPanel, lockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
-  BELLETMEN_ROUTE, DESKS, EXIT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
+  BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
-import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, awayForWeekend, isFriday, npcIsEvci, weekday } from '../game/weekend';
-import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, buildDining } from '../content/dining';
+import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, awayForWeekend, carsiNow, isFriday, isWednesday, npcIsEvci, weekday } from '../game/weekend';
+import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
 import { BELLETMENS, GROUPS, NPCS, ageGroup, type NpcDef } from '../content/npcs';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
@@ -31,8 +32,8 @@ import {
 } from '../game/missions';
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
-import { SUBJECTS, average, season, SEASON_NAME, FRIEND_AT, behaviorGrade } from '../game/state';
-import { PERIODS, currentPeriod, isWeekend, periodLabel, subjectFor } from '../game/schedule';
+import { SUBJECTS, average, season, SEASON_NAME, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, type CourtSport } from '../game/state';
+import { PERIODS, currentPeriod, fmtTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp } from '../game/state';
 import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
@@ -91,6 +92,20 @@ export class CampusScene extends Phaser.Scene {
   private lastCurfewToast = 0;
   private groupId: string | null = null;
   private sleeping = false;
+  private layoutReset = false;
+  /** the HD-2D view (null = classic 2D) */
+  private view3d: World3D | null = null;
+  private lastTint: [number, number, number] = [255, 255, 255];
+  /** the dorm payphone, Cemil Emmi (in the boys' dorm and at its door by day), your Wednesday visitor */
+  private payphone!: Phaser.GameObjects.Image;
+  private cemilIn!: Phaser.GameObjects.Sprite;
+  private cemilOut!: Phaser.Physics.Arcade.Sprite;
+  private visitor!: Phaser.GameObjects.Sprite;
+  /** a pick-up game: friends on their way to the court */
+  private match: { sport: CourtSport; mates: Phaser.Physics.Arcade.Sprite[]; until: number; ready: boolean } | null = null;
+  /** sleeping: the night fast-forwards in about a minute; night challenges can interrupt it */
+  private sleepRun: { msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }> } | null = null;
+  private zzz: Phaser.GameObjects.Text[] = [];
   /** online play (null = offline) */
   private net: NetUser | null = null;
   private mp: Multiplayer | null = null;
@@ -117,6 +132,13 @@ export class CampusScene extends Phaser.Scene {
 
   init(data: { save: SaveData; net?: NetUser | null }) {
     this.save = data.save;
+    // buildings moved since this save: keep the progress, reset the fog and walk in from the gate
+    this.layoutReset = this.save.layout !== LAYOUT;
+    if (this.layoutReset) {
+      this.save.fog = '';
+      if (!this.save.player.inside) Object.assign(this.save.player, { x: SPAWN.x, y: SPAWN.y, dir: 2 });
+      this.save.layout = LAYOUT;
+    }
     this.net = data.net ?? null;
     this.seen = new Set(this.save.seen);
     this.discovered = new Set(this.save.discovered);
@@ -163,6 +185,19 @@ export class CampusScene extends Phaser.Scene {
     flag.setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave');
     flag.body!.setSize(6, 6).setOffset(5, 86);
     this.lightSpots.push({ x: FOUNTAIN[0] * TILE, y: FOUNTAIN[1] * TILE, r: 2.5 });
+    // the main gate's brick pillars, either side of the gateway in the west wall
+    for (const gy of [GATE.y - 0.5, GATE.y + GATE.h + 0.5]) {
+      const post = trees.create(GATE.x * TILE + 16, gy * TILE - 8, 'gatepost') as Phaser.Physics.Arcade.Sprite;
+      post.setDepth(gy * TILE + 16);
+      post.body!.setSize(24, 12).setOffset(4, 34);
+    }
+    // Cemil Emmi sweeps in front of the boys' dorm by day
+    this.cemilOut = trees.create(CEMIL_OUT[0] * TILE, CEMIL_OUT[1] * TILE, 'player', 0) as Phaser.Physics.Arcade.Sprite;
+    // the Atatürk bust in the very centre of the campus
+    const bust = trees.create(BUST[0] * TILE, BUST[1] * TILE - 8, 'bust') as Phaser.Physics.Arcade.Sprite;
+    bust.setDepth(BUST[1] * TILE + 28);
+    bust.body!.setSize(30, 12).setOffset(5, 50);
+    this.lightSpots.push({ x: BUST[0] * TILE, y: BUST[1] * TILE + 6, r: 2.2 });
     // bushes along the building fronts, door lights
     for (const b of BUILDINGS) {
       const yb = b.rect.y + b.rect.h;
@@ -206,6 +241,11 @@ export class CampusScene extends Phaser.Scene {
     this.revealed = decodeFog(this.save.fog);
     for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
       if (!this.revealed[y * MAP_W + x]) this.fogLayer.putTileAt(FOG_FULL, x, y);
+    }
+    // the campus was rebuilt: places you already know stay uncovered at their new spots
+    if (this.layoutReset) for (const id of this.save.discovered) {
+      const loc = LOCATIONS.find((l) => l.id === id);
+      if (loc) this.revealArea(loc.revealRect ?? loc.rect);
     }
     this.softenFogEdges(0, 0, MAP_W - 1, MAP_H - 1);
 
@@ -257,6 +297,8 @@ export class CampusScene extends Phaser.Scene {
     void ATTRS; void CAUSES;
     this.hud.onMissions = () => { if (!this.blocked()) this.showMissions(); };
     this.hud.onRelationships = () => { if (!this.blocked()) this.showRelationships(); };
+    this.hud.onViewToggle = () => this.setView(this.view3d ? '2d' : '3d');
+    this.events.once('shutdown', () => { this.view3d?.dispose(); this.view3d = null; });
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
     this.groupId = myGroup(this.save.state);
@@ -274,6 +316,8 @@ export class CampusScene extends Phaser.Scene {
     this.updateTracker();
     this.updateMaps();
     if (this.net) void this.goOnline();
+    // 2D is the default; the 3D view is an opt-in preview
+    this.setView((() => { try { return localStorage.getItem('dacka.view') === '3d' ? '3d' : '2d'; } catch { return '2d'; } })());
   }
 
   // ---------- online: other real players ----------
@@ -386,6 +430,15 @@ export class CampusScene extends Phaser.Scene {
       this.physics.add.collider(this.player, sp);
       this.roomMates.push(sp);
     });
+    // the payphone on the back wall
+    this.payphone = this.add.image((ROOM_OX + PHONE_SPOT[0] + 0.5) * TILE, 2.05 * TILE, 'payphone').setOrigin(0.5, 1).setDepth(2 * TILE + 2);
+    tag(PHONE_SPOT[0], 1.2, L({ tr: 'Telefon', en: 'Phone' }));
+    // Cemil Emmi, the old caretaker of the boys' dorm
+    makeCharacterTexture(this, 'cemil', { ...DEFAULT_LOOK, skin: '#d9a77d', hair: '#c9c9c9', hairStyle: 1, skirt: false, top: '#6b5a44', bottom: '#3a3a3a', glasses: true });
+    this.cemilOut.setTexture('cemil', 0).setScale(1.12).setDepth(CEMIL_OUT[1] * TILE + 16);
+    this.cemilOut.refreshBody();
+    (this.cemilOut.body as Phaser.Physics.Arcade.StaticBody).setSize(16, 10).setOffset(10, 24);
+    this.cemilIn = this.add.sprite((ROOM_OX + CEMIL_IN[0]) * TILE, CEMIL_IN[1] * TILE, 'cemil', 1).setScale(1.12).setDepth(CEMIL_IN[1] * TILE + 16).setVisible(false);
     const belDef = BELLETMENS.find((b) => b.id === (this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet'))!;
     this.roomBelletmen = this.physics.add.sprite((ROOM_OX + BELLETMEN_ROUTE[0][0]) * TILE, BELLETMEN_ROUTE[0][1] * TILE, `npc-${belDef.id}`, 0);
     this.roomBelletmen.setData('def', belDef).setData('leg', 0);
@@ -432,6 +485,12 @@ export class CampusScene extends Phaser.Scene {
     makeCharacterTexture(this, 'cook', { ...DEFAULT_LOOK, ...cookLook });
     for (const [x, y] of COOKS) this.cooks.push(this.add.sprite((DINING_OX + x + 0.5) * TILE, y * TILE, 'cook', 0).setDepth(y * TILE + 16));
     this.trayImg = this.add.image(0, 0, 'tray').setVisible(false);
+    // Wednesday afternoons: your family waits by the canteen
+    const g = this.save.character.guardian;
+    const granny = g.startsWith('grandma'), oldMan = g === 'grandpa';
+    const female = granny || g === 'mother' || g.startsWith('aunt');
+    makeCharacterTexture(this, 'visitor', { ...DEFAULT_LOOK, skin: this.save.character.look.skin, hair: granny || oldMan ? '#cfcfcf' : '#3b2a20', hairStyle: female ? 2 : 1, skirt: female, top: female ? '#8a4f6b' : '#4f5f7a', bottom: '#3a3a3a' });
+    this.visitor = this.add.sprite((DINING_OX + VISITOR_SPOT[0]) * TILE, VISITOR_SPOT[1] * TILE, 'visitor', 2).setScale(1.15).setDepth(VISITOR_SPOT[1] * TILE + 16).setVisible(false);
   }
 
   /** seats the diners for the current meal (or empties the hall) */
@@ -712,17 +771,173 @@ export class CampusScene extends Phaser.Scene {
     return { x: s.x + 0.5, y: s.y + 0.5 };
   }
 
+  /** little z's float up from everyone asleep in the room */
+  private updateZzz(on: boolean, time: number) {
+    const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.angle !== 0), ...(this.sleepRun ? [this.player] : [])] : [];
+    while (this.zzz.length < sleepers.length) {
+      this.zzz.push(this.add.text(0, 0, 'z', { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#dfe8ff', stroke: '#1d2326', strokeThickness: 3 }).setOrigin(0.5).setDepth(95_500));
+    }
+    this.zzz.forEach((z, i) => {
+      const s = sleepers[i];
+      if (!s) { z.setVisible(false); return; }
+      const t = ((time / 1600) + i * 0.37) % 1;
+      z.setVisible(true).setText(t < 0.33 ? 'z' : t < 0.66 ? 'zz' : 'zZz').setAlpha(1 - t * 0.8).setPosition(s.x + 6 + t * 8, s.y - 14 - t * 16);
+    });
+  }
+
+  /** word of wet sheets gets around: the more nights you failed, the likelier someone mocks you (and the more respect it costs) */
+  private peeGossip() {
+    const st = this.save.state;
+    const c = st.cemil;
+    if (c.peeFails <= 0 || c.pee === 'held' || c.pee === 'rewarded') return;
+    const freshNight = c.wetDay === this.save.clock.day;
+    const chance = Math.min(0.92, 0.15 + 0.18 * c.peeFails + (freshNight ? 0.2 : 0));
+    if (Math.random() > chance) return;
+    const me = this.save.character;
+    const pool = NPCS.filter((n) => (n.kind === 'classmate' || n.kind === 'student') && n.gender === me.gender);
+    const mocker = pool[Math.floor(Math.random() * pool.length)];
+    if (!mocker) return;
+    const loss = 3 + c.peeFails * 2;
+    me.respect = Math.max(0, me.respect - loss);
+    this.changeMood(-6);
+    this.befriend(mocker.id, -3);
+    const lines = [
+      { tr: `${mocker.name} kahvaltıda herkesin önünde "Çişli ${me.first}!" diye bağırdı. 😖 −${loss} saygınlık`, en: `${mocker.name} shouted "Wet-bed ${me.first}!" in front of everyone at breakfast. 😖 −${loss} respect` },
+      { tr: `${mocker.name} yatağının önüne "dikkat, ıslak zemin" yazısı koymuş. 😖 −${loss} saygınlık`, en: `${mocker.name} put a "caution: wet floor" sign by your bed. 😖 −${loss} respect` },
+      { tr: `Koridorda ${mocker.name} ve arkadaşları seni görünce kıkırdadı. 😖 −${loss} saygınlık`, en: `${mocker.name} and friends giggled when you walked down the corridor. 😖 −${loss} respect` },
+    ];
+    this.hud.toast(L(lines[Math.floor(Math.random() * lines.length)]));
+  }
+
+  /** where the special characters stand right now */
+  private updateCharacters() {
+    const c = this.save.clock;
+    const m = c.minutes;
+    const boy = this.save.character.gender === 'boy';
+    this.cemilIn.setVisible(this.room === 'dorm' && boy && m >= 7 * 60 && m < LIGHTS_OUT);
+    const outDay = m >= 8 * 60 && m < 18 * 60;
+    this.cemilOut.setVisible(outDay);
+    (this.cemilOut.body as Phaser.Physics.Arcade.StaticBody).enable = outDay;
+    if (outDay) this.cemilOut.setFrame(Math.floor(this.time.now / 900) % 2 ? 1 : 2);
+    const st = this.save.state;
+    this.visitor.setVisible(this.room === 'dining' && carsiNow(c.day, m) && st.daily.wedvisit !== c.day);
+  }
+
+  /** E-interactions outdoors that aren't doors or students: Cemil Emmi, the courts */
+  private outdoorSpot(): { label: string; open: () => void } | null {
+    if (this.room) return null;
+    const ctx = () => this.gameCtx();
+    if (this.cemilOut.visible && Phaser.Math.Distance.Between(this.cemilOut.x, this.cemilOut.y, this.player.x, this.player.y) < 1.6 * TILE) {
+      return { label: 'Cemil Emmi', open: () => { const g = ctx(); this.panel.open(() => cemilPanel(g)); } };
+    }
+    if (this.match) return null;
+    const px = this.player.x / TILE, py = this.player.y / TILE;
+    for (const sport of ['basketball', 'football'] as const) {
+      const r = COURTS[sport];
+      if (px >= r.x - 0.5 && px <= r.x + r.w + 0.5 && py >= r.y - 0.5 && py <= r.y + r.h + 0.5) {
+        return { label: L(sport === 'basketball' ? { tr: 'Basketbol sahası', en: 'Basketball court' } : { tr: 'Futbol sahası', en: 'Football pitch' }), open: () => { const g = ctx(); this.panel.open(() => courtPanel(g, sport)); } };
+      }
+    }
+    return null;
+  }
+
+  /** ask friends who are around to come and play; they walk over while you wait */
+  private callFriends(sport: CourtSport): string | null {
+    if (this.match) return L({ tr: 'Zaten arkadaşlarını bekliyorsun.', en: "You're already waiting for your friends." });
+    const need = COURT_PLAYERS[sport];
+    const st = this.save.state;
+    const court = COURTS[sport];
+    const cx = court.x + court.w / 2, cy = court.y + court.h / 2;
+    const pals = this.npcs.filter((n) => {
+      const def = n.getData('def') as NpcDef;
+      return n.visible && n.body!.enable && def.kind !== 'belletmen' && (st.friends[def.id] ?? 0) >= FRIEND_AT / 2;
+    }).sort((a, b) => (st.friends[(b.getData('def') as NpcDef).id] ?? 0) - (st.friends[(a.getData('def') as NpcDef).id] ?? 0)).slice(0, need);
+    if (pals.length < need) {
+      return L({ tr: `Çağıracak kadar yakın arkadaşın yok (${pals.length}/${need}). Önce biraz daha arkadaş edin!`, en: `Not enough good friends around to call (${pals.length}/${need}). Make some more friends first!` });
+    }
+    pals.forEach((n, i) => {
+      const a = (i / need) * Math.PI * 2;
+      n.setData('summon', [cx + Math.cos(a) * (court.w / 2 - 1.2), cy + Math.sin(a) * (court.h / 2 - 1)]);
+      n.setData('arriveAt', this.time.now + 3000 + Math.random() * 9000);
+    });
+    this.match = { sport, mates: pals, until: this.time.now + 75_000, ready: false };
+    const names = pals.map((n) => (n.getData('def') as NpcDef).name).join(', ');
+    this.hud.toast(L({ tr: `📣 ${names}: "Geliyoruz!"`, en: `📣 ${names}: "On our way!"` }), 'good');
+    return null;
+  }
+
+  private updateMatch(time: number) {
+    const m = this.match;
+    if (!m) return;
+    if (m.ready) { if (!this.panel.isOpen) this.endMatch(); return; }
+    const court = COURTS[m.sport];
+    const cx = (court.x + court.w / 2) * TILE, cy = (court.y + court.h / 2) * TILE;
+    if (this.room || Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) > 12 * TILE) {
+      this.endMatch(); this.hud.toast(L({ tr: 'Sahadan ayrıldın; arkadaşların dağıldı.', en: 'You left the court; your friends wandered off.' })); return;
+    }
+    let arrived = 0;
+    for (const n of m.mates) {
+      const [tx, ty] = n.getData('summon') as [number, number];
+      const d = Phaser.Math.Distance.Between(n.x, n.y, tx * TILE, ty * TILE);
+      // friends who are far away (or stuck behind a building) come round along the path
+      if (d > 7 * TILE && time > (n.getData('arriveAt') as number)) n.setPosition((tx + (Math.random() - 0.5) * 4) * TILE, (court.y - 1.2) * TILE);
+      if (d < 1.2 * TILE) arrived++;
+    }
+    const need = m.mates.length;
+    const left = Math.max(0, Math.ceil((m.until - time) / 1000));
+    this.hud.setBanner(L({ tr: `${m.sport === 'basketball' ? '🏀' : '⚽'} Arkadaşların geliyor: ${arrived}/${need} · ${left}s`, en: `${m.sport === 'basketball' ? '🏀' : '⚽'} Friends on their way: ${arrived}/${need} · ${left}s` }),
+      { label: L({ tr: 'Vazgeç', en: 'Cancel' }), onClick: () => this.endMatch() });
+    if (arrived >= need) {
+      m.ready = true;
+      this.hud.setBanner(null);
+      const ctx = this.gameCtx();
+      const defs = m.mates.map((n) => n.getData('def') as NpcDef);
+      this.player.setVelocity(0, 0);
+      this.panel.open(() => ({
+        title: L({ tr: 'Herkes geldi!', en: "Everyone's here!" }), sub: defs.map((d) => d.name).join(' · '),
+        rooms: [{ id: 'match', name: L({ tr: 'Maç', en: 'Match' }), note: L({ tr: 'Takımlar kuruldu. Hazır mısın?', en: 'Teams are picked. Ready?' }),
+          actions: [{ id: 'play', label: L({ tr: '▶️ Maça başla', en: '▶️ Kick off' }), hint: L({ tr: '45 dk · −18 enerji · beceri ve Kondisyon', en: '45 min · −18 energy · skill and Fitness' }),
+            run: async () => { await playMatch(ctx, m.sport, defs); this.endMatch(); this.panel.close(); } }] }],
+      }));
+    } else if (time > m.until) {
+      this.endMatch();
+      this.hud.toast(L({ tr: 'Herkes gelemedi; maç başka sefere.', en: "Not everyone made it; the game's off for now." }));
+    }
+  }
+
+  private endMatch() {
+    if (!this.match) return;
+    for (const n of this.match.mates) { n.setData('summon', undefined); n.setData('arriveAt', undefined); }
+    this.match = null;
+    this.hud.setBanner(null);
+  }
+
   private updateRoom(time: number) {
     const phase = phaseOf(this.save.clock.minutes);
     const study = phase === 'etut';
     const awayNow = awayForWeekend(this.save.clock.day, this.save.clock.minutes);
-    for (const sp of this.roomMates) {
-      const here = study && !(awayNow && npcIsEvci(sp.getData('def') as NpcDef));
+    const night = phase === 'night' || this.sleepRun !== null;
+    const beds = BEDS.filter(([x, y]) => !(x === MY_BED[0] && y === MY_BED[1]));
+    let bed = 0;
+    this.roomMates.forEach((sp, i) => {
+      const home = !(awayNow && npcIsEvci(sp.getData('def') as NpcDef));
+      if (!sp.getData('desk')) sp.setData('desk', [sp.x, sp.y]);
+      if (night && home && bed < beds.length) {
+        // asleep in the bunks next to yours
+        const [bx, by] = beds[bed++];
+        sp.setPosition((ROOM_OX + bx + 0.5) * TILE, (by + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((by + 1) * TILE + 4);
+        sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
+        return;
+      }
+      const [dx, dy] = sp.getData('desk') as [number, number];
+      if (sp.angle !== 0) sp.setAngle(0).setPosition(dx, dy).setDepth(dy + 16);
+      const here = study && home;
       sp.setVisible(here);
       sp.body!.enable = here;
       // heads down, writing: a tiny bob now and then
       sp.setFrame(9 + (study && Math.floor(time / 700 + sp.x) % 5 === 0 ? 1 : 0));
-    }
+    });
+    this.updateZzz(night && this.room === 'dorm', time);
     const bel = this.roomBelletmen;
     const onDuty = phase !== 'day';
     bel.setVisible(onDuty);
@@ -757,6 +972,8 @@ export class CampusScene extends Phaser.Scene {
         return { id: 'mate', label: L({ tr: `${def.name} ile…`, en: `${def.name}…` }), npc: def };
       }
     }
+    if (this.cemilIn.visible && Phaser.Math.Distance.Between(this.cemilIn.x, this.cemilIn.y, this.player.x, this.player.y) < 1.6 * TILE) return { id: 'cemil', label: 'Cemil Emmi' };
+    if (near(PHONE_SPOT[0], 2.2, 1.2)) return { id: 'phone', label: L({ tr: 'Telefon', en: 'Phone' }) };
     if (near(MY_DESK[0], MY_DESK[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Masana otur', en: 'Sit at your desk' }) };
     if (near(MY_BED[0], MY_BED[1], 1.6)) return { id: 'bed', label: L({ tr: 'Yatağın', en: 'Your bed' }) };
     if (near(MY_LOCKER[0], MY_LOCKER[1] - 0.6, 1.5)) return { id: 'locker', label: L({ tr: 'Dolabın', en: 'Your locker' }) };
@@ -778,25 +995,35 @@ export class CampusScene extends Phaser.Scene {
       case 'locker': this.panel.open(() => lockerPanel(ctx)); break;
       case 'tv': this.panel.open(() => tvPanel(ctx)); break;
       case 'exit': this.panel.open(() => exitPanel(ctx)); break;
+      case 'phone': this.panel.open(() => phonePanel(ctx)); break;
+      case 'cemil': this.panel.open(() => cemilPanel(ctx)); break;
     }
   }
 
   private drawCourtLines() {
     const g = this.add.graphics().setDepth(1);
     g.lineStyle(2, 0xf2f2ea, 0.9);
-    for (const r of [COURTS.basketball, COURTS.tennis]) {
-      const x = r.x * TILE + 8, y = r.y * TILE + 8, w = r.w * TILE - 16, h = r.h * TILE - 16;
+    const bk = COURTS.basketball;
+    {
+      const x = bk.x * TILE + 8, y = bk.y * TILE + 8, w = bk.w * TILE - 16, h = bk.h * TILE - 16;
       g.strokeRect(x, y, w, h);
       g.lineBetween(x + w / 2, y, x + w / 2, y + h);
+      g.strokeCircle((bk.x + bk.w / 2) * TILE, (bk.y + bk.h / 2) * TILE, 28);
     }
-    const b = COURTS.basketball;
-    g.strokeCircle((b.x + b.w / 2) * TILE, (b.y + b.h / 2) * TILE, 40);
-    const tn = COURTS.tennis;
-    g.lineBetween(tn.x * TILE + 8, (tn.y + 2) * TILE, (tn.x + tn.w) * TILE - 8, (tn.y + 2) * TILE);
-    g.lineBetween(tn.x * TILE + 8, (tn.y + tn.h - 2) * TILE, (tn.x + tn.w) * TILE - 8, (tn.y + tn.h - 2) * TILE);
+    // football pitch: touchlines, halfway line, centre circle, penalty boxes and goals
+    const fb = COURTS.football;
+    const x = fb.x * TILE + 6, y = fb.y * TILE + 6, w = fb.w * TILE - 12, h = fb.h * TILE - 12;
+    g.lineStyle(2, 0xffffff, 0.85);
+    g.strokeRect(x, y, w, h);
+    g.lineBetween(x + w / 2, y, x + w / 2, y + h);
+    g.strokeCircle(x + w / 2, y + h / 2, 30);
+    g.strokeRect(x, y + h / 2 - 48, 64, 96);
+    g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96);
     g.lineStyle(3, 0xffffff, 1);
-    g.lineBetween((tn.x + tn.w / 2) * TILE, tn.y * TILE + 4, (tn.x + tn.w / 2) * TILE, (tn.y + tn.h) * TILE - 4);
+    g.strokeRect(x - 10, y + h / 2 - 24, 10, 48);
+    g.strokeRect(x + w, y + h / 2 - 24, 10, 48);
   }
+
 
   private createAnims() {
     const names = ['down', 'left', 'right', 'up'] as const;
@@ -885,9 +1112,11 @@ export class CampusScene extends Phaser.Scene {
   private npcPlan(def: NpcDef, phase: DayPhase, lessonNow: boolean, npc: Phaser.Physics.Arcade.Sprite): { home: [number, number]; roam: number } | null {
     if (def.kind === 'belletmen') {
       if (phase === 'day') return null;
-      if (def.id === 'bel-selim') return phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [37, 12], roam: 5 };
+      if (def.id === 'bel-selim') return phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [48, 13], roam: 5 };
       return { home: npc.getData('dayHome'), roam: 1 };
     }
+    const summon = npc.getData('summon') as [number, number] | undefined;
+    if (summon) return { home: summon, roam: 0 };
     if (npcIsEvci(def) && awayForWeekend(this.save.clock.day, this.save.clock.minutes)) return null; // home for the weekend
     if (phase === 'etut' || phase === 'night') return null;
     if (phase === 'plaza') return { home: npc.getData('plazaHome'), roam: 3 };
@@ -989,6 +1218,37 @@ export class CampusScene extends Phaser.Scene {
     this.panel?.refresh();
   }
 
+  // ---------- 2D / 3D view ----------
+
+  private host3d(): Host3D {
+    return {
+      scene: this,
+      map: this.map,
+      room: () => this.room,
+      player: () => this.player,
+      fogAt: (x, y) => { const t = this.fogLayer.getTileAt(x, y); return !t ? 0 : t.index === FOG_FULL ? 2 : 1; },
+      light: () => ({ tint: this.lastTint, dark: this.darkAlpha, weather: this.particleSeason || 'none' }),
+      lightSpots: () => this.lightSpots,
+      zoom: () => this.cameras.main.zoom,
+    };
+  }
+
+  private setView(mode: '2d' | '3d') {
+    if (mode === '3d' && !this.view3d) {
+      try { this.view3d = new World3D(this.host3d(), document.getElementById('game')!); }
+      catch (e) {
+        console.warn('3D view unavailable', e);
+        this.hud.toast(L({ tr: '3D görünüm bu cihazda açılamadı; 2D devam ediyor.', en: "The 3D view couldn't start on this device; staying in 2D." }));
+        mode = '2d';
+      }
+    }
+    if (mode === '2d' && this.view3d) { this.view3d.dispose(); this.view3d = null; }
+    try { localStorage.setItem('dacka.view', mode); } catch { /* private mode */ }
+    document.body.classList.toggle('view-3d-on', mode === '3d');
+    this.cameras.main.setVisible(mode === '2d');
+    this.hud.setViewMode(mode);
+  }
+
   /** 2.5D buildings: a ground shadow, the painted building (sorted by its front edge, so you can walk
    *  behind it) and its windows, which light up at night */
   private drawBuildings() {
@@ -1060,6 +1320,7 @@ export class CampusScene extends Phaser.Scene {
       tint = this.skyTint(this.save.clock.minutes);
       if (this.isRaining()) tint = tint.map((v) => Math.round(v * 0.82)) as [number, number, number];
     }
+    this.lastTint = tint;
     const lum = (tint[0] + tint[1] + tint[2]) / 765;
     const a = 1 - lum;
     this.darkAlpha = a;
@@ -1245,7 +1506,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private updatePrompt(force = false) {
-    if (this.panel?.isOpen) { this.hud.setPrompt(null); this.nearDoor = null; return; }
+    if (this.panel?.isOpen || this.sleepRun) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
     const peer = this.peers.size ? this.nearPeer() : null;
     if (peer) { this.nearDoor = null; this.hud.setPrompt(L({ tr: `E — ${peer.profile.name} (oyuncu)`, en: `E — ${peer.profile.name} (player)` })); return; }
     if (this.room === 'dining') {
@@ -1278,6 +1539,8 @@ export class CampusScene extends Phaser.Scene {
       this.hud.setPrompt(L({ tr: `E — ${npc.name} ile konuş`, en: `E — talk to ${npc.name}` }));
       return;
     }
+    const spot = this.outdoorSpot();
+    if (spot) { this.nearDoor = null; this.hud.setPrompt(`E — ${spot.label}`); return; }
     if (this.nearGate()) { this.nearDoor = null; this.hud.setPrompt(L({ tr: 'E — Ana Kapı', en: 'E — Main gate' })); return; }
     const near = this.findNearDoor();
     if (!force && near === this.nearDoor) return;
@@ -1288,7 +1551,7 @@ export class CampusScene extends Phaser.Scene {
 
   private nearGate(): boolean {
     if (this.room) return false;
-    return Math.hypot(this.player.x / TILE - (GATE.x + GATE.w / 2), this.player.y / TILE - (GATE.y - 0.5)) < 2;
+    return Math.hypot(this.player.x / TILE - (GATE.x + GATE.w + 0.5), this.player.y / TILE - (GATE.y + GATE.h / 2)) < 2;
   }
 
   /** evci: the weekend at home; you're back at the gate on Sunday at 17:40 */
@@ -1320,7 +1583,7 @@ export class CampusScene extends Phaser.Scene {
     });
   }
 
-  private blocked() { return this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen; }
+  private blocked() { return this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null; }
 
   private findNearNpc(): NpcDef | null {
     let best: NpcDef | null = null, bestD = 1.7 * TILE;
@@ -1356,6 +1619,8 @@ export class CampusScene extends Phaser.Scene {
       this.panel.open(() => npcPanel(npc, ctx));
       return;
     }
+    const spot = this.outdoorSpot();
+    if (spot) { this.player.setVelocity(0, 0); spot.open(); return; }
     if (this.nearGate()) { this.player.setVelocity(0, 0); const gctx = this.gameCtx(); this.panel.open(() => gatePanel(gctx)); return; }
     const loc = this.findNearDoor();
     if (!loc) return;
@@ -1407,6 +1672,7 @@ export class CampusScene extends Phaser.Scene {
       escape: () => this.startEscape(),
       leaveDorm: () => this.leaveDorm(),
       goHome: (summary) => this.goHome(summary),
+      callFriends: (sport) => this.callFriends(sport),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
   }
@@ -1781,15 +2047,20 @@ export class CampusScene extends Phaser.Scene {
     if (c.minutes >= 24 * 60) { c.minutes = 0; c.day += 1; }
     if (before < LIGHTS_OUT && c.minutes >= LIGHTS_OUT) this.hud.toast(t('lights_out'));
     if (before < 7 * 60 && c.minutes >= 7 * 60) this.onMorning();
+    if (before < CARSI_START && c.minutes >= CARSI_START && isWednesday(c.day)) {
+      const guardian = L(GUARDIANS.find((g) => g.id === this.save.character.guardian)!.your);
+      this.hud.toast(L({ tr: `📅 Çarşı izni! ${guardian} kantinde seni bekliyor (Yemekhane).`, en: `📅 Wednesday visit! ${guardian} is waiting for you at the canteen (dining hall).` }), 'good');
+    }
     // the school bell rings at the start of every lesson
     if (PERIODS.some((p) => p.kind === 'lesson' && p.start === c.minutes) && !isWeekend(c.day) && reached('derse_gir', this.mc()) && this.time.now - this.lastBell > 2000) {
       this.lastBell = this.time.now;
       sfx.bell();
     }
 
-    const awakeLate = c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP;
-    st.hunger = clamp(st.hunger - 0.1);
-    st.energy = clamp(st.energy - (awakeLate ? 0.06 : 0.035));
+    const asleep = this.sleepRun !== null;
+    const awakeLate = !asleep && (c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP);
+    st.hunger = clamp(st.hunger - (asleep ? 0.03 : 0.1));
+    st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035)));
     // health (GDD §6.2.1)
     const winter = season(c.day) === 'winter';
     let dh = 0;
@@ -1820,6 +2091,7 @@ export class CampusScene extends Phaser.Scene {
     const c = this.save.clock;
     const st = this.save.state;
     this.hud.toast(t('morning'), 'good');
+    this.peeGossip();
     if (this.isRaining()) this.hud.toast(L(season(c.day) === 'winter' ? { tr: '🌨 Bugün kar fırtınası var. Montunu unutma!', en: '🌨 A snowstorm today. Don\'t forget your coat!' } : { tr: '🌧 Bugün yağmurlu. Montun yanında olsun!', en: '🌧 It\'s rainy today. Keep your coat handy!' }));
     if (this.room !== 'dorm' && !st.escaped && st.once.luggage && st.missionsDone.includes('kayit')) {
       this.penalize(10, L({ tr: 'Sabah yoklamasında yatağında değildin!', en: "You weren't in bed at the morning roll call!" }));
@@ -1867,25 +2139,103 @@ export class CampusScene extends Phaser.Scene {
     this.refreshClockAndNeeds();
   }
 
+  /** into bed: the night fast-forwards in about a minute (your roommates are asleep around you) */
   private sleep() {
+    if (this.sleepRun) return;
     const c = this.save.clock;
-    const st = this.save.state;
     const toMorning = c.minutes >= 7 * 60 ? 24 * 60 - c.minutes + 7 * 60 : 7 * 60 - c.minutes;
     this.sleeping = true;
-    this.cameras.main.fadeOut(400, 8, 14, 24);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.sleeping = false;
-      if (c.minutes >= 7 * 60) c.day += 1;
-      c.minutes = 7 * 60;
-      st.hunger = clamp(st.hunger - toMorning * 0.03);
-      st.health = clamp(st.health + (st.energy < 15 ? -8 : 6));
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    this.player.setFrame(0);
+    this.player.body!.enable = false;
+    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 0.45) * TILE).setAngle(-90);
+    this.sleepRun = { msPerMin: Math.min(150, 60_000 / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
+    this.hud.toast(L({ tr: '😴 İyi geceler…', en: '😴 Good night…' }));
+  }
+
+  /** things that can happen while you sleep (more night challenges can be added here) */
+  private nightEvents(toMorning: number): Array<{ at: number; done: boolean; run: () => Promise<void> }> {
+    const st = this.save.state;
+    const out: Array<{ at: number; done: boolean; run: () => Promise<void> }> = [];
+    const c = this.save.clock;
+    // the minute of the night (from now) when it happens
+    const after = (hhmm: number) => { const m = (hhmm - c.minutes + 24 * 60) % (24 * 60); return m > 0 && m < toMorning ? m : -1; };
+    if (this.room === 'dorm' && st.cemil.pee === 'assigned' && st.year <= PEE_LAST_YEAR) {
+      const at = after(3 * 60 + Math.floor(Math.random() * 40));
+      if (at > 0) out.push({ at, done: false, run: () => this.peeChallenge() });
+    }
+    return out;
+  }
+
+  private async peeChallenge() {
+    const st = this.save.state;
+    const ctx = this.gameCtx();
+    let ok = false;
+    await new Promise<void>((resolve) => {
+      this.panel.open(() => ({
+        title: L({ tr: 'Gece yarısı…', en: 'Middle of the night…' }), sub: L({ tr: 'Cemil Emmi\'nin görevi', en: "Cemil Emmi's task" }),
+        rooms: [{ id: 'night', name: L({ tr: 'Yatağın', en: 'Your bed' }),
+          note: L({ tr: 'Gözlerini açtın. O koca bardak su… çişin geldi! Kalkarsan belletmen yakalar. Sabaha kadar tutmalısın.', en: 'Your eyes snap open. That big glass of water… you need to pee! Get up and the belletmen will catch you. Hold it until morning.' }),
+          actions: [{ id: 'hold', label: L({ tr: '😬 Tut!', en: '😬 Hold it!' }), run: async () => {
+            ok = await this.panel.holdOn(L({ tr: 'Çiş Barajı', en: 'Hold It!' }), L({ tr: 'Ok yeşile gelince BOŞLUK\'a bas: sık ve dayan!', en: 'Press SPACE when the marker is in the green: squeeze and hang on!' }), 14);
+            this.panel.close();
+          } }] }],
+        canClose: () => (ok ? undefined : L({ tr: 'Kaçış yok, tutman lazım!', en: 'No escape, you have to hold it!' })),
+      }));
+      const done = () => { if (!this.panel.isOpen) resolve(); else this.time.delayedCall(200, done); };
+      this.time.delayedCall(200, done);
+    });
+    if (ok) { st.cemil.pee = 'held'; ctx.gain({ xp: 30 }); this.hud.toast(L({ tr: '💪 Sabaha kadar tuttun! Cemil Emmi\'ye anlat.', en: '💪 You held it until morning! Go tell Cemil Emmi.' }), 'good'); }
+    else {
+      st.cemil.peeFails++;
+      st.cemil.wetDay = this.save.clock.minutes >= 7 * 60 ? this.save.clock.day + 1 : this.save.clock.day;
+      ctx.gain({ mood: -12 });
+      this.hud.toast(L({ tr: `😳 Çarşaflar ıslandı… (${st.cemil.peeFails}. gece) Bu gece yine denemen gerek.`, en: `😳 The sheets are wet… (night ${st.cemil.peeFails}) You'll have to try again tonight.` }));
+    }
+  }
+
+  private updateSleep(delta: number) {
+    const s = this.sleepRun!;
+    if (s.busy) return;
+    s.acc += delta;
+    let changed = false;
+    while (s.acc >= s.msPerMin && s.left > 0) {
+      s.acc -= s.msPerMin;
+      s.left--;
+      this.stepMinute();
+      changed = true;
+      const ev = s.events.find((e) => !e.done && s.total - s.left >= e.at);
+      if (ev) {
+        ev.done = true; s.busy = true;
+        void ev.run().finally(() => { s.busy = false; s.acc = 0; });
+        break;
+      }
+    }
+    if (changed) this.refreshClockAndNeeds();
+    const c = this.save.clock;
+    const pct = Math.round(((s.total - s.left) / s.total) * 100);
+    this.hud.setBanner(L({ tr: `😴 Uyuyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `😴 Sleeping… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Uyan', en: 'Wake up' }), onClick: () => this.wakeUp(true) });
+    if (s.left <= 0) this.wakeUp(false);
+  }
+
+  private wakeUp(early: boolean) {
+    const s = this.sleepRun;
+    if (!s || s.busy) return;
+    const st = this.save.state;
+    this.sleepRun = null;
+    this.sleeping = false;
+    this.hud.setBanner(null);
+    this.player.setAngle(0);
+    this.player.body!.enable = true;
+    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
+    if (!early) {
+      st.health = clamp(st.health + 6);
       st.energy = 100;
       this.changeMood(st.hunger < 25 ? -5 : 5);
-      this.onMorning();
-      this.refreshClockAndNeeds();
-      this.persist();
-      this.cameras.main.fadeIn(600, 8, 14, 24);
-    });
+    } else this.hud.toast(L({ tr: 'Uyandın. Etraf karanlık ve sessiz…', en: "You're awake. It's dark and quiet…" }));
+    this.refreshClockAndNeeds();
+    this.persist();
   }
 
   private refreshClockAndNeeds() {
@@ -1897,6 +2247,8 @@ export class CampusScene extends Phaser.Scene {
       : L(periodLabel(c.day, c.minutes));
     this.hud.setClock(c.day, c.minutes, label, `${L(SEASON_NAME[season(c.day)])}${this.isRaining() ? (season(c.day) === 'winter' ? ' · 🌨' : ' · 🌧') : ''}`);
     this.hud.setNeeds(this.save.state);
+    const title = councilTitle(this.save.state);
+    this.hud.setName(`${this.save.character.first} ${this.save.character.last}${title ? ` · ${L(title)}` : ''}`);
     this.darkAlpha = this.darkness(c.minutes);
   }
 
@@ -1957,7 +2309,9 @@ export class CampusScene extends Phaser.Scene {
     this.updateDining(time);
     this.revealAround();
     this.updatePrompt();
-    this.tickClock(delta);
+    if (this.sleepRun) this.updateSleep(delta); else this.tickClock(delta);
+    this.updateMatch(time);
+    this.updateCharacters();
 
     this.drawNight();
     this.updateParticles();
@@ -1965,6 +2319,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.mapTimer > 200) { this.mapTimer = 0; this.updateMaps(); }
     this.saveTimer += delta;
     if (this.saveTimer > 5000) { this.saveTimer = 0; this.persist(); }
+    this.view3d?.update(time, delta);
   }
 
   private updateMaps() {

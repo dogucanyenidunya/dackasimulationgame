@@ -1184,3 +1184,45 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 4. **Monetization:** fully free and non-commercial, or cosmetic purchases later?
 5. **Team:** are you building this alone? Who makes the art and music?
 6. **Tone:** is the playful approach to fights and night-time mischief right?
+
+---
+
+## v0.9 additions (prototype)
+
+**Campus layout v4** (from the hand sketch): Kız Yurdu · Yurt Meydanı (fountain) · Erkek Yurdu along the top; Eğitim Binası, a separate **Kütüphane** and the tall **Yemekhane & Konferans Salonu** in the middle; **Merkez Meydan with the Atatürk bust** (and the flag) in the very centre; **Ana Kapı in the west wall**; Cemiyet & Müze, Spor Salonu, basketball court, **football pitch** and Teknik along the bottom. Old saves keep their progress; fog and position reset (known places stay uncovered).
+
+**Views:** classic 2D is the default; an HD-2D 3D view (Three.js) is an opt-in preview (HUD button "3D β").
+
+**Classes:** five per grade, A–E (class draw at Cemiyet).
+
+**Night:** sleeping fast-forwards to 07:00 in about a minute; roommates sleep in the bunks around you; "Wake up" stops early. Night challenges can interrupt sleep (hook: `nightEvents`).
+
+**Cemil Emmi** (boys' dorm caretaker; outside the boys' dorm 08:00–18:00 for everyone, inside the boys' dorm for boys). Task 1 "Çişini tut" (grades 4–5): around 03:00 a "hold it!" minigame. Fail → retry every night until you hold it. Each failed night raises the chance of being mocked in the morning (−respect, −mood, and the mocker's friendship drops).
+
+**İstiklal Marşı:** an evening-study task at your desk: write out and memorise the 10 stanzas (1–2 per evening), then recite them to your belletmen (rhythm game, 7/10 to pass). Required before report card day.
+
+**Student council:**
+1. Run for class rep on the board in the academic building; the election is 2 school days later.
+2. Campaign once a day with posters, chatting or helping with homework.
+3. On election day, choose a promise and give your speech (rhythm game).
+4. Votes come from friends, Social, respect, campaign support and the speech; discipline points cost votes.
+5. A class rep runs for grade president against the other 4 class reps, in the conference hall.
+6. Only an 11th-grade grade president can run for school president.
+
+**Courts:** call friends (relationship ≥ 20) to the basketball court (3 needed) or football pitch (5); they walk over; a 5-shot match raises sport skill, Fitness and friendship.
+
+**Music room** (academic building):
+- 4th grade: a mandolin course of 6 lessons. It's compulsory if you want an instrument later.
+- From 5th grade: choose an instrument and practise.
+- Then choose a path:
+  - **Band:** one rock competition per year.
+  - **Solo:** one recital per year.
+  - Both need level 40.
+
+**Dorm payphone:** buy a phone card at the canteen (25 ₺ for 30 units); a call home costs 10 units, once a day.
+
+**Şakir Abi's canteen:** hot dog, hamburger, tantuni, toastie, snacks, ayran; films after lessons and at weekends; hanging out.
+
+**Wednesday çarşı izni (15:30–18:00):**
+- Your family waits at the canteen.
+- From 6th grade you can go into town for 2 hours from the main gate.

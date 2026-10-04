@@ -1,5 +1,5 @@
 // Prototype persistence: browser localStorage. Replaced by server-side saves in M2 (GDD §18.5).
-import { MAP_H, MAP_W, SPAWN } from './content/campus';
+import { LAYOUT, MAP_H, MAP_W, SPAWN } from './content/campus';
 import type { Lang } from './i18n';
 import type { CharacterData } from './content/character';
 import { defaultState, withDefaults, type PlayerState } from './game/state';
@@ -16,6 +16,8 @@ export interface SaveData {
   seen: string[];
   discovered: string[];
   flags: Record<string, boolean>;
+  /** campus layout version the fog and position belong to */
+  layout?: number;
 }
 
 const KEY = 'dacka.save.v3'; // v3: compact campus (old maps don't fit)
@@ -32,6 +34,7 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     seen: [],
     discovered: [],
     flags: {},
+    layout: LAYOUT,
   };
 }
 
