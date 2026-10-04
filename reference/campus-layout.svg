@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 110 1000 690" font-family="Helvetica, Arial, sans-serif">
+  <title>Daçka campus — top-down blockout v3</title>
+  <defs>
+    <pattern id="solar" width="12" height="8" patternUnits="userSpaceOnUse">
+      <rect width="12" height="8" fill="#3a5f9e"/>
+      <path d="M0 0H12M0 0V8" stroke="#6f8fc4" stroke-width="1"/>
+    </pattern>
+    <pattern id="fins" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#cfd4d9"/>
+      <rect x="0" y="0" width="3" height="10" fill="#c98a4b" opacity="0.35"/>
+    </pattern>
+    <radialGradient id="tree" cx="40%" cy="35%" r="65%">
+      <stop offset="0" stop-color="#6fae5f"/><stop offset="1" stop-color="#3d7a45"/>
+    </radialGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#7a4e2a"/>
+    </marker>
+  </defs>
+
+  <!-- forest surround -->
+  <rect y="110" width="1000" height="690" fill="#2f6b45"/>
+  <g fill="#3b7d50" opacity="0.7">
+    <circle cx="20" cy="300" r="26"/><circle cx="975" cy="230" r="28"/><circle cx="975" cy="470" r="26"/>
+    <circle cx="20" cy="520" r="24"/><circle cx="975" cy="770" r="28"/><circle cx="20" cy="720" r="24"/>
+    <circle cx="300" cy="125" r="22"/><circle cx="700" cy="125" r="22"/>
+  </g>
+
+  <!-- campus ground -->
+  <rect x="35" y="150" width="930" height="590" rx="10" fill="#e7e3da"/>
+
+  <!-- ===== PLAZAS ===== -->
+  <!-- Yurt Meydanı (between dorms) -->
+  <rect x="300" y="165" width="400" height="165" rx="8" fill="#d9e8cf"/>
+  <g fill="url(#tree)">
+    <circle cx="335" cy="190" r="13"/><circle cx="665" cy="190" r="13"/>
+    <circle cx="380" cy="300" r="14"/><circle cx="620" cy="300" r="14"/>
+  </g>
+
+  <!-- Merkez Meydan (between academic and dining) -->
+  <rect x="285" y="355" width="430" height="215" rx="8" fill="#d9e8cf"/>
+  <g fill="url(#tree)">
+    <circle cx="320" cy="385" r="15"/><circle cx="380" cy="470" r="17"/><circle cx="440" cy="390" r="14"/>
+    <circle cx="565" cy="392" r="15"/><circle cx="625" cy="475" r="17"/><circle cx="680" cy="385" r="13"/>
+    <circle cx="320" cy="545" r="12"/><circle cx="680" cy="545" r="12"/>
+  </g>
+
+  <!-- paths -->
+  <g stroke="#cfc8b8" stroke-width="14" fill="none" stroke-linecap="round">
+    <path d="M500 175 V580"/><path d="M290 225 H710"/><path d="M275 490 H725"/><path d="M280 580 V760"/><path d="M300 343 H700"/>
+  </g>
+
+  <!-- plaza labels -->
+  <rect x="425" y="296" width="150" height="22" rx="11" fill="#f4f1ea" opacity="0.95"/>
+  <text x="500" y="312" text-anchor="middle" font-size="12" font-weight="700" fill="#1f3d22">YURT MEYDANI</text>
+  <text x="500" y="186" text-anchor="middle" font-size="10" fill="#1f3d22">Dorm plaza · benches · evening hangout</text>
+  <rect x="390" y="535" width="220" height="22" rx="11" fill="#f4f1ea" opacity="0.95"/>
+  <text x="500" y="551" text-anchor="middle" font-size="13" font-weight="700" fill="#1f3d22">MERKEZ MEYDAN · Central plaza</text>
+
+  <!-- facing arrows -->
+  <line x1="296" y1="225" x2="704" y2="225" stroke="#7a4e2a" stroke-width="2" stroke-dasharray="4 4" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <rect x="425" y="215" width="150" height="20" rx="10" fill="#7a4e2a"/>
+  <text x="500" y="229" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">dorms face each other</text>
+  <line x1="281" y1="490" x2="719" y2="490" stroke="#7a4e2a" stroke-width="2" stroke-dasharray="4 4" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <rect x="415" y="480" width="170" height="20" rx="10" fill="#7a4e2a"/>
+  <text x="500" y="494" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">school ↔ dining hall</text>
+
+  <!-- ===== KIZ YURDU (top-left) ===== -->
+  <rect x="45" y="165" width="245" height="165" fill="url(#fins)" stroke="#8c9399" stroke-width="2"/>
+  <rect x="110" y="232" width="115" height="42" fill="#e7e3da" stroke="#8c9399"/>
+  <text x="167" y="257" text-anchor="middle" font-size="10" fill="#5b6266">courtyard</text>
+  <text x="167" y="190" text-anchor="middle" font-size="15" font-weight="700" fill="#1d2326">KIZ YURDU</text>
+  <text x="167" y="206" text-anchor="middle" font-size="11" fill="#3a4246">Girls' dorm · ortaokul + lise</text>
+  <text x="167" y="291" text-anchor="middle" font-size="10" fill="#3a4246">Fl. 1–2 ortaokul · Fl. 3–4 lise</text>
+  <rect x="284" y="208" width="10" height="34" fill="#7a4e2a"/>
+  <rect x="62" y="301" width="210" height="22" rx="4" fill="#c0392b"/>
+  <text x="167" y="316" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">✚ REVİR · floor −1 · everyone</text>
+  <rect x="200" y="328" width="34" height="9" fill="#c0392b"/>
+
+  <!-- ===== ERKEK YURDU (top-right) ===== -->
+  <rect x="710" y="165" width="245" height="165" fill="url(#fins)" stroke="#8c9399" stroke-width="2"/>
+  <rect x="775" y="232" width="115" height="42" fill="#e7e3da" stroke="#8c9399"/>
+  <text x="832" y="257" text-anchor="middle" font-size="10" fill="#5b6266">courtyard</text>
+  <text x="832" y="190" text-anchor="middle" font-size="15" font-weight="700" fill="#1d2326">ERKEK YURDU</text>
+  <text x="832" y="206" text-anchor="middle" font-size="11" fill="#3a4246">Boys' dorm · ortaokul + lise</text>
+  <text x="832" y="300" text-anchor="middle" font-size="10" fill="#3a4246">Fl. 1–2 ortaokul · Fl. 3–4 lise</text>
+  <rect x="706" y="208" width="10" height="34" fill="#7a4e2a"/>
+
+  <!-- ===== EĞİTİM BİNASI + KÜTÜPHANE (center-left, narrower) ===== -->
+  <rect x="45" y="355" width="225" height="215" fill="url(#fins)" stroke="#8c9399" stroke-width="2"/>
+  <text x="157" y="377" text-anchor="middle" font-size="14" font-weight="700" fill="#1d2326">EĞİTİM BİNASI</text>
+  <text x="157" y="392" text-anchor="middle" font-size="10" fill="#3a4246">Academic building + library</text>
+  <rect x="62" y="400" width="190" height="20" rx="10" fill="#2b6cb0"/>
+  <text x="157" y="414" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ORTAOKUL WING · Y1–5</text>
+  <rect x="80" y="428" width="155" height="56" fill="#efe3c8" stroke="#a88a52"/>
+  <text x="157" y="452" text-anchor="middle" font-size="12" font-weight="700" fill="#5a4320">KÜTÜPHANE</text>
+  <text x="157" y="468" text-anchor="middle" font-size="10" fill="#5a4320">Library · shared, middle</text>
+  <rect x="62" y="492" width="190" height="20" rx="10" fill="#7b3fa0"/>
+  <text x="157" y="506" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">LİSE WING · PREP–Y10</text>
+  <text x="157" y="540" text-anchor="middle" font-size="10" fill="#3a4246">classrooms · labs · etüt · teachers' room</text>
+  <rect x="266" y="473" width="10" height="34" fill="#7a4e2a"/>
+
+  <!-- ===== YEMEKHANE & SOSYAL MERKEZ (center-right) ===== -->
+  <rect x="730" y="355" width="225" height="215" fill="#cfd4d9" stroke="#8c9399" stroke-width="2"/>
+  <rect x="750" y="368" width="185" height="50" fill="url(#solar)"/>
+  <text x="842" y="445" text-anchor="middle" font-size="14" font-weight="700" fill="#1d2326">YEMEKHANE</text>
+  <text x="842" y="461" text-anchor="middle" font-size="11" fill="#3a4246">Dining hall · Sosyal Merkez</text>
+  <text x="842" y="480" text-anchor="middle" font-size="10" fill="#3a4246">kantin · auditorium · club rooms</text>
+  <rect x="770" y="520" width="145" height="24" fill="#9ccf86" stroke="#7ba86a"/>
+  <text x="842" y="536" text-anchor="middle" font-size="10" fill="#1f3d22">roof terraces</text>
+  <rect x="724" y="473" width="10" height="34" fill="#7a4e2a"/>
+
+  <!-- ===== SOUTH ROW (unchanged) ===== -->
+  <rect x="45" y="595" width="215" height="125" fill="url(#fins)" stroke="#8c9399" stroke-width="2"/>
+  <rect x="105" y="615" width="95" height="38" fill="#e7e3da" stroke="#8c9399"/>
+  <text x="152" y="675" text-anchor="middle" font-size="13" font-weight="700" fill="#1d2326">CEMİYET BİNASI</text>
+  <text x="152" y="691" text-anchor="middle" font-size="11" fill="#3a4246">Administration · Ambar (−1)</text>
+  <rect x="57" y="699" width="90" height="16" fill="#7a4e2a"/>
+  <text x="102" y="711" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">MÜZE (ground fl.)</text>
+
+  <rect x="300" y="595" width="320" height="135" fill="#eef0f1" stroke="#8c9399" stroke-width="2"/>
+  <rect x="330" y="607" width="260" height="20" fill="url(#solar)"/>
+  <rect x="330" y="632" width="260" height="20" fill="url(#solar)"/>
+  <rect x="330" y="657" width="260" height="20" fill="url(#solar)"/>
+  <text x="460" y="702" text-anchor="middle" font-size="14" font-weight="700" fill="#1d2326">SPOR SALONU</text>
+  <text x="460" y="718" text-anchor="middle" font-size="11" fill="#3a4246">Sports hall · pool · fencing · everyone</text>
+
+  <rect x="640" y="605" width="150" height="52" fill="#a8483e" stroke="#f2f2ea" stroke-width="2"/>
+  <line x1="715" y1="605" x2="715" y2="657" stroke="#f2f2ea" stroke-width="2"/>
+  <circle cx="715" cy="631" r="11" fill="none" stroke="#f2f2ea" stroke-width="2"/>
+  <text x="715" y="635" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" dx="-42">basket</text>
+  <rect x="640" y="662" width="150" height="50" fill="#3f7fa6" stroke="#f2f2ea" stroke-width="2"/>
+  <line x1="715" y1="662" x2="715" y2="712" stroke="#f2f2ea" stroke-width="2"/>
+  <line x1="655" y1="687" x2="775" y2="687" stroke="#f2f2ea" stroke-width="1"/>
+  <text x="680" y="684" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">tennis</text>
+  <text x="715" y="728" text-anchor="middle" font-size="11" font-weight="700" fill="#1d2326">Outdoor courts</text>
+  <rect x="805" y="600" width="150" height="115" fill="#7fb466" stroke="#8c9399" stroke-width="2"/>
+  <text x="880" y="652" text-anchor="middle" font-size="13" font-weight="700" fill="#1f3d22">TEKNİK ALAN</text>
+  <text x="880" y="668" text-anchor="middle" font-size="11" fill="#1f3d22">Technical area</text>
+  <text x="880" y="684" text-anchor="middle" font-size="10" fill="#1f3d22">(green roof)</text>
+
+  <!-- gate -->
+  <rect x="255" y="742" width="50" height="16" fill="#8a2d2d"/>
+  <circle cx="280" cy="750" r="15" fill="none" stroke="#f2c14e" stroke-width="3"/>
+  <text x="315" y="768" font-size="12" font-weight="700" fill="#f2c14e">★ ANA KAPI · Main gate: game starts here</text>
+
+  <!-- compass -->
+  <g transform="translate(80,130)">
+    <circle r="18" fill="#f4f1ea" opacity="0.9"/>
+    <path d="M0 -13 L5 3 L0 0 L-5 3 Z" fill="#1d2326"/>
+    <text y="14" text-anchor="middle" font-size="9" font-weight="700" fill="#1d2326">N</text>
+  </g>
+
+  <text x="500" y="792" text-anchor="middle" font-size="11" fill="#cfe6d4">Daçka — blockout v3.1 (not to scale). In game, buildings stay hidden until discovered (§4.4).</text>
+</svg>
