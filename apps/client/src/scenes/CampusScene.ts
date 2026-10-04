@@ -9,6 +9,7 @@ import {
 import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
+import { makeBuildingArt, type BuildingArt } from '../art/buildings3d';
 import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { saveToCloud } from '../net/cloudSave';
 import type { NetUser } from '../main';
@@ -66,6 +67,8 @@ export class CampusScene extends Phaser.Scene {
   /** night overlay: a 2D canvas above the game (below the HUD) with soft holes cut around lights */
   private nightCanvas!: HTMLCanvasElement;
   private warmLights!: Phaser.GameObjects.Group;
+  /** 2.5D buildings: the painted image, its night windows, and where it stands */
+  private buildingArt: Array<{ art: BuildingArt; img: Phaser.GameObjects.Image; lit: Phaser.GameObjects.Image }> = [];
   private darkAlpha = 0;
   private lightSpots: Array<{ x: number; y: number; r: number }> = [];
   private particles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
@@ -131,14 +134,14 @@ export class CampusScene extends Phaser.Scene {
     ground.setCollision(SOLID_TILES);
     this.drawCourtLines();
 
-    this.drawBuildingShading();
+    this.drawBuildings();
 
     // decor
     const trees = this.physics.add.staticGroup();
     for (const [x, y] of TREES) {
-      const tree = trees.create(x * TILE + 16, y * TILE + 4, 'tree') as Phaser.Physics.Arcade.Sprite;
+      const tree = trees.create(x * TILE + 16, y * TILE - 4, 'tree') as Phaser.Physics.Arcade.Sprite;
       tree.setDepth(y * TILE + 30);
-      tree.body!.setSize(12, 8).setOffset(18, 44);
+      tree.body!.setSize(12, 8).setOffset(18, 60);
     }
     for (const [x, y] of BENCHES) this.add.image(x * TILE + 16, y * TILE + 16, 'bench').setDepth(y * TILE + 10);
     for (const [x, y] of FLOWERS) this.add.image(x * TILE + 16, y * TILE + 16, 'flowers').setDepth(y * TILE + 4);
@@ -986,29 +989,43 @@ export class CampusScene extends Phaser.Scene {
     this.panel?.refresh();
   }
 
-  /** soft drop shadows to the south-east and darker roof edges, so buildings read as 3D blocks */
-  private drawBuildingShading() {
+  /** 2.5D buildings: a ground shadow, the painted building (sorted by its front edge, so you can walk
+   *  behind it) and its windows, which light up at night */
+  private drawBuildings() {
+    // lawn under the footprints (only seen while a building is see-through)
+    const under = this.add.graphics().setDepth(0.5);
+    under.fillStyle(0x8cbd68, 1);
+    for (const b of BUILDINGS) under.fillRect(b.rect.x * TILE, b.rect.y * TILE, b.rect.w * TILE, b.rect.h * TILE);
     const g = this.add.graphics().setDepth(1);
     for (const b of BUILDINGS) {
+      const art = makeBuildingArt(this, b);
       const r = b.rect;
-      const x = r.x * TILE, y = r.y * TILE, w = r.w * TILE, h = r.h * TILE;
-      g.fillStyle(0x000000, 0.16);
-      g.fillRect(x + w, y + 10, 12, h - 4);
-      g.fillRect(x + 12, y + h, w, 10);
-      g.fillStyle(0x000000, 0.08);
-      g.fillRect(x + w + 12, y + 18, 6, h - 8);
-      g.fillRect(x + 18, y + h + 10, w, 5);
+      const x0 = r.x * TILE, x1 = (r.x + r.w) * TILE, top = art.y + 14, base = art.base;
+      // sun from the north-west: the shadow falls to the east and a little south
+      g.fillStyle(0x1d3a24, 0.2);
+      g.fillPoints([{ x: x1, y: top }, { x: x1 + 22, y: top + 22 }, { x: x1 + 22, y: base + 12 }, { x: x0 + 22, y: base + 12 }, { x: x0 + 10, y: base }, { x: x1, y: base }], true);
+      g.fillStyle(0x1d3a24, 0.1);
+      g.fillPoints([{ x: x1 + 22, y: top + 22 }, { x: x1 + 30, y: top + 30 }, { x: x1 + 30, y: base + 18 }, { x: x0 + 30, y: base + 18 }, { x: x0 + 22, y: base + 12 }, { x: x1 + 22, y: base + 12 }], true);
+      // front steps for entrances that face north (drawn on the ground outside the building)
+      for (const loc of LOCATIONS) for (const d of loc.doors ?? []) {
+        if (d.side !== 'n' || d.x < r.x || d.x >= r.x + r.w || d.y !== r.y) continue;
+        g.fillStyle(0xcfc8b9, 1).fillRect(d.x * TILE - 6, (d.y - 1) * TILE + 18, TILE + 12, 14);
+        g.fillStyle(0xb3ab9a, 1).fillRect(d.x * TILE - 6, (d.y - 1) * TILE + 24, TILE + 12, 2);
+      }
+      const img = this.add.image(art.x, art.y, art.key).setOrigin(0, 0).setDepth(art.base);
+      const lit = this.add.image(art.x, art.y, art.litKey).setOrigin(0, 0).setDepth(art.base + 0.5).setAlpha(0);
+      this.buildingArt.push({ art, img, lit });
     }
-    const top = this.add.graphics().setDepth(2);
-    for (const b of BUILDINGS) {
-      const r = b.rect;
-      const x = r.x * TILE, y = r.y * TILE, w = r.w * TILE, roofH = (r.h - 2) * TILE;
-      top.lineStyle(3, b.roof === 'green' ? 0x4f7d3e : 0x8b939a, 1);
-      top.strokeRect(x + 1.5, y + 1.5, w - 3, roofH - 1);
-      top.lineStyle(1, 0xffffff, 0.45);
-      top.lineBetween(x + 4, y + 4, x + w - 4, y + 4);
-      top.fillStyle(0x000000, 0.22);
-      top.fillRect(x, y + roofH, w, 4); // eave shadow over the façade
+  }
+
+  /** see-through buildings while someone walks behind them */
+  private updateBuildingFade() {
+    const px = this.player.x, py = this.player.y;
+    for (const { art, img, lit } of this.buildingArt) {
+      const behind = !this.room && px > art.x - 8 && px < art.x + art.w + 8 && py < art.base - 8 && py > art.y - 24;
+      const target = behind ? 0.45 : 1;
+      if (img.alpha !== target) img.setAlpha(Math.abs(img.alpha - target) < 0.05 ? target : img.alpha + (target - img.alpha) * 0.25);
+      lit.setVisible(img.alpha > 0.9);
     }
   }
 
@@ -1047,6 +1064,8 @@ export class CampusScene extends Phaser.Scene {
     const a = 1 - lum;
     this.darkAlpha = a;
     this.warmLights.getChildren().forEach((o) => (o as Phaser.GameObjects.Image).setAlpha(!this.room && a > 0.3 ? Math.min(0.32, a * 0.45) : 0));
+    const windows = this.room || a < 0.25 ? 0 : Math.min(1, (a - 0.25) * 2.5);
+    for (const b of this.buildingArt) b.lit.setAlpha(windows);
     if (a <= 0.01) return;
     const cam = this.cameras.main;
     const view = cam.worldView;
@@ -1064,6 +1083,18 @@ export class CampusScene extends Phaser.Scene {
       c.fillRect(sx - rad, sy - rad, rad * 2, rad * 2);
     };
     if (!this.room) for (const l of this.lightSpots) cut(l.x, l.y, l.r, 0.85);
+    // lit windows punch through the darkness
+    if (!this.room) {
+      c.imageSmoothingEnabled = false;
+      c.globalAlpha = Math.min(0.9, (a - 0.25) * 2);
+      for (const { art, img } of this.buildingArt) {
+        if (img.alpha < 0.9) continue;
+        const sx = (art.x - view.x) * cam.zoom, sy = (art.y - view.y) * cam.zoom;
+        if (sx > w || sy > h || sx + art.w * cam.zoom < 0 || sy + art.h * cam.zoom < 0) continue;
+        c.drawImage(this.textures.get(art.litKey).getSourceImage() as HTMLCanvasElement, sx, sy, art.w * cam.zoom, art.h * cam.zoom);
+      }
+      c.globalAlpha = 1;
+    }
     cut(this.player.x, this.player.y, 2, 0.6);
     for (const npc of this.npcs) {
       const def = npc.getData('def') as NpcDef;
@@ -1907,6 +1938,7 @@ export class CampusScene extends Phaser.Scene {
       this.player.setFrame(this.dir * 3);
     }
     this.player.setDepth(this.player.y + 16);
+    this.updateBuildingFade();
     const carrying = !this.save.state.once.luggage;
     this.suitcase.setVisible(carrying);
     if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.player.y + (this.dir === 3 ? 15 : 17));

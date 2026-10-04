@@ -316,13 +316,14 @@ export function generateTextures(scene: Phaser.Scene) {
     t.refresh();
   };
 
-  // tree (48x56): layered canopy with highlight and shadow
-  canvas('tree', 48, 56, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(26, 50, 16, 5, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#5e4027'; c.fillRect(21, 32, 6, 18); c.fillStyle = '#7a5434'; c.fillRect(21, 32, 2, 18);
+  // tree (48x72): tall trunk and a layered canopy, so it stands up in the 3/4 view
+  canvas('tree', 48, 72, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(27, 66, 17, 5, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#5e4027'; c.fillRect(21, 36, 6, 30); c.fillStyle = '#7a5434'; c.fillRect(21, 36, 2, 30);
+    c.fillStyle = '#4a321e'; c.fillRect(19, 63, 10, 3);
     const blob = (x: number, y: number, rad: number, col: string) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill(); };
-    blob(24, 24, 19, '#2f6b3b'); blob(17, 21, 13, '#3d7f47'); blob(31, 19, 12, '#3d7f47'); blob(24, 14, 12, '#4a9152');
-    blob(18, 13, 6, '#67ad62'); blob(29, 11, 4, '#7cc070');
+    blob(24, 30, 19, '#2a6036'); blob(24, 27, 19, '#2f6b3b'); blob(16, 24, 13, '#3d7f47'); blob(32, 22, 12, '#3d7f47');
+    blob(24, 15, 13, '#4a9152'); blob(18, 13, 6, '#67ad62'); blob(29, 10, 4, '#7cc070');
   });
   canvas('bench', 32, 18, (c) => {
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(2, 15, 28, 3);
