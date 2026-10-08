@@ -15,7 +15,7 @@ export interface NetUser { id: string; email: string }
 
 async function startGame(save: SaveData, net: NetUser | null = null) {
   // in-world labels use the pixel font; wait (briefly) so the first labels don't render in a fallback font
-  try { await Promise.race([document.fonts.load('700 16px "Pixelify Sans"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
+  try { await Promise.race([document.fonts.load('16px "Public Pixel"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',

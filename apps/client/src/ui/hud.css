@@ -1,3 +1,6 @@
+/* Public Pixel by GGBotNet (CC0): the game's pixel font */
+@font-face { font-family: "Public Pixel"; src: url("../assets/fonts/PublicPixel.ttf") format("truetype"); font-display: swap; }
+
 :root {
   --ink: #1d2326;
   --paper: #f7f4ee;
@@ -8,6 +11,7 @@
   --good: #3d7a45;
   --gold: #f2c14e;
   --forest: #2f6b45;
+  --pixel: "Public Pixel", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -296,7 +300,7 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .hud-countdown:not(.hidden) ~ .hud-toasts { top: 56px; }
 
 /* pixel font for titles */
-.title-card h1, .announce-card h2, .yearend-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: 0.02em; }
+.title-card h1, .announce-card h2, .yearend-card h2 { font-family: var(--pixel); font-weight: 400; letter-spacing: 0; }
 .title-card h1 { font-size: 64px; }
 .title-screen { background:
   radial-gradient(ellipse at 50% 120%, rgba(242, 193, 78, 0.25), transparent 60%),
@@ -347,3 +351,14 @@ body.view-3d-on .night-layer { display: none; }
 
 /* minigames need room even when the menu behind them is short */
 .panel-card:has(.stage) { min-height: 330px; }
+
+/* pixel font for headings and short labels (long menu text stays in the system font for readability) */
+.modal-card h2, .panel-head h2, .clock-time, .hud-name, .clock-period, .hud-prompt, .hud-countdown, .hud-banner span, .stage-top b, .tracker-title, .view-btn {
+  font-family: var(--pixel); font-weight: 400; letter-spacing: 0;
+}
+.clock-time { font-size: 24px; line-height: 1.15; }
+.hud-name { font-size: 12px; line-height: 1.5; }
+.clock-period { font-size: 10px; line-height: 1.6; }
+.modal-card h2, .panel-head h2 { font-size: 16px; line-height: 1.4; }
+.hud-prompt, .hud-countdown, .hud-banner span { font-size: 12px; }
+.title-card h1 { font-size: 40px; }

@@ -487,7 +487,7 @@ export class World3D {
     }
     const { c: sc, g: sg } = canvas(160, 24);
     sg.fillStyle = '#2d3a44'; sg.fillRect(0, 0, 160, 24);
-    sg.fillStyle = '#f2c14e'; sg.font = 'bold 15px "Pixelify Sans", monospace'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
+    sg.fillStyle = '#f2c14e'; sg.font = '8px "Public Pixel", monospace'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
     sg.fillText('DARÜŞŞAFAKA', 80, 13);
     const span = (vertical ? GATE.h : GATE.w) + 0.9;
     const signFace = new THREE.MeshLambertMaterial({ map: pixelTex(sc) });
@@ -506,7 +506,7 @@ export class World3D {
     const { c: pc, g: pg } = canvas(64, 64);
     pg.fillStyle = '#e4dfd3'; pg.fillRect(0, 0, 64, 64);
     pg.fillStyle = '#b08d3c'; pg.fillRect(10, 26, 44, 16);
-    pg.fillStyle = '#3a2a10'; pg.font = 'bold 9px "Pixelify Sans", monospace'; pg.textAlign = 'center'; pg.textBaseline = 'middle';
+    pg.fillStyle = '#3a2a10'; pg.font = '8px "Public Pixel", monospace'; pg.textAlign = 'center'; pg.textBaseline = 'middle';
     pg.fillText('ATATÜRK', 32, 34);
     const plaque = new THREE.MeshLambertMaterial({ map: pixelTex(pc) });
     const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1, 1.3, 1), [marble, marble, marble, marble, plaque, marble]);
