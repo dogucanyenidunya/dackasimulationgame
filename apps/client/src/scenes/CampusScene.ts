@@ -83,6 +83,10 @@ export class CampusScene extends Phaser.Scene {
   private npcs: Phaser.Physics.Arcade.Sprite[] = [];
   private npcNames = new Map<Phaser.Physics.Arcade.Sprite, Phaser.GameObjects.Text>();
   private nearNpc: NpcDef | null = null;
+  /** per tile: 1 = an NPC can stand here (no building, fence or decor) */
+  private npcGrid = new Uint8Array(MAP_W * MAP_H);
+  /** per tile: 1 = in front of a door, where NPCs shouldn't hang around */
+  private doorClear = new Uint8Array(MAP_W * MAP_H);
   private suitcase!: Phaser.GameObjects.Image;
   private announceQueue: string[] = [];
   private checking = false;
@@ -1034,22 +1038,158 @@ export class CampusScene extends Phaser.Scene {
     });
   }
 
-  /** nearest walkable tile to (x, y) */
+  /** nearest tile to (x, y) where an NPC can hang out (open ground, not in front of a door) */
   private walkable(x: number, y: number): [number, number] {
+    let fallback: [number, number] | null = null;
     for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       const tx = Math.round(x + dx), ty = Math.round(y + dy);
-      if (tx > 4 && ty > 4 && tx < MAP_W - 5 && ty < MAP_H - 5 && !SOLID_TILES.includes(this.map[ty][tx] as never)) return [tx, ty];
+      if (tx <= 4 || ty <= 4 || tx >= MAP_W - 5 || ty >= MAP_H - 5 || !this.npcGrid[ty * MAP_W + tx]) continue;
+      if (!this.doorClear[ty * MAP_W + tx]) return [tx, ty];
+      fallback ??= [tx, ty];
     }
-    return [x, y];
+    return fallback ?? [x, y];
+  }
+
+  /** which tiles NPCs can walk on, and which ones (in front of doors) they should keep clear */
+  private buildNpcGrid(obstacles: Phaser.Physics.Arcade.StaticGroup) {
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+      this.npcGrid[y * MAP_W + x] = SOLID_TILES.includes(this.map[y][x] as never) ? 0 : 1;
+    }
+    for (const o of obstacles.getChildren()) {
+      const b = (o as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody | null;
+      if (!b) continue;
+      for (let ty = Math.floor(b.top / TILE); ty <= Math.floor((b.bottom - 1) / TILE); ty++) {
+        for (let tx = Math.floor(b.left / TILE); tx <= Math.floor((b.right - 1) / TILE); tx++) {
+          if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) this.npcGrid[ty * MAP_W + tx] = 0;
+        }
+      }
+    }
+    for (const loc of LOCATIONS) for (const d of loc.doors ?? []) {
+      const s = doorStandTile(d);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const tx = s.x + dx, ty = s.y + dy;
+        if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) this.doorClear[ty * MAP_W + tx] = 1;
+      }
+    }
+  }
+
+  /** the tile under an NPC's feet (sprites are centred; the feet are 10px below the centre) */
+  private npcTile(x: number, y: number): number {
+    return Phaser.Math.Clamp(Math.floor((y + 10) / TILE), 0, MAP_H - 1) * MAP_W + Phaser.Math.Clamp(Math.floor(x / TILE), 0, MAP_W - 1);
+  }
+
+  /** sprite position that puts an NPC's feet in the middle of tile (tx, ty); fractional tiles allowed */
+  private npcSpot(tx: number, ty: number): [number, number] {
+    return [(tx + 0.5) * TILE, (ty + 0.5) * TILE - 10];
+  }
+
+  /** shortest 4-way route over open tiles (tile indices, start included); null if there's none */
+  private findPath(from: number, to: number): number[] | null {
+    if (!this.npcGrid[to]) {
+      // the goal is inside something: aim for the nearest open tile instead
+      const gx = to % MAP_W, gy = Math.floor(to / MAP_W);
+      let best = -1, bestD = Infinity;
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = gx + dx, y = gy + dy;
+        if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H || !this.npcGrid[y * MAP_W + x]) continue;
+        if (dx * dx + dy * dy < bestD) { bestD = dx * dx + dy * dy; best = y * MAP_W + x; }
+      }
+      if (best < 0) return null;
+      to = best;
+    }
+    const prev = new Int32Array(MAP_W * MAP_H).fill(-1);
+    prev[from] = from;
+    const queue = [from];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      if (cur === to) {
+        const path = [cur];
+        for (let c = cur; c !== from; c = prev[c]) path.push(prev[c]);
+        return path.reverse();
+      }
+      const x = cur % MAP_W;
+      for (const n of [x > 0 ? cur - 1 : -1, x < MAP_W - 1 ? cur + 1 : -1, cur - MAP_W, cur + MAP_W]) {
+        if (n < 0 || n >= prev.length || prev[n] !== -1 || !this.npcGrid[n]) continue;
+        prev[n] = cur;
+        queue.push(n);
+      }
+    }
+    return null;
+  }
+
+  /** walk an NPC towards (gx, gy) in sprite pixels, going round buildings; true once it's there */
+  private steerNpc(npc: Phaser.Physics.Arcade.Sprite, gx: number, gy: number, speed: number): boolean {
+    const goal = this.npcTile(gx, gy);
+    let path = npc.getData('path') as number[] | undefined;
+    if (!path || npc.getData('pathGoal') !== goal) {
+      path = this.findPath(this.npcTile(npc.x, npc.y), goal) ?? [];
+      if (path.length > 1) {
+        // skip the centre of the tile we're on when we're already lined up with the next step (no back-step)
+        const [sx, sy] = this.npcSpot(path[0] % MAP_W, Math.floor(path[0] / MAP_W));
+        const vertical = path[1] % MAP_W === path[0] % MAP_W;
+        if (Math.abs(vertical ? npc.x - sx : npc.y - sy) < 8) path.shift();
+      }
+      npc.setData('path', path).setData('pathGoal', goal);
+    }
+    // drop the waypoints already reached; the last stretch goes to the exact spot
+    while (path.length) {
+      const [wx, wy] = this.npcSpot(path[0] % MAP_W, Math.floor(path[0] / MAP_W));
+      if (Math.hypot(wx - npc.x, wy - npc.y) < 5 || (path.length === 1 && path[0] === goal)) path.shift();
+      else break;
+    }
+    const [tx, ty] = path.length ? this.npcSpot(path[0] % MAP_W, Math.floor(path[0] / MAP_W)) : [gx, gy];
+    const d = Math.hypot(tx - npc.x, ty - npc.y);
+    // (a spot inside a wall counts as reached once we're on the nearest open tile)
+    if (!path.length && (d < 6 || !this.npcGrid[goal])) { npc.setVelocity(0, 0); npc.setData('wantMove', false); return true; }
+    const a = Math.atan2(ty - npc.y, tx - npc.x);
+    npc.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
+    npc.setData('wantMove', true);
+    return false;
+  }
+
+  /** a random open spot within `roam` tiles of home, away from doors */
+  private wanderSpot(home: [number, number], roam: number): [number, number] | null {
+    for (let i = 0; i < 8; i++) {
+      const tx = Math.round(home[0]) + Phaser.Math.Between(-roam, roam), ty = Math.round(home[1]) + Phaser.Math.Between(-roam, roam);
+      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
+      const i2 = ty * MAP_W + tx;
+      if (this.npcGrid[i2] && !this.doorClear[i2]) return this.npcSpot(tx, ty);
+    }
+    return null;
+  }
+
+  /** NPCs that haven't moved although they're trying to: re-route, and in the end put them back on track */
+  private checkNpcStuck(npc: Phaser.Physics.Arcade.Sprite, time: number, goal: [number, number]) {
+    const last = npc.getData('lastPos') as [number, number, number] | undefined;
+    if (!last) { npc.setData('lastPos', [npc.x, npc.y, time]); return; }
+    if (time - last[2] < 700) return;
+    const moved = Math.hypot(npc.x - last[0], npc.y - last[1]);
+    npc.setData('lastPos', [npc.x, npc.y, time]);
+    if (!npc.getData('wantMove') || moved > 4) { npc.setData('stuck', 0); return; }
+    const stuck = ((npc.getData('stuck') as number) ?? 0) + 1;
+    npc.setData('stuck', stuck);
+    // try a fresh route (or, when wandering, a new spot right away)
+    npc.setData('path', undefined).setData('wander', undefined).setData('next', 0).setData('wantMove', false);
+    npc.setVelocity(0, 0);
+    if (stuck < 4) return;
+    npc.setData('stuck', 0);
+    if (!this.cameras.main.worldView.contains(npc.x, npc.y)) npc.setPosition(goal[0], goal[1]);
+    else {
+      // wedged on a corner in view: hop onto the nearest open tile
+      const t = this.npcTile(npc.x, npc.y);
+      const [ox, oy] = this.walkable(t % MAP_W, Math.floor(t / MAP_W));
+      npc.setPosition(...this.npcSpot(ox, oy));
+    }
   }
 
   private spawnNpcs(ground: Phaser.Tilemaps.TilemapLayer, trees: Phaser.Physics.Arcade.StaticGroup) {
     const plaza = PLAZA_RECT;
+    this.buildNpcGrid(trees);
     for (const def of [...NPCS, ...BELLETMENS]) {
       const key = `npc-${def.id}`;
       makeCharacterTexture(this, key, { ...DEFAULT_LOOK, ...def.look });
       const [x, y] = this.walkable(def.home[0], def.home[1]);
-      const npc = this.physics.add.sprite(x * TILE, y * TILE, key, 0);
+      const npc = this.physics.add.sprite(...this.npcSpot(x, y), key, 0);
       npc.body!.setSize(16, 10).setOffset(8, 21);
       npc.setCollideWorldBounds(true);
       this.physics.add.collider(npc, ground);
@@ -1141,31 +1281,36 @@ export class CampusScene extends Phaser.Scene {
         label.setVisible(false);
         continue;
       }
+      const [hx, hy] = this.npcSpot(plan.home[0], plan.home[1]);
       if (!npc.visible) {
         // reappear at their spot instead of walking across campus
-        npc.setPosition(plan.home[0] * TILE, plan.home[1] * TILE).setVisible(true);
+        npc.setPosition(hx, hy).setVisible(true);
+        npc.setData('path', undefined).setData('wander', undefined).setData('lastPos', undefined);
         npc.body!.enable = true;
       }
       const talking = this.panel.isOpen && this.nearNpc?.id === def.id;
-      const hx = plan.home[0] * TILE, hy = plan.home[1] * TILE;
       if (talking) {
         npc.setVelocity(0, 0);
+        npc.setData('wantMove', false);
       } else if (plan.roam === 0 || Math.hypot(npc.x - hx, npc.y - hy) > (plan.roam + 3) * TILE) {
-        // walk (back) to the spot
-        const d = Math.hypot(npc.x - hx, npc.y - hy);
-        if (d < 6) npc.setVelocity(0, 0);
-        else { const a = Math.atan2(hy - npc.y, hx - npc.x); npc.setVelocity(Math.cos(a) * 70, Math.sin(a) * 70); }
-      } else if (time > npc.getData('next')) {
-        const idle = Math.random() < (def.kind === 'abi' || def.kind === 'belletmen' ? 0.7 : 0.4);
-        if (idle) npc.setVelocity(0, 0);
-        else {
-          const tx = (plan.home[0] + Phaser.Math.Between(-plan.roam, plan.roam)) * TILE;
-          const ty = (plan.home[1] + Phaser.Math.Between(-plan.roam, plan.roam)) * TILE;
-          const a = Phaser.Math.Angle.Between(npc.x, npc.y, tx, ty);
-          npc.setVelocity(Math.cos(a) * 55, Math.sin(a) * 55);
+        // walk (back) to the spot, round the buildings
+        npc.setData('wander', undefined);
+        this.steerNpc(npc, hx, hy, 70);
+      } else {
+        const wander = npc.getData('wander') as [number, number] | undefined;
+        // never loiter in front of a door: people need to get in and out
+        const atDoor = !wander && this.doorClear[this.npcTile(npc.x, npc.y)] === 1;
+        if (wander) {
+          if (this.steerNpc(npc, wander[0], wander[1], 55)) npc.setData('wander', undefined);
+        } else if (atDoor || time > npc.getData('next')) {
+          const idle = !atDoor && Math.random() < (def.kind === 'abi' || def.kind === 'belletmen' ? 0.7 : 0.4);
+          const spot = idle ? null : this.wanderSpot(plan.home, Math.max(1, plan.roam));
+          if (spot) npc.setData('wander', spot);
+          else { npc.setVelocity(0, 0); npc.setData('wantMove', false); }
+          npc.setData('next', time + Phaser.Math.Between(1200, 3200));
         }
-        npc.setData('next', time + Phaser.Math.Between(1200, 3200));
       }
+      this.checkNpcStuck(npc, time, [hx, hy]);
       const vx = npc.body!.velocity.x, vy = npc.body!.velocity.y;
       const moving = Math.abs(vx) + Math.abs(vy) > 1;
       let dir = !moving ? npc.getData('dir') ?? 0 : Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : vy < 0 ? 3 : 0;
