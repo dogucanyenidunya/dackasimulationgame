@@ -197,7 +197,7 @@ export const MISSIONS: Mission[] = [
     unlocks: { tr: '2. yıl (5. sınıf)', en: 'Year 2 (Grade 5)' },
     objectives: [
       { id: 'xp', text: { tr: `${YEAR1_XP} XP topla`, en: `Earn ${YEAR1_XP} XP` }, done: (c) => c.st.xp >= YEAR1_XP, progress: (c) => `${Math.min(c.st.xp, YEAR1_XP)}/${YEAR1_XP}` },
-      { id: 'ceremony', text: { tr: 'Karne törenine katıl (Yemekhane · konferans salonu)', en: 'Attend the ceremony (dining hall · auditorium)' }, done: (c) => c.st.yearDone, targets: at('yemekhane') },
+      { id: 'ceremony', text: { tr: 'Karne törenine katıl (TIM Gösteri Merkezi · konferans salonu)', en: 'Attend the ceremony (TIM hall · auditorium)' }, done: (c) => c.st.yearDone, targets: at('tim') },
     ],
     reward: { xp: 0 },
   },

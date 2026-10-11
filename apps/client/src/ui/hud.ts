@@ -13,6 +13,7 @@ const TILE_COLORS: Record<number, [number, number, number]> = {
   [T.ROOF]: [201, 206, 211], [T.SKYLIGHT]: [159, 182, 201], [T.SOLAR]: [58, 95, 158], [T.GREEN_ROOF]: [127, 180, 102],
   [T.WALL]: [238, 240, 241], [T.DOOR]: [122, 78, 42], [T.COURT_RED]: [168, 72, 62], [T.COURT_BLUE]: [63, 127, 166],
   [T.FENCE]: [90, 95, 99], [T.GATE]: [138, 45, 45], [T.COURTYARD]: [157, 184, 138], [T.DOOR_REVIR]: [192, 57, 43],
+  [T.WALL_BASE]: [238, 240, 241], [T.ROAD]: [96, 100, 104], [T.HOUSES]: [168, 92, 70], [T.CAMPUS_WALL]: [120, 112, 100],
 };
 const FOG_RGB: [number, number, number] = [132, 152, 142];
 

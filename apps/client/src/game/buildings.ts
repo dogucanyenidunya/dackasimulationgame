@@ -492,7 +492,26 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
   }
 }
 
-/** dining hall menus: 'kantin' = the canteen counter, 'exit' = the door (outside, auditorium, roof terrace) */
+/** the TIM Gösteri Merkezi's auditorium: ceremonies and elections */
+function konferansRoom(ctx: GameCtx): RoomView {
+  return {
+    id: 'konferans', name: T('Konferans salonu', 'Auditorium'),
+    note: T('Kırmızı koltuklar ve büyük bir sahne. Törenler ve tiyatro gösterileri burada yapılır.', 'Red seats and a big stage. Ceremonies and plays happen here.'),
+    actions: [...councilHallActions(ctx), {
+      id: 'karne', label: T('Karne törenine katıl', 'Attend the report card ceremony'), hint: T('1. yılın sonu', 'The end of Year 1'),
+      locked: needMission(ctx, 'karne') ?? (ctx.st.yearDone ? T('Karneni aldın. 🎓', 'You have your report card. 🎓')
+        : ctx.st.xp < YEAR1_XP ? T(`Önce ${YEAR1_XP} XP topla (${ctx.st.xp}/${YEAR1_XP}).`, `Earn ${YEAR1_XP} XP first (${ctx.st.xp}/${YEAR1_XP}).`) : undefined),
+      run: () => { ctx.st.yearDone = true; ctx.panel.close(); ctx.yearEnd(); },
+    }],
+  };
+}
+
+/** TIM Gösteri Merkezi: the round hall with the auditorium */
+export function tim(ctx: GameCtx): PanelView {
+  return { title: 'TIM Gösteri Merkezi', sub: T('Konferans salonu · sahne', 'Auditorium · stage'), status: status(ctx), rooms: [konferansRoom(ctx)] };
+}
+
+/** dining hall menus: 'kantin' = the canteen counter (also the Kantin building), 'exit' = the door (outside, roof terrace) */
 export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): PanelView {
   const minutes = ctx.clock.minutes;
   const kantinOpen = minutes >= 8 * 60 && minutes < 18 * 60;
@@ -543,16 +562,6 @@ export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): Panel
         ],
       },
       {
-        id: 'konferans', name: T('Konferans salonu', 'Auditorium'),
-        note: T('Kırmızı koltuklar ve büyük bir sahne. Törenler ve tiyatro gösterileri burada yapılır.', 'Red seats and a big stage. Ceremonies and plays happen here.'),
-        actions: [...councilHallActions(ctx), {
-          id: 'karne', label: T('Karne törenine katıl', 'Attend the report card ceremony'), hint: T('1. yılın sonu', 'The end of Year 1'),
-          locked: needMission(ctx, 'karne') ?? (ctx.st.yearDone ? T('Karneni aldın. 🎓', 'You have your report card. 🎓')
-            : ctx.st.xp < YEAR1_XP ? T(`Önce ${YEAR1_XP} XP topla (${ctx.st.xp}/${YEAR1_XP}).`, `Earn ${YEAR1_XP} XP first (${ctx.st.xp}/${YEAR1_XP}).`) : undefined),
-          run: () => { ctx.st.yearDone = true; ctx.panel.close(); ctx.yearEnd(); },
-        }],
-      },
-      {
         id: 'teras', name: T('Çatı terası', 'Roof terrace'),
         note: T('Buradan bütün kampüs görünüyor.', 'You can see the whole campus from up here.'),
         actions: [{
@@ -562,11 +571,11 @@ export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): Panel
         }],
       },
   ];
-  if (mode === 'kantin') return { title: T('Kantin', 'Canteen'), sub: 'Yemekhane', status: status(ctx), rooms: rooms.filter((r) => r.id === 'kantin') };
+  if (mode === 'kantin') return { title: T('Kantin', 'Canteen'), sub: T("Şakir Abi'nin kantini", "Şakir's canteen"), status: status(ctx), rooms: rooms.filter((r) => r.id === 'kantin') };
   return {
     title: 'Yemekhane', sub: T('Yemekhane & Sosyal Merkez', 'Dining hall & social center'), status: status(ctx),
     rooms: [
-      { id: 'cikis', name: T('Çıkış', 'Exit'), note: T('Merdivenler konferans salonuna ve çatı terasına çıkıyor.', 'The stairs lead up to the auditorium and the roof terrace.'), actions: [{ id: 'out', label: T('Dışarı çık', 'Go outside'), run: () => { ctx.panel.close(); ctx.leaveDorm(); } }] },
+      { id: 'cikis', name: T('Çıkış', 'Exit'), note: T('Merdivenler çatı terasına çıkıyor.', 'The stairs lead up to the roof terrace.'), actions: [{ id: 'out', label: T('Dışarı çık', 'Go outside'), run: () => { ctx.panel.close(); ctx.leaveDorm(); } }] },
       ...rooms.filter((r) => r.id !== 'kantin'),
     ],
   };
@@ -1569,7 +1578,7 @@ function councilRoom(ctx: GameCtx): RoomView {
       },
     });
   } else if (c.stage === 'rep') {
-    note = T(`Sınıf temsilcisisin. ${g}. sınıfların başkanlık seçimi ${whenText(ctx, c.day)}, Konferans salonunda (Yemekhane).`, `You're class rep. The grade ${g} president vote is ${whenText(ctx, c.day)}, in the auditorium (dining hall).`);
+    note = T(`Sınıf temsilcisisin. ${g}. sınıfların başkanlık seçimi ${whenText(ctx, c.day)}, Konferans salonunda (TIM Gösteri Merkezi).`, `You're class rep. The grade ${g} president vote is ${whenText(ctx, c.day)}, in the auditorium (dining hall).`);
     actions.push(campaign(T('başkanlık seçiminde oy getirir', 'counts in the president vote')));
   } else if (c.stage === 'gradePresident') {
     note = g === SCHOOL_PRESIDENT_GRADE
@@ -1721,6 +1730,8 @@ export function buildingPanel(locId: string, ctx: GameCtx): PanelView | null {
     case 'egitim': return egitim(ctx);
     case 'kutuphane': return kutuphane(ctx);
     case 'yemekhane': return yemekhane(ctx);
+    case 'kantin': return yemekhane(ctx, 'kantin');
+    case 'tim': return tim(ctx);
     case 'revir': return revir(ctx);
     case 'spor': return spor(ctx);
     case 'teknik': return ctx.ch.cause === 'work' ? teknik(ctx) : null;

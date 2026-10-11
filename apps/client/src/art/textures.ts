@@ -129,9 +129,9 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
     c.fillStyle = '#6b7176'; c.fillRect(o, 7, 32, 1);
   },
   [T.GATE]: (c, o) => {
-    // the open gateway in the west wall (its brick pillars are drawn as separate sprites)
+    // the open gateway in the south fence (its brick pillars are drawn as separate sprites)
     TILE_PAINTERS[T.PATH](c, o);
-    c.fillStyle = 'rgba(138,45,45,0.35)'; c.fillRect(o + 13, 0, 6, 32);
+    c.fillStyle = 'rgba(138,45,45,0.35)'; c.fillRect(o, 13, 32, 6);
   },
   // ----- interior tiles (dorm study room / sleeping room) -----
   17: (c, o) => { // wooden floor
@@ -247,6 +247,33 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
     c.fillStyle = '#f4f4f0'; c.fillRect(o + 12, 9, 6, 8);
     c.fillStyle = '#8a5a32'; c.fillRect(o + 4, 18, 10, 4);
   },
+  [T.ROAD]: (c, o) => {
+    // asphalt outside the fence, with a dashed centre line
+    speckle(c, o, '#5d6266', '#53585c', 18, 101);
+    c.fillStyle = '#6b7075'; const r = rng(102); for (let i = 0; i < 8; i++) c.fillRect(o + Math.floor(r() * 30), Math.floor(r() * 30), 2, 1);
+    c.fillStyle = '#d9d4c4'; c.fillRect(o + 4, 15, 10, 2); c.fillRect(o + 20, 15, 8, 2);
+  },
+  [T.HOUSES]: (c, o) => {
+    // the neighbourhood's terracotta roofs, seen from above
+    c.fillStyle = '#7d4a3a'; c.fillRect(o, 0, 32, 32);
+    const r = rng(111);
+    for (const [x, y, w, h] of [[1, 1, 14, 13], [17, 2, 14, 12], [2, 17, 12, 14], [16, 16, 15, 15]]) {
+      const tone = ['#b5573f', '#a24c37', '#c4674a', '#9a5a46'][Math.floor(r() * 4)];
+      c.fillStyle = tone; c.fillRect(o + x, y, w, h);
+      c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(o + x, y, w, Math.floor(h / 2));
+      c.fillStyle = 'rgba(0,0,0,0.18)'; for (let ly = y + 2; ly < y + h; ly += 3) c.fillRect(o + x, ly, w, 1);
+    }
+  },
+  [T.CAMPUS_WALL]: (c, o) => {
+    // a stone garden wall running north–south, seen from above: light coping, shaded east face
+    TILE_PAINTERS[T.GROUND](c, o);
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(o + 22, 0, 6, 32);
+    c.fillStyle = '#8f8778'; c.fillRect(o + 10, 0, 12, 32);
+    c.fillStyle = '#7a7366'; for (let y = 3; y < 32; y += 8) c.fillRect(o + 16, y, 6, 1);
+    c.fillStyle = '#d8d2c4'; c.fillRect(o + 10, 0, 8, 32);
+    c.fillStyle = '#ebe6da'; c.fillRect(o + 10, 0, 2, 32);
+    c.fillStyle = '#b9b2a3'; for (let y = 7; y < 32; y += 8) c.fillRect(o + 10, y, 8, 1);
+  },
   [T.COURTYARD]: (c, o) => {
     c.fillStyle = PAL.roofDark; c.fillRect(o, 0, 32, 32);
     c.fillStyle = '#8fb37a'; c.fillRect(o + 2, 2, 28, 28);
@@ -278,7 +305,7 @@ export const DEFAULT_LOOK: CharacterLook = {
 };
 
 export function generateTextures(scene: Phaser.Scene) {
-  const count = 33;
+  const count = 36;
   // paint tiles side by side, then copy them into an "extruded" sheet: each tile gets a 1px border
   // repeating its edge pixels, so zooming never samples the neighbouring tile (no seams)
   const raw = document.createElement('canvas');

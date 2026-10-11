@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
-  BENCHES, BUST, CEMIL_OUT, COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
-  AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorStandTile, type Location, type Rect,
+  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
   DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture,
@@ -9,7 +9,7 @@ import {
 import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
-import { makeBuildingArt, type BuildingArt } from '../art/buildings3d';
+import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildings3d';
 import { World3D, type Host3D } from '../three/World3D';
 import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { saveToCloud } from '../net/cloudSave';
@@ -69,7 +69,8 @@ export class CampusScene extends Phaser.Scene {
   private nightCanvas!: HTMLCanvasElement;
   private warmLights!: Phaser.GameObjects.Group;
   /** 2.5D buildings: the painted image, its night windows, and where it stands */
-  private buildingArt: Array<{ art: BuildingArt; img: Phaser.GameObjects.Image; lit: Phaser.GameObjects.Image }> = [];
+  /** each building is drawn as narrow column slices (see drawBuildings); `alpha` fades them all together */
+  private buildingArt: Array<{ art: BuildingArt; b: Building; imgs: Phaser.GameObjects.Image[]; lits: Phaser.GameObjects.Image[]; alpha: number }> = [];
   private darkAlpha = 0;
   private lightSpots: Array<{ x: number; y: number; r: number }> = [];
   private particles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
@@ -157,7 +158,7 @@ export class CampusScene extends Phaser.Scene {
     const tilemap = this.make.tilemap({ data: this.map, tileWidth: TILE, tileHeight: TILE });
     const tileset = tilemap.addTilesetImage(TILESET_KEY, TILESET_KEY, TILE, TILE, TILESET_MARGIN, TILESET_SPACING)!;
     const ground = tilemap.createLayer(0, tileset, 0, 0)!;
-    ground.setCollision(SOLID_TILES);
+    ground.setCollision(BLOCK_TILES); // buildings collide through their outlines (see pushOutOfBuildings)
     this.drawCourtLines();
 
     this.drawBuildings();
@@ -189,9 +190,13 @@ export class CampusScene extends Phaser.Scene {
     flag.setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave');
     flag.body!.setSize(6, 6).setOffset(5, 86);
     this.lightSpots.push({ x: FOUNTAIN[0] * TILE, y: FOUNTAIN[1] * TILE, r: 2.5 });
-    // the main gate's brick pillars, either side of the gateway in the west wall
-    for (const gy of [GATE.y - 0.5, GATE.y + GATE.h + 0.5]) {
-      const post = trees.create(GATE.x * TILE + 16, gy * TILE - 8, 'gatepost') as Phaser.Physics.Arcade.Sprite;
+    // the main gate's brick pillars, either side of the gateway
+    const vertical = GATE.h > GATE.w;
+    const posts: Array<[number, number]> = vertical
+      ? [[GATE.x + 0.5, GATE.y - 0.5], [GATE.x + 0.5, GATE.y + GATE.h + 0.5]]
+      : [[GATE.x - 0.5, GATE.y + 0.5], [GATE.x + GATE.w + 0.5, GATE.y + 0.5]];
+    for (const [gx, gy] of posts) {
+      const post = trees.create(gx * TILE, gy * TILE - 8, 'gatepost') as Phaser.Physics.Arcade.Sprite;
       post.setDepth(gy * TILE + 16);
       post.body!.setSize(24, 12).setOffset(4, 34);
     }
@@ -204,10 +209,7 @@ export class CampusScene extends Phaser.Scene {
     this.lightSpots.push({ x: BUST[0] * TILE, y: BUST[1] * TILE + 6, r: 2.2 });
     // bushes along the building fronts, door lights
     for (const b of BUILDINGS) {
-      const yb = b.rect.y + b.rect.h;
-      for (let x = b.rect.x; x < b.rect.x + b.rect.w; x += 3) {
-        if (this.map[yb]?.[x] === T.GROUND && this.map[yb]?.[x + 1] === T.GROUND) this.add.image(x * TILE + 32, yb * TILE + 10, 'bush').setDepth(yb * TILE + 12);
-      }
+      for (const [x, y] of bushSpots(b, this.map)) this.add.image(x * TILE, y * TILE, 'bush').setDepth(y * TILE + 12);
     }
     for (const loc of LOCATIONS) { const d = loc.doors?.[0]; if (d) this.lightSpots.push({ x: d.x * TILE + 16, y: d.y * TILE + 24, r: 1.6 }); }
     this.warmLights = this.add.group();
@@ -1006,27 +1008,39 @@ export class CampusScene extends Phaser.Scene {
 
   private drawCourtLines() {
     const g = this.add.graphics().setDepth(1);
-    g.lineStyle(2, 0xf2f2ea, 0.9);
-    const bk = COURTS.basketball;
-    {
+    // basketball courts: outline, halfway line, centre circle, three-point arcs (across the long side)
+    for (const bk of [COURTS.basketball, ...EXTRA_COURTS]) {
       const x = bk.x * TILE + 8, y = bk.y * TILE + 8, w = bk.w * TILE - 16, h = bk.h * TILE - 16;
+      g.lineStyle(2, 0xf2f2ea, 0.9);
       g.strokeRect(x, y, w, h);
-      g.lineBetween(x + w / 2, y, x + w / 2, y + h);
-      g.strokeCircle((bk.x + bk.w / 2) * TILE, (bk.y + bk.h / 2) * TILE, 28);
+      if (w >= h) g.lineBetween(x + w / 2, y, x + w / 2, y + h); else g.lineBetween(x, y + h / 2, x + w, y + h / 2);
+      g.strokeCircle(x + w / 2, y + h / 2, Math.min(28, Math.min(w, h) / 3));
     }
-    // football pitch: touchlines, halfway line, centre circle, penalty boxes and goals
+    // football pitch: touchlines, halfway line, centre circle, penalty boxes and goals at both ends
     const fb = COURTS.football;
     const x = fb.x * TILE + 6, y = fb.y * TILE + 6, w = fb.w * TILE - 12, h = fb.h * TILE - 12;
     g.lineStyle(2, 0xffffff, 0.85);
     g.strokeRect(x, y, w, h);
-    g.lineBetween(x + w / 2, y, x + w / 2, y + h);
     g.strokeCircle(x + w / 2, y + h / 2, 30);
-    g.strokeRect(x, y + h / 2 - 48, 64, 96);
-    g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96);
-    g.lineStyle(3, 0xffffff, 1);
-    g.strokeRect(x - 10, y + h / 2 - 24, 10, 48);
-    g.strokeRect(x + w, y + h / 2 - 24, 10, 48);
+    if (w >= h) {
+      g.lineBetween(x + w / 2, y, x + w / 2, y + h);
+      g.strokeRect(x, y + h / 2 - 48, 64, 96);
+      g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96);
+      g.lineStyle(3, 0xffffff, 1);
+      g.strokeRect(x - 10, y + h / 2 - 24, 10, 48);
+      g.strokeRect(x + w, y + h / 2 - 24, 10, 48);
+    } else {
+      g.lineBetween(x, y + h / 2, x + w, y + h / 2);
+      g.strokeRect(x + w / 2 - 64, y, 128, 64);
+      g.strokeRect(x + w / 2 - 64, y + h - 64, 128, 64);
+      g.strokeRect(x + w / 2 - 28, y, 56, 22);
+      g.strokeRect(x + w / 2 - 28, y + h - 22, 56, 22);
+      g.lineStyle(3, 0xffffff, 1);
+      g.strokeRect(x + w / 2 - 28, y - 10, 56, 10);
+      g.strokeRect(x + w / 2 - 28, y + h, 56, 10);
+    }
   }
+
 
 
   private createAnims() {
@@ -1054,6 +1068,15 @@ export class CampusScene extends Phaser.Scene {
   private buildNpcGrid(obstacles: Phaser.Physics.Arcade.StaticGroup) {
     for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
       this.npcGrid[y * MAP_W + x] = SOLID_TILES.includes(this.map[y][x] as never) ? 0 : 1;
+    }
+    // slanted and round walls cut across tiles: keep NPCs off tiles a wall runs through
+    for (const b of BUILDINGS) {
+      const r = b.rect;
+      for (let y = Math.floor(r.y) - 1; y <= Math.ceil(r.y + r.h); y++) for (let x = Math.floor(r.x) - 1; x <= Math.ceil(r.x + r.w); x++) {
+        if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+        if (passageAt(x + 0.5, y + 0.5, b)) continue; // its corridor stays open
+        if (inPoly(x + 0.5, y + 0.5, b.shape) || nearestEdge(x + 0.5, y + 0.5, b.shape).d < 0.45) this.npcGrid[y * MAP_W + x] = 0;
+      }
     }
     for (const o of obstacles.getChildren()) {
       const b = (o as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody | null;
@@ -1252,7 +1275,7 @@ export class CampusScene extends Phaser.Scene {
   private npcPlan(def: NpcDef, phase: DayPhase, lessonNow: boolean, npc: Phaser.Physics.Arcade.Sprite): { home: [number, number]; roam: number } | null {
     if (def.kind === 'belletmen') {
       if (phase === 'day') return null;
-      if (def.id === 'bel-selim') return phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [48, 13], roam: 5 };
+      if (def.id === 'bel-selim') return phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [47, 27], roam: 5 };
       return { home: npc.getData('dayHome'), roam: 1 };
     }
     const summon = npc.getData('summon') as [number, number] | undefined;
@@ -1394,43 +1417,109 @@ export class CampusScene extends Phaser.Scene {
     this.hud.setViewMode(mode);
   }
 
-  /** 2.5D buildings: a ground shadow, the painted building (sorted by its front edge, so you can walk
-   *  behind it) and its windows, which light up at night */
+  /** 2.5D buildings: a ground shadow, the painted building and its windows, which light up at night.
+   *  Slanted and round walls mean the building's front edge isn't one line, so the picture is cut into
+   *  narrow columns, each sorted by where the footprint ends in that column: you can stand in front
+   *  of one part of a wall and behind another. */
   private drawBuildings() {
     // lawn under the footprints (only seen while a building is see-through)
     const under = this.add.graphics().setDepth(0.5);
     under.fillStyle(0x8cbd68, 1);
-    for (const b of BUILDINGS) under.fillRect(b.rect.x * TILE, b.rect.y * TILE, b.rect.w * TILE, b.rect.h * TILE);
-    const g = this.add.graphics().setDepth(1);
-    for (const b of BUILDINGS) {
-      const art = makeBuildingArt(this, b);
-      const r = b.rect;
-      const x0 = r.x * TILE, x1 = (r.x + r.w) * TILE, top = art.y + 14, base = art.base;
-      // sun from the north-west: the shadow falls to the east and a little south
-      g.fillStyle(0x1d3a24, 0.2);
-      g.fillPoints([{ x: x1, y: top }, { x: x1 + 22, y: top + 22 }, { x: x1 + 22, y: base + 12 }, { x: x0 + 22, y: base + 12 }, { x: x0 + 10, y: base }, { x: x1, y: base }], true);
-      g.fillStyle(0x1d3a24, 0.1);
-      g.fillPoints([{ x: x1 + 22, y: top + 22 }, { x: x1 + 30, y: top + 30 }, { x: x1 + 30, y: base + 18 }, { x: x0 + 30, y: base + 18 }, { x: x0 + 22, y: base + 12 }, { x: x1 + 22, y: base + 12 }], true);
-      // front steps for entrances that face north (drawn on the ground outside the building)
+    for (const b of BUILDINGS) under.fillPoints(b.shape.map(([x, y]) => ({ x: x * TILE, y: y * TILE })), true);
+    // corridors through buildings (also only seen while see-through): paving, side walls and the doors off them
+    const hall = this.add.graphics().setDepth(0.6);
+    // ...clipped to the footprints, so a corridor ending at a slanted wall doesn't spill onto the lawn
+    const footprints = this.make.graphics({}, false).fillStyle(0xffffff, 1);
+    for (const b of BUILDINGS) footprints.fillPoints(b.shape.map(([x, y]) => ({ x: x * TILE, y: y * TILE })), true);
+    hall.setMask(footprints.createGeometryMask());
+    for (const b of BUILDINGS) for (const p of b.passages ?? []) {
+      const x0 = p.x * TILE, y0 = p.y * TILE, w = p.w * TILE, h = p.h * TILE;
+      hall.fillStyle(0xd9d1c2, 1).fillRect(x0, y0, w, h);
+      hall.fillStyle(0xc4baa7, 1);
+      for (let x = x0 + 16; x < x0 + w; x += 32) hall.fillRect(x, y0, 1, h);
+      hall.fillStyle(0xe9ebe8, 1).fillRect(x0, y0 - 8, w, 8).fillRect(x0, y0 + h - 3, w, 3);
+      hall.fillStyle(0x000000, 0.15).fillRect(x0, y0, w, 4);
       for (const loc of LOCATIONS) for (const d of loc.doors ?? []) {
-        if (d.side !== 'n' || d.x < r.x || d.x >= r.x + r.w || d.y !== r.y) continue;
-        g.fillStyle(0xcfc8b9, 1).fillRect(d.x * TILE - 6, (d.y - 1) * TILE + 18, TILE + 12, 14);
-        g.fillStyle(0xb3ab9a, 1).fillRect(d.x * TILE - 6, (d.y - 1) * TILE + 24, TILE + 12, 2);
+        if (!doorInPassage(d, b)) continue;
+        const dx = d.x * TILE + 4, north = d.side === 's';
+        hall.fillStyle(0x3e4a52, 1).fillRect(dx, north ? y0 - 8 : y0 + h - 4, TILE - 8, north ? 10 : 6);
+        hall.fillStyle(0x6f93ad, 1).fillRect(dx + 2, north ? y0 - 6 : y0 + h - 3, TILE - 12, north ? 6 : 3);
       }
-      const img = this.add.image(art.x, art.y, art.key).setOrigin(0, 0).setDepth(art.base);
-      const lit = this.add.image(art.x, art.y, art.litKey).setOrigin(0, 0).setDepth(art.base + 0.5).setAlpha(0);
-      this.buildingArt.push({ art, img, lit });
+    }
+    const steps = this.add.graphics().setDepth(1.5);
+    for (const b of BUILDINGS) {
+      // sun from the north-west: a soft outer shadow and a darker inner one, falling east and a little south
+      for (const [reach, alpha] of [[0.95, 0.1], [0.7, 0.2]] as const) {
+        const sh = makeShadowArt(this, b, reach);
+        this.add.image(sh.x, sh.y, sh.key).setOrigin(0, 0).setDepth(1).setAlpha(alpha);
+      }
+      const art = makeBuildingArt(this, b);
+      const imgs: Phaser.GameObjects.Image[] = [], lits: Phaser.GameObjects.Image[] = [];
+      const SLICE = 8;
+      let last = art.base;
+      for (let sx = 0; sx < art.w; sx += SLICE) {
+        const fronts = [1, SLICE / 2, SLICE - 1].map((d) => frontAt(b.shape, (art.x + sx + d) / TILE)).filter((v): v is number => v !== null);
+        const base = fronts.length ? Math.max(...fronts) * TILE : last;
+        last = base;
+        imgs.push(this.add.image(art.x, art.y, art.key).setOrigin(0, 0).setCrop(sx, 0, SLICE, art.h).setDepth(base));
+        lits.push(this.add.image(art.x, art.y, art.litKey).setOrigin(0, 0).setCrop(sx, 0, SLICE, art.h).setDepth(base + 0.5).setAlpha(0));
+      }
+      this.buildingArt.push({ art, b, imgs, lits, alpha: 1 });
+    }
+    // front steps for entrances that face north (drawn on the ground outside the building)
+    for (const loc of LOCATIONS) for (const d of loc.doors ?? []) {
+      if (d.side !== 'n' || BUILDINGS.some((b) => doorInPassage(d, b))) continue;
+      const s = doorStandTile(d);
+      steps.fillStyle(0xcfc8b9, 1).fillRect(s.x * TILE - 6, s.y * TILE + 18, TILE + 12, 14);
+      steps.fillStyle(0xb3ab9a, 1).fillRect(s.x * TILE - 6, s.y * TILE + 24, TILE + 12, 2);
     }
   }
 
   /** see-through buildings while someone walks behind them */
   private updateBuildingFade() {
     const px = this.player.x, py = this.player.y;
-    for (const { art, img, lit } of this.buildingArt) {
-      const behind = !this.room && px > art.x - 8 && px < art.x + art.w + 8 && py < art.base - 8 && py > art.y - 24;
+    for (const entry of this.buildingArt) {
+      const { art, b } = entry;
+      const front = px > art.x - 8 && px < art.x + art.w + 8 ? frontAt(b.shape, px / TILE) : null;
+      const behind = !this.room && front !== null && py < front * TILE - 8 && py > art.y - 24;
       const target = behind ? 0.45 : 1;
-      if (img.alpha !== target) img.setAlpha(Math.abs(img.alpha - target) < 0.05 ? target : img.alpha + (target - img.alpha) * 0.25);
-      lit.setVisible(img.alpha > 0.9);
+      if (entry.alpha === target) continue;
+      entry.alpha = Math.abs(entry.alpha - target) < 0.05 ? target : entry.alpha + (target - entry.alpha) * 0.25;
+      for (const img of entry.imgs) img.setAlpha(entry.alpha);
+      for (const l of entry.lits) l.setVisible(entry.alpha > 0.9);
+    }
+  }
+
+  /** buildings collide through their real outlines: anyone standing in one is pushed back out to its wall */
+  private pushOutOfBuildings(sp: Phaser.Physics.Arcade.Sprite) {
+    const body = sp.body as Phaser.Physics.Arcade.Body | null;
+    if (!body?.enable) return;
+    const R = 7 / TILE; // the feet are about 14px across
+    for (const b of BUILDINGS) {
+      const cx = body.center.x / TILE, cy = body.center.y / TILE, r = b.rect;
+      if (cx < r.x - 1 || cx > r.x + r.w + 1 || cy < r.y - 1 || cy > r.y + r.h + 1) continue;
+      const inside = inPoly(cx, cy, b.shape);
+      const e = nearestEdge(cx, cy, b.shape);
+      if (!inside && e.d >= R) continue;
+      // in a corridor through the building: free to walk along it, its side walls keep you in
+      const half = 6 / TILE; // half the feet's height
+      const pass = b.passages?.find((p) => cx >= p.x && cx <= p.x + p.w && cy >= p.y - 0.7 && cy <= p.y + p.h + 0.7);
+      if (pass) {
+        const y = Math.min(pass.y + pass.h - half, Math.max(pass.y + half, cy));
+        if (y === cy) continue;
+        if (inside) {
+          body.position.y += (y - cy) * TILE; body.updateCenter();
+          if ((y - cy) * body.velocity.y < 0) body.velocity.y = 0;
+          continue;
+        }
+      }
+      // out along the nearest wall's normal, to one feet-radius clear of it
+      const dx = e.d > 1e-4 ? (inside ? e.x - cx : cx - e.x) / e.d : e.nx, dy = e.d > 1e-4 ? (inside ? e.y - cy : cy - e.y) / e.d : e.ny;
+      const push = (inside ? e.d + R : R - e.d) * TILE;
+      body.position.x += dx * push; body.position.y += dy * push;
+      body.updateCenter();
+      const vn = body.velocity.x * dx + body.velocity.y * dy;
+      if (vn < 0) body.velocity.set(body.velocity.x - vn * dx, body.velocity.y - vn * dy);
     }
   }
 
@@ -1471,7 +1560,7 @@ export class CampusScene extends Phaser.Scene {
     this.darkAlpha = a;
     this.warmLights.getChildren().forEach((o) => (o as Phaser.GameObjects.Image).setAlpha(!this.room && a > 0.3 ? Math.min(0.32, a * 0.45) : 0));
     const windows = this.room || a < 0.25 ? 0 : Math.min(1, (a - 0.25) * 2.5);
-    for (const b of this.buildingArt) b.lit.setAlpha(windows);
+    for (const b of this.buildingArt) for (const l of b.lits) l.setAlpha(windows);
     if (a <= 0.01) return;
     const cam = this.cameras.main;
     const view = cam.worldView;
@@ -1493,8 +1582,8 @@ export class CampusScene extends Phaser.Scene {
     if (!this.room) {
       c.imageSmoothingEnabled = false;
       c.globalAlpha = Math.min(0.9, (a - 0.25) * 2);
-      for (const { art, img } of this.buildingArt) {
-        if (img.alpha < 0.9) continue;
+      for (const { art, alpha } of this.buildingArt) {
+        if (alpha < 0.9) continue;
         const sx = (art.x - view.x) * cam.zoom, sy = (art.y - view.y) * cam.zoom;
         if (sx > w || sy > h || sx + art.w * cam.zoom < 0 || sy + art.h * cam.zoom < 0) continue;
         c.drawImage(this.textures.get(art.litKey).getSourceImage() as HTMLCanvasElement, sx, sy, art.w * cam.zoom, art.h * cam.zoom);
@@ -1596,8 +1685,9 @@ export class CampusScene extends Phaser.Scene {
 
   /** clears fog over a whole area (plus a margin) with a short dissolve */
   private revealArea(r: Rect, margin = 2) {
-    const x0 = Math.max(0, r.x - margin), y0 = Math.max(0, r.y - margin);
-    const x1 = Math.min(MAP_W - 1, r.x + r.w - 1 + margin), y1 = Math.min(MAP_H - 1, r.y + r.h - 1 + margin);
+    // areas can have fractional edges (round and slanted buildings): cover every tile they touch
+    const x0 = Math.max(0, Math.floor(r.x - margin)), y0 = Math.max(0, Math.floor(r.y - margin));
+    const x1 = Math.min(MAP_W - 1, Math.ceil(r.x + r.w - 1 + margin)), y1 = Math.min(MAP_H - 1, Math.ceil(r.y + r.h - 1 + margin));
     const fading: Phaser.Tilemaps.Tile[] = [];
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const i = y * MAP_W + x;
@@ -1696,7 +1786,7 @@ export class CampusScene extends Phaser.Scene {
 
   private nearGate(): boolean {
     if (this.room) return false;
-    return Math.hypot(this.player.x / TILE - (GATE.x + GATE.w + 0.5), this.player.y / TILE - (GATE.y + GATE.h / 2)) < 2;
+    return Math.hypot(this.player.x / TILE - (GATE_IN[0] + 0.5), this.player.y / TILE - (GATE_IN[1] + 0.5)) < 2;
   }
 
   /** evci: the weekend at home; you're back at the gate on Sunday at 17:40 */
@@ -2446,6 +2536,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.trackerTimer > 400) { this.trackerTimer = 0; this.updateTracker(); }
 
     this.updateNpcs(time);
+    if (!this.room) { this.pushOutOfBuildings(this.player); for (const n of this.npcs) if (n.visible) this.pushOutOfBuildings(n); }
     this.updatePeers(time);
     this.emoteTimer += delta;
     if (this.emoteTimer > 1400) { this.emoteTimer = 0; this.showEmote(); }

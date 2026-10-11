@@ -11,14 +11,16 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
-  BENCHES, BUILDINGS, BUST, COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, MAP_H, MAP_W, T, TILE, TREES, type Building, type Rect,
+  BENCHES, BUILDINGS, BUST, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, LOCATIONS, MAP_H, MAP_W, T, TILE, TREES,
+  inBuilding, nearestEdge, type Building, type Pt, type Rect,
 } from '../content/campus';
 import { ROOM_OX, ROOM_W, ROOM_H, ROOM_SOLID, RT, buildRoom } from '../content/dormroom';
 import { CLASS_OX, CLASS_W, CLASS_H, buildClassroom } from '../content/classroom';
 import { DINING_OX, DINING_W, DINING_H, DINING_SOLID, DT, buildDining } from '../content/dining';
 import { TILESET_KEY, TILESET_MARGIN, TILESET_SPACING } from '../art/textures';
-import { entrances } from '../art/buildings3d';
+import { bushSpots, entrances, sideX } from '../art/buildings3d';
 
 export type RoomKey = 'dorm' | 'class' | 'dining' | null;
 
@@ -38,7 +40,7 @@ export interface Host3D {
 
 const FLOORS: Record<string, [number, number]> = {
   // [floors, floor height]
-  kiz_yurdu: [4, 1.15], erkek_yurdu: [4, 1.15], egitim: [3, 1.2], kutuphane: [2, 1.4], yemekhane: [2, 1.35], cemiyet: [2, 1.25], spor: [1, 2.9], teknik: [2, 1.2],
+  kiz_yurdu: [4, 1.15], erkek_yurdu: [4, 1.15], egitim: [3, 1.2], yemekhane: [2, 1.35], cemiyet: [2, 1.25], spor: [1, 2.9], tim: [1, 3.2], kantin: [1, 1.9],
 };
 const PITCH = THREE.MathUtils.degToRad(52);
 const FOV = 34;
@@ -214,26 +216,28 @@ export class World3D {
     for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
       let t = m[y][x];
       if (BUILDING_TILES.has(t)) t = T.GROUND;
-      if (t === T.FENCE) t = T.GROUND;
+      if (t === T.FENCE || t === T.CAMPUS_WALL) t = T.GROUND;
       this.drawTile(g, t, x * TILE, y * TILE);
     }
-    // basketball court and football pitch lines (same as the 2D view)
+    // court and pitch lines (same as the 2D view)
+    const courts = [COURTS.basketball, ...EXTRA_COURTS];
     g.strokeStyle = 'rgba(242,242,234,0.9)'; g.lineWidth = 2;
-    const b = COURTS.basketball;
-    {
+    for (const b of courts) {
       const x = b.x * TILE + 8, y = b.y * TILE + 8, w = b.w * TILE - 16, h = b.h * TILE - 16;
       g.strokeRect(x, y, w, h);
-      g.beginPath(); g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); g.stroke();
-      g.beginPath(); g.arc((b.x + b.w / 2) * TILE, (b.y + b.h / 2) * TILE, 28, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); if (w >= h) { g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); } else { g.moveTo(x, y + h / 2); g.lineTo(x + w, y + h / 2); } g.stroke();
+      g.beginPath(); g.arc(x + w / 2, y + h / 2, Math.min(28, Math.min(w, h) / 3), 0, Math.PI * 2); g.stroke();
     }
     const fb = COURTS.football;
+    const across = fb.w >= fb.h; // goals at the west/east ends, or north/south
     {
       const x = fb.x * TILE + 6, y = fb.y * TILE + 6, w = fb.w * TILE - 12, h = fb.h * TILE - 12;
       g.strokeStyle = 'rgba(255,255,255,0.85)';
       g.strokeRect(x, y, w, h);
-      g.beginPath(); g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); g.stroke();
       g.beginPath(); g.arc(x + w / 2, y + h / 2, 30, 0, Math.PI * 2); g.stroke();
-      g.strokeRect(x, y + h / 2 - 48, 64, 96); g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96);
+      g.beginPath();
+      if (across) { g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); g.stroke(); g.strokeRect(x, y + h / 2 - 48, 64, 96); g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96); }
+      else { g.moveTo(x, y + h / 2); g.lineTo(x + w, y + h / 2); g.stroke(); g.strokeRect(x + w / 2 - 64, y, 128, 64); g.strokeRect(x + w / 2 - 64, y + h - 64, 128, 64); }
     }
     const tex = pixelTex(c);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), new THREE.MeshLambertMaterial({ map: tex }));
@@ -246,30 +250,42 @@ export class World3D {
     outside.rotation.x = -Math.PI / 2;
     outside.position.set(MAP_W / 2, -0.02, MAP_H / 2);
     this.scene.add(outside);
-    // basketball hoops and a tennis net
+    // basketball hoops at both ends of each court's long side
     const metal = new THREE.MeshLambertMaterial({ color: 0x3d4246 });
     const board = new THREE.MeshLambertMaterial({ color: 0xf4f4f0 });
-    for (const [hx, flip] of [[b.x + 0.6, 1], [b.x + b.w - 0.6, -1]] as const) {
-      const pole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.6, 0.1), metal);
-      pole.position.set(hx, 1.3, b.y + b.h / 2); pole.castShadow = true;
-      const bb = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 1.1), board);
-      bb.position.set(hx + 0.12 * flip, 2.5, b.y + b.h / 2); bb.castShadow = true;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 4, 12), new THREE.MeshLambertMaterial({ color: 0xd9582b }));
-      ring.rotation.x = Math.PI / 2; ring.position.set(hx + 0.38 * flip, 2.3, b.y + b.h / 2);
-      this.scene.add(pole, bb, ring);
+    const orange = new THREE.MeshLambertMaterial({ color: 0xd9582b });
+    for (const b of courts) {
+      const long = b.w >= b.h;
+      for (const flip of [1, -1]) {
+        // `flip` points from the hoop's pole into the court
+        const px = long ? (flip > 0 ? b.x + 0.6 : b.x + b.w - 0.6) : b.x + b.w / 2;
+        const pz = long ? b.y + b.h / 2 : (flip > 0 ? b.y + 0.6 : b.y + b.h - 0.6);
+        const ox = long ? flip : 0, oz = long ? 0 : flip;
+        const pole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.6, 0.1), metal);
+        pole.position.set(px, 1.3, pz); pole.castShadow = true;
+        const bb = new THREE.Mesh(new THREE.BoxGeometry(long ? 0.06 : 1.1, 0.7, long ? 1.1 : 0.06), board);
+        bb.position.set(px + 0.12 * ox, 2.5, pz + 0.12 * oz); bb.castShadow = true;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 4, 12), orange);
+        ring.rotation.x = Math.PI / 2; ring.position.set(px + 0.38 * ox, 2.3, pz + 0.38 * oz);
+        this.scene.add(pole, bb, ring);
+      }
     }
     // football goals at both ends of the pitch
     const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    for (const [gx, side] of [[fb.x + 0.2, -1], [fb.x + fb.w - 0.2, 1]] as const) {
-      const gz = fb.y + fb.h / 2;
-      for (const dz of [-0.75, 0.75]) {
+    const net = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 });
+    for (const side of [-1, 1]) {
+      // centre of the goal line, and which way the net bulges (out of the pitch)
+      const gx = across ? (side < 0 ? fb.x + 0.2 : fb.x + fb.w - 0.2) : fb.x + fb.w / 2;
+      const gz = across ? fb.y + fb.h / 2 : (side < 0 ? fb.y + 0.2 : fb.y + fb.h - 0.2);
+      const tx = across ? 0 : 1, tz = across ? 1 : 0; // along the goal line
+      for (const d of [-0.75, 0.75]) {
         const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), white);
-        post.position.set(gx, 0.45, gz + dz); post.castShadow = true; this.scene.add(post);
+        post.position.set(gx + tx * d, 0.45, gz + tz * d); post.castShadow = true; this.scene.add(post);
       }
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.58), white);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(across ? 0.08 : 1.58, 0.08, across ? 1.58 : 0.08), white);
       bar.position.set(gx, 0.9, gz); bar.castShadow = true;
-      const netBox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.85, 1.5), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }));
-      netBox.position.set(gx + side * 0.25, 0.43, gz);
+      const netBox = new THREE.Mesh(new THREE.BoxGeometry(across ? 0.45 : 1.5, 0.85, across ? 1.5 : 0.45), net);
+      netBox.position.set(gx + (across ? side * 0.25 : 0), 0.43, gz + (across ? 0 : side * 0.25));
       this.scene.add(bar, netBox);
     }
   }
@@ -288,9 +304,10 @@ export class World3D {
     this.fog = { canvas: c, g, tex, timer: 1e9, hideables: [] };
   }
 
-  /** the white façade module: 4 windows wide, one floor high (plus a matching "lit windows" map) */
-  private facadeTextures(style: 'ribbon' | 'glass', seed: number) {
-    const W = 128, H = 40;
+  /** the white façade module (plus a matching "lit windows" map): 4 windows wide and one floor high,
+   *  a glass curtain wall, or the round hall's drum (one glass slit per tile) */
+  private facadeTextures(style: 'ribbon' | 'glass' | 'drum', seed: number) {
+    const W = style === 'drum' ? 32 : 128, H = 40;
     const { c, g } = canvas(W, H);
     const { c: e, g: eg } = canvas(W, H);
     eg.fillStyle = '#000'; eg.fillRect(0, 0, W, H);
@@ -303,6 +320,11 @@ export class World3D {
       g.fillStyle = '#e8ecef'; for (let x = 0; x < W; x += 16) g.fillRect(x, 3, 2, H - 8);
       g.fillRect(0, H / 2, W, 2);
       eg.fillStyle = '#ffd57e'; eg.fillRect(0, 7, W, H - 12);
+    } else if (style === 'drum') {
+      g.fillStyle = '#5f819f'; g.fillRect(10, 4, 12, H - 9);
+      g.fillStyle = '#a9c9e2'; g.fillRect(10, 4, 12, 4);
+      g.fillStyle = '#e4e7e8'; g.fillRect(0, 0, 2, H);
+      eg.fillStyle = '#fff0c4'; eg.fillRect(10, 8, 12, H - 13);
     } else {
       for (let i = 0; i < 4; i++) {
         const x = i * 32 + 4;
@@ -318,124 +340,201 @@ export class World3D {
     return { map: pixelTex(c, true), emissive: pixelTex(e, true) };
   }
 
-  private roofTexture(b: Building, w: number, h: number) {
-    const { c, g } = canvas(w * TILE, h * TILE);
-    const r = rng(b.rect.x * 13 + b.rect.y * 7);
+  private roofTexture(b: Building) {
+    const r = b.rect;
+    const { c, g } = canvas(Math.ceil(r.w * TILE), Math.ceil(r.h * TILE));
+    const rand = rng(Math.round(r.x * 13 + r.y * 7));
     const pal = b.roof === 'green' ? ['#79ae5f', '#62964b', '#93c477'] : b.roof === 'white' ? ['#dfe3e6', '#c9cfd4', '#eef1f3'] : ['#bcc3c9', '#a6aeb5', '#d3d9de'];
     g.fillStyle = pal[0]; g.fillRect(0, 0, c.width, c.height);
-    for (let i = 0; i < w * h * 6; i++) { g.fillStyle = r() < 0.5 ? pal[1] : pal[2]; g.fillRect(r() * c.width, r() * c.height, 2, 1); }
+    for (let i = 0; i < r.w * r.h * 6; i++) { g.fillStyle = rand() < 0.5 ? pal[1] : pal[2]; g.fillRect(rand() * c.width, rand() * c.height, 2, 1); }
     g.fillStyle = pal[1];
     for (let x = 32; x < c.width; x += 32) g.fillRect(x, 0, 1, c.height);
     for (let y = 32; y < c.height; y += 32) g.fillRect(0, y, c.width, 1);
-    const at = (s: Rect) => ({ x: (s.x - b.rect.x) * TILE, y: (s.y - b.rect.y) * TILE, w: s.w * TILE, h: s.h * TILE });
+    const at = (s: Rect) => ({ x: (s.x - r.x) * TILE, y: (s.y - r.y) * TILE, w: s.w * TILE, h: s.h * TILE });
     for (const p of b.greenPatches ?? []) {
       const q = at(p); g.fillStyle = '#7fb466'; g.fillRect(q.x, q.y, q.w, q.h);
-      for (let i = 0; i < q.w * q.h / 25; i++) { g.fillStyle = r() < 0.5 ? '#94c77a' : '#679d50'; g.fillRect(q.x + r() * q.w, q.y + r() * q.h, 2, 2); }
+      for (let i = 0; i < q.w * q.h / 25; i++) { g.fillStyle = rand() < 0.5 ? '#94c77a' : '#679d50'; g.fillRect(q.x + rand() * q.w, q.y + rand() * q.h, 2, 2); }
     }
     for (const s of b.skylights ?? []) {
-      const q = at(s); g.fillStyle = '#8fb6d4'; g.fillRect(q.x, q.y + 4, q.w, q.h - 8);
-      g.fillStyle = '#cfe5f4'; g.fillRect(q.x, q.y + 4, q.w, 4);
-      g.fillStyle = '#6d8fac'; for (let x = q.x; x < q.x + q.w; x += 16) g.fillRect(x, q.y + 4, 2, q.h - 8);
+      const q = at(s); g.fillStyle = '#8fb6d4'; g.fillRect(q.x + 3, q.y + 3, q.w - 6, q.h - 6);
+      g.fillStyle = '#cfe5f4'; g.fillRect(q.x + 3, q.y + 3, q.w - 6, 3);
     }
     return pixelTex(c);
   }
 
+  /** a building from its outline: one wall quad per edge, the outline as its roof (with a dome or a vault on top
+   *  for the round hall and the sports hall), parapets and plinths that follow every edge, and its entrances */
   private buildBuilding(b: Building) {
     const r = b.rect;
     const [floors, fh] = FLOORS[b.id] ?? [2, 1.2];
     const H = floors * fh + 0.2;
+    const style = b.roofStyle ?? 'flat';
     const group = new THREE.Group();
     const mats: THREE.Material[] = [];
-    const tex = this.facadeTextures(b.id === 'spor' ? 'glass' : 'ribbon', r.x * 31 + r.y);
-    const roofTex = this.roofTexture(b, r.w, r.h);
-    const wallMat = (len: number) => {
-      const map = tex.map.clone(); map.repeat.set(len / 4, floors); map.needsUpdate = true;
-      const em = tex.emissive.clone(); em.repeat.set(len / 4, floors); em.needsUpdate = true;
-      const m = new THREE.MeshLambertMaterial({ map, emissiveMap: em, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0 });
-      this.windowMats.push(m); mats.push(m);
-      return m;
-    };
-    const roofMat = new THREE.MeshLambertMaterial({ map: roofTex }); mats.push(roofMat);
-    const plain = new THREE.MeshLambertMaterial({ color: 0xd9dcdc }); mats.push(plain);
-    // footprint minus the open courtyard
-    const parts: Rect[] = [];
-    const cy = b.courtyard;
-    if (cy) {
-      parts.push({ x: r.x, y: r.y, w: r.w, h: cy.y - r.y });
-      parts.push({ x: r.x, y: cy.y + cy.h, w: r.w, h: r.y + r.h - (cy.y + cy.h) });
-      parts.push({ x: r.x, y: cy.y, w: cy.x - r.x, h: cy.h });
-      parts.push({ x: cy.x + cy.w, y: cy.y, w: r.x + r.w - (cy.x + cy.w), h: cy.h });
-    } else parts.push(r);
+    const facade = b.id === 'spor' ? 'glass' : b.id === 'tim' ? 'drum' : 'ribbon';
+    const module = facade === 'drum' ? 1 : 4; // tiles per texture repeat along the wall
+    const tex = this.facadeTextures(facade, Math.round(r.x * 31 + r.y));
+    tex.map.repeat.set(1, floors); tex.emissive.repeat.set(1, floors);
+    const wallMat = new THREE.MeshLambertMaterial({ map: tex.map, emissiveMap: tex.emissive, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0 });
+    this.windowMats.push(wallMat); mats.push(wallMat);
+    const roofMat = new THREE.MeshLambertMaterial({ map: this.roofTexture(b) }); mats.push(roofMat);
     const rim = new THREE.MeshLambertMaterial({ color: b.roof === 'white' ? 0xf7f8f9 : 0xe6eaed }); mats.push(rim);
     const stone = new THREE.MeshLambertMaterial({ color: 0x9aa1a6 }); mats.push(stone);
-    for (const p of parts) {
-      if (p.w <= 0 || p.h <= 0) continue;
-      const geo = new THREE.BoxGeometry(p.w, H, p.h);
-      // top face (+y, vertices 8..11) samples its part of the whole roof texture
-      const pos = geo.attributes.position, uv = geo.attributes.uv;
-      for (let i = 8; i < 12; i++) {
-        const wx = p.x + p.w / 2 + pos.getX(i), wz = p.y + p.h / 2 + pos.getZ(i);
-        uv.setXY(i, (wx - r.x) / r.w, 1 - (wz - r.y) / r.h);
+    /** small parts merged per material, so detail doesn't cost draw calls */
+    const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const part = (mat: THREE.Material, geo: THREE.BufferGeometry, x: number, y: number, z: number, rotY = 0) => {
+      geo.rotateY(rotY); geo.translate(x, y, z);
+      if (!parts.has(mat)) parts.set(mat, []);
+      parts.get(mat)!.push(geo);
+    };
+
+    // walls: outline edges face out; courtyard edges (walked backwards) face into the yard
+    const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+    const wall = (ax: number, az: number, bx: number, bz: number, u0: number) => {
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 1e-3) return;
+      const nx = (bz - az) / len, nz = -(bx - ax) / len;
+      const i0 = pos.length / 3;
+      pos.push(ax, 0, az, bx, 0, bz, bx, H, bz, ax, H, az);
+      for (let i = 0; i < 4; i++) nor.push(nx, 0, nz);
+      // seen from outside, A is on the right: u runs right-to-left along the outline so modules continue round corners
+      const ua = u0 / module, ub = (u0 - len) / module;
+      uv.push(ua, 0, ub, 0, ub, 1, ua, 1);
+      idx.push(i0, i0 + 3, i0 + 2, i0, i0 + 2, i0 + 1);
+    };
+    const ring = (pts: Pt[], inward: boolean) => {
+      let s = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], c = pts[(i + 1) % pts.length];
+        if (inward) wall(c[0], c[1], a[0], a[1], -s); else wall(a[0], a[1], c[0], c[1], -s);
+        s += Math.hypot(c[0] - a[0], c[1] - a[1]);
+        // parapet (inset) and plinth (proud of the wall) along the edge
+        const len = Math.hypot(c[0] - a[0], c[1] - a[1]), ang = -Math.atan2(c[1] - a[1], c[0] - a[0]);
+        const nx = (c[1] - a[1]) / len * (inward ? -1 : 1), nz = -(c[0] - a[0]) / len * (inward ? -1 : 1);
+        const mx = (a[0] + c[0]) / 2, mz = (a[1] + c[1]) / 2;
+        part(rim, new THREE.BoxGeometry(len + 0.08, 0.22, 0.16), mx - nx * 0.08, H + 0.11, mz - nz * 0.08, ang);
+        part(stone, new THREE.BoxGeometry(len + 0.06, 0.22, 0.08), mx + nx * 0.03, 0.11, mz + nz * 0.03, ang);
       }
-      const mesh = new THREE.Mesh(geo, [wallMat(p.h), wallMat(p.h), roofMat, plain, wallMat(p.w), wallMat(p.w)]);
-      mesh.position.set(p.x + p.w / 2, H / 2, p.y + p.h / 2);
-      mesh.castShadow = mesh.receiveShadow = true;
-      group.add(mesh);
-      // parapet and plinth
-      const lip = (w: number, d: number, x: number, z: number) => {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d), rim);
-        m.position.set(x, H + 0.11, z); m.castShadow = true; group.add(m);
-      };
-      lip(p.w, 0.16, p.x + p.w / 2, p.y + 0.08); lip(p.w, 0.16, p.x + p.w / 2, p.y + p.h - 0.08);
-      lip(0.16, p.h, p.x + 0.08, p.y + p.h / 2); lip(0.16, p.h, p.x + p.w - 0.08, p.y + p.h / 2);
-      const plinth = new THREE.Mesh(new THREE.BoxGeometry(p.w + 0.06, 0.22, p.h + 0.06), stone);
-      plinth.position.set(p.x + p.w / 2, 0.11, p.y + p.h / 2);
-      group.add(plinth);
-    }
-    // solar panels: tilted rows
-    const solarMat = new THREE.MeshLambertMaterial({ color: 0x2f4f84 }); mats.push(solarMat);
-    for (const s of b.solar ?? []) {
-      for (let z = s.y + 0.3; z < s.y + s.h; z += 0.55) {
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(s.w - 0.2, 0.05, 0.42), solarMat);
-        panel.position.set(s.x + s.w / 2, H + 0.25, z + 0.2); panel.rotation.x = -0.35; panel.castShadow = true;
-        group.add(panel);
+    };
+    ring(b.shape, false);
+    if (b.courtyard) ring(b.courtyard, true);
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    wg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    wg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    wg.setIndex(idx);
+    const walls = new THREE.Mesh(wg, wallMat);
+    walls.castShadow = walls.receiveShadow = true;
+    group.add(walls);
+
+    // roof: the outline itself (minus the courtyard), sampling the building's roof texture
+    const shp = new THREE.Shape(b.shape.map(([x, y]) => new THREE.Vector2(x, -y)));
+    if (b.courtyard) shp.holes.push(new THREE.Path(b.courtyard.map(([x, y]) => new THREE.Vector2(x, -y))));
+    const rg = new THREE.ShapeGeometry(shp);
+    rg.rotateX(-Math.PI / 2); rg.translate(0, H, 0);
+    { const p = rg.attributes.position, t = rg.attributes.uv; for (let i = 0; i < p.count; i++) t.setXY(i, (p.getX(i) - r.x) / r.w, 1 - (p.getZ(i) - r.y) / r.h); }
+    const roof = new THREE.Mesh(rg, roofMat);
+    roof.receiveShadow = true;
+    group.add(roof);
+    const cx = r.x + r.w / 2, cz = r.y + r.h / 2;
+    const shell = new THREE.MeshLambertMaterial({ color: 0xeef1f3 }); mats.push(shell);
+    if (style === 'dome') {
+      // a shallow dome with a lantern on top
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(Math.min(r.w, r.h) / 2 - 0.35, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell);
+      dome.scale.y = 0.38; dome.position.set(cx, H + 0.05, cz); dome.castShadow = dome.receiveShadow = true;
+      group.add(dome);
+      part(rim, new THREE.CylinderGeometry(0.45, 0.5, 0.35, 16), cx, H + 0.05 + (Math.min(r.w, r.h) / 2 - 0.35) * 0.38 + 0.12, cz);
+    } else if (style === 'vault') {
+      // a barrel vault along the hall's length, closed by half-disc gables
+      const R = r.w / 2 - 0.3, len = r.h - 1.2;
+      const vg = new THREE.CylinderGeometry(R, R, len, 28, 1, false, -Math.PI / 2, Math.PI);
+      vg.rotateX(-Math.PI / 2);
+      const vault = new THREE.Mesh(vg, shell);
+      vault.scale.y = 0.3; vault.position.set(cx, H + 0.05, cz + 0.3); vault.castShadow = vault.receiveShadow = true;
+      group.add(vault);
+    } else {
+      // solar panels: tilted rows
+      const solarMat = new THREE.MeshLambertMaterial({ color: 0x2f4f84 }); mats.push(solarMat);
+      for (const s of b.solar ?? []) for (let z = s.y + 0.3; z < s.y + s.h; z += 0.55) {
+        const panel = new THREE.BoxGeometry(s.w - 0.2, 0.05, 0.42);
+        panel.rotateX(-0.35);
+        part(solarMat, panel, s.x + s.w / 2, H + 0.25, z + 0.2);
+      }
+      // rooftop units where there's room
+      const r2 = rng(Math.round(r.x * 7 + r.y * 3));
+      const unitMat = new THREE.MeshLambertMaterial({ color: 0xc4cacf }); mats.push(unitMat);
+      const feats = [...(b.solar ?? []), ...(b.skylights ?? []), ...(b.greenPatches ?? [])];
+      for (let i = 0, placed = 0; i < 60 && placed < Math.max(2, Math.floor(r.w / 5)); i++) {
+        const ux = r.x + r2() * r.w, uz = r.y + r2() * r.h;
+        if (!inBuilding(ux, uz, b) || nearestEdge(ux, uz, b.shape).d < 0.9 || (b.courtyard && nearestEdge(ux, uz, b.courtyard).d < 0.9)) continue;
+        if (feats.some((f) => ux > f.x - 0.8 && ux < f.x + f.w + 0.8 && uz > f.y - 0.8 && uz < f.y + f.h + 0.8)) continue;
+        const h = 0.35 + r2() * 0.3;
+        part(unitMat, new THREE.BoxGeometry(0.5 + r2() * 0.5, h, 0.4 + r2() * 0.3), ux, H + h / 2 + 0.05, uz);
+        placed++;
       }
     }
-    // rooftop units
-    const r2 = rng(r.x * 7 + r.y * 3);
-    const unitMat = new THREE.MeshLambertMaterial({ color: 0xc4cacf }); mats.push(unitMat);
-    for (let i = 0, placed = 0; i < 30 && placed < Math.max(2, Math.floor(r.w / 5)); i++) {
-      const ux = r.x + 1 + r2() * (r.w - 2), uz = r.y + 1 + r2() * (r.h - 2);
-      const blocked = [cy, ...(b.solar ?? []), ...(b.skylights ?? []), ...(b.greenPatches ?? [])].some((f) => f && ux > f.x - 0.8 && ux < f.x + f.w + 0.8 && uz > f.y - 0.8 && uz < f.y + f.h + 0.8);
-      if (blocked) continue;
-      const u = new THREE.Mesh(new THREE.BoxGeometry(0.5 + r2() * 0.5, 0.35 + r2() * 0.3, 0.4 + r2() * 0.3), unitMat);
-      u.position.set(ux, H + 0.25, uz); u.castShadow = true; group.add(u);
-      placed++;
-    }
-    // entrances
+
+    // entrances: door, glass, canopy, steps, wall lamps and a name plaque, turned to face out of their wall
     const frame = new THREE.MeshLambertMaterial({ color: 0x3e4a52 }); mats.push(frame);
     const glass = new THREE.MeshLambertMaterial({ color: 0x6f93ad, emissive: new THREE.Color(0xfff0c4), emissiveIntensity: 0 }); mats.push(glass);
     this.windowMats.push(glass);
     const canopyMat = new THREE.MeshLambertMaterial({ color: 0x7f878d }); mats.push(canopyMat);
+    const steps = new THREE.MeshLambertMaterial({ color: 0xcfc8b9 }); mats.push(steps);
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff3c4 }); this.glowMats.push(lampMat);
     for (const e of entrances(b)) {
-      const along = e.side === 'n' || e.side === 's';
-      const len = e.n - 0.15;
-      const out = e.side === 's' || e.side === 'e' ? 1 : -1;
-      const cx = along ? e.x + e.n / 2 : e.side === 'e' ? r.x + r.w : r.x;
-      const cz = along ? (e.side === 's' ? r.y + r.h : r.y) : e.y + e.n / 2;
-      const door = new THREE.Mesh(new THREE.BoxGeometry(along ? len : 0.1, 1.25, along ? 0.1 : len), frame);
-      door.position.set(cx, 0.63, cz); group.add(door);
-      const pane = new THREE.Mesh(new THREE.BoxGeometry(along ? len - 0.12 : 0.12, 1.1, along ? 0.12 : len - 0.12), e.revir ? new THREE.MeshLambertMaterial({ color: 0xd8e8f0 }) : glass);
-      pane.position.set(cx, 0.62, cz); group.add(pane);
-      const canopy = new THREE.Mesh(new THREE.BoxGeometry(along ? e.n + 0.3 : 0.7, 0.1, along ? 0.7 : e.n + 0.3), canopyMat);
-      canopy.position.set(cx + (along ? 0 : out * 0.35), 1.45, cz + (along ? out * 0.35 : 0)); canopy.castShadow = true; group.add(canopy);
+      const nx = e.nx, nz = e.ny, rot = Math.atan2(nx, nz); // local +z = out of the wall
+      const len = e.w - 0.15;
+      const at = (along: number, out: number): [number, number] => [e.x - nz * along + nx * out, e.y + nx * along + nz * out];
+      // (local x runs along the wall: (−nz, nx) in world xz, which is what a +z-facing box turned by `rot` gives)
+      const put = (mat: THREE.Material, geo: THREE.BufferGeometry, along: number, y: number, out: number) => { const [x, z] = at(along, out); part(mat, geo, x, y, z, rot); };
+      put(frame, new THREE.BoxGeometry(len, 1.25, 0.1), 0, 0.63, 0.02);
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(len - 0.12, 1.1, 0.06), e.revir ? new THREE.MeshLambertMaterial({ color: 0xd8e8f0 }) : glass);
+      { const [x, z] = at(0, 0.07); pane.position.set(x, 0.62, z); pane.rotation.y = rot; group.add(pane); }
+      put(canopyMat, new THREE.BoxGeometry(e.w + 0.3, 0.1, 0.7), 0, 1.45, 0.35);
+      put(steps, new THREE.BoxGeometry(e.w + 0.4, 0.08, 0.45), 0, 0.04, 0.3);
+      put(steps, new THREE.BoxGeometry(e.w + 0.2, 0.05, 0.25), 0, 0.1, 0.18);
+      for (const s of [-1, 1]) {
+        put(frame, new THREE.BoxGeometry(0.12, 0.2, 0.08), s * (e.w / 2 + 0.28), 1.2, 0.05);
+        put(lampMat, new THREE.BoxGeometry(0.08, 0.12, 0.04), s * (e.w / 2 + 0.28), 1.2, 0.1);
+      }
       if (e.revir) {
         const red = new THREE.MeshBasicMaterial({ color: 0xc0392b });
-        const a = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.04), red), c2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.36, 0.04), red);
-        a.position.set(cx, 1.75, cz + 0.08 * out); c2.position.copy(a.position); group.add(a, c2);
+        put(red, new THREE.BoxGeometry(0.36, 0.12, 0.04), 0, 1.75, 0.04);
+        put(red, new THREE.BoxGeometry(0.12, 0.36, 0.04), 0, 1.75, 0.04);
+      } else if (H > 2.1) {
+        // the place's name over the door
+        const name = LOCATIONS.find((l) => l.id === e.loc)?.name.tr ?? '';
+        const { c, g } = canvas(256, 40);
+        g.fillStyle = '#2d3a44'; g.fillRect(0, 0, 256, 40);
+        g.fillStyle = '#f2c14e'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        let size = 22; do { g.font = `bold ${size}px "Pixelify Sans", monospace`; size -= 2; } while (g.measureText(name).width > 236 && size > 10);
+        g.fillText(name, 128, 21);
+        const plaque = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(2.6, e.w + 1.2), 0.4), new THREE.MeshLambertMaterial({ map: pixelTex(c) }));
+        mats.push(plaque.material);
+        const [x, z] = at(0, 0.03); plaque.position.set(x, 1.85, z); plaque.rotation.y = rot;
+        group.add(plaque);
       }
     }
-    group.add(this.contactShadow(r));
+
+    // corridors through the building: a dark opening with a lintel at each end
+    const dark = new THREE.MeshBasicMaterial({ color: 0x1f2427 });
+    for (const p of b.passages ?? []) {
+      const pc = p.y + p.h / 2, ends = sideX(b.shape, pc);
+      if (!ends) continue;
+      for (const x of ends) {
+        const e = nearestEdge(x, pc, b.shape), rot = Math.atan2(e.nx, e.ny);
+        part(dark, new THREE.PlaneGeometry(p.h - 0.2, 1.5), e.x + e.nx * 0.02, 0.75, e.y + e.ny * 0.02, rot);
+        part(stone, new THREE.BoxGeometry(p.h + 0.1, 0.16, 0.14), e.x + e.nx * 0.05, 1.58, e.y + e.ny * 0.05, rot);
+      }
+    }
+
+    for (const [mat, geos] of parts) {
+      const m = new THREE.Mesh(mergeGeometries(geos.map((g) => g.toNonIndexed()), false), mat);
+      m.castShadow = m.receiveShadow = true;
+      group.add(m);
+      for (const g of geos) g.dispose();
+    }
+    group.add(this.contactShadow(b));
     this.scene.add(group);
     const box = new THREE.Box3().setFromObject(group);
     this.buildings.push({ b, group, box, mats, faded: false, height: H + 0.2 });
@@ -443,13 +542,14 @@ export class World3D {
   }
 
   /** soft darkening on the ground hugging a building's walls (cheap ambient occlusion) */
-  private contactShadow(r: Rect): THREE.Mesh {
-    const P = 1.5, S = 8; // padding in tiles, pixels per tile
-    const { c, g } = canvas((r.w + 2 * P) * S, (r.h + 2 * P) * S);
+  private contactShadow(b: Building): THREE.Mesh {
+    const r = b.rect, P = 1.5, S = 8; // padding in tiles, pixels per tile
+    const { c, g } = canvas(Math.ceil((r.w + 2 * P) * S), Math.ceil((r.h + 2 * P) * S));
+    const outline = () => { g.beginPath(); b.shape.forEach(([x, y], i) => (i ? g.lineTo : g.moveTo).call(g, (x - r.x + P) * S, (y - r.y + P) * S)); g.closePath(); };
     g.shadowColor = 'rgba(0,0,0,1)'; g.shadowBlur = 10; g.fillStyle = '#000';
-    g.fillRect(P * S, P * S, r.w * S, r.h * S);
+    outline(); g.fill();
     g.shadowBlur = 0; g.globalCompositeOperation = 'destination-out';
-    g.fillRect(P * S, P * S, r.w * S, r.h * S);
+    outline(); g.fill();
     const tex = new THREE.CanvasTexture(c);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(r.w + 2 * P, r.h + 2 * P), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.42 }));
     m.rotation.x = -Math.PI / 2;
@@ -533,11 +633,9 @@ export class World3D {
     // bushes along building fronts (same rule as the 2D view)
     const bushMat = new THREE.MeshLambertMaterial({ color: 0x3f8048, flatShading: true });
     for (const b of BUILDINGS) {
-      const yb = b.rect.y + b.rect.h;
-      for (let x = b.rect.x; x < b.rect.x + b.rect.w; x += 3) {
-        if (this.host.map[yb]?.[x] !== T.GROUND || this.host.map[yb]?.[x + 1] !== T.GROUND) continue;
+      for (const [x, z] of bushSpots(b, this.host.map)) {
         const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), bushMat);
-        m.position.set(x + 1, 0.3, yb + 0.35); m.scale.set(1.3, 0.8, 0.9); m.castShadow = true;
+        m.position.set(x, 0.3, z); m.scale.set(1.3, 0.8, 0.9); m.castShadow = true;
         this.scene.add(m);
       }
     }
@@ -640,6 +738,38 @@ export class World3D {
     });
     canopy.castShadow = true;
     this.scene.add(canopy, trunks);
+    // the neighbourhood across Ayaz Cd: little houses with terracotta roofs
+    const homes: Array<[number, number]> = [];
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) if (m[y][x] === T.HOUSES) homes.push([x, y]);
+    const houseWalls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial(), homes.length);
+    const roofs = new THREE.InstancedMesh(new THREE.ConeGeometry(0.72, 0.5, 4).rotateY(Math.PI / 4).translate(0, 0.25, 0), new THREE.MeshLambertMaterial({ flatShading: true }), homes.length);
+    homes.forEach(([x, y], i) => {
+      const w = 0.75 + r() * 0.2, d = 0.75 + r() * 0.2, h = 0.9 + Math.floor(r() * 3) * 0.55;
+      p.set(x + 0.5 + (r() - 0.5) * 0.1, 0, y + 0.5 + (r() - 0.5) * 0.1); s.set(w, h, d);
+      houseWalls.setMatrixAt(i, mtx.compose(p, q, s));
+      houseWalls.setColorAt(i, col.setHSL(0.09 + r() * 0.05, 0.25 + r() * 0.2, 0.72 + r() * 0.15));
+      p.y = h; s.set(w * 1.02, 1, d * 1.02);
+      roofs.setMatrixAt(i, mtx.compose(p, q, s));
+      roofs.setColorAt(i, col.setHSL(0.03 + r() * 0.03, 0.5 + r() * 0.15, 0.38 + r() * 0.1));
+    });
+    houseWalls.castShadow = roofs.castShadow = true;
+    houseWalls.receiveShadow = true;
+    this.scene.add(houseWalls, roofs);
+    // garden walls: stone with a lighter coping, one block per tile
+    const walls: Array<[number, number]> = [];
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) if (m[y][x] === T.CAMPUS_WALL) walls.push([x, y]);
+    const isWall = (x: number, y: number) => m[y]?.[x] === T.CAMPUS_WALL;
+    const wallBody = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1.5, 0.4).translate(0, 0.75, 0), new THREE.MeshLambertMaterial({ color: 0x9d9585 }), walls.length);
+    const coping = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.12, 0.52).translate(0, 1.56, 0), new THREE.MeshLambertMaterial({ color: 0xd8d2c4 }), walls.length);
+    walls.forEach(([x, y], i) => {
+      const along = isWall(x - 1, y) || isWall(x + 1, y);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), along ? 0 : Math.PI / 2);
+      p.set(x + 0.5, 0, y + 0.5); s.set(1.01, 1, 1);
+      wallBody.setMatrixAt(i, mtx.compose(p, q, s)); coping.setMatrixAt(i, mtx.compose(p, q, s));
+    });
+    wallBody.castShadow = coping.castShadow = wallBody.receiveShadow = true;
+    this.scene.add(wallBody, coping);
+    q.identity();
     // iron fence: posts and two rails per tile
     const iron = new THREE.MeshLambertMaterial({ color: 0x2b3033 });
     const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.9, 0.07), iron, fence.length * 2);
@@ -736,10 +866,7 @@ export class World3D {
   }
 
   private heightAt(x: number, z: number): number {
-    for (const b of this.buildings) {
-      const r = b.b.rect;
-      if (x >= r.x && x < r.x + r.w && z >= r.y && z < r.y + r.h) return b.height;
-    }
+    for (const b of this.buildings) if (inBuilding(x, z, b.b)) return b.height;
     return 0;
   }
 
