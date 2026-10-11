@@ -5,6 +5,12 @@
 // 1 tile = 1 unit; Phaser x → three x, Phaser y → three z, height is three y.
 import * as THREE from 'three';
 import type Phaser from 'phaser';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import {
   BENCHES, BUILDINGS, BUST, COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, MAP_H, MAP_W, T, TILE, TREES, type Building, type Rect,
 } from '../content/campus';
@@ -37,6 +43,37 @@ const FLOORS: Record<string, [number, number]> = {
 const PITCH = THREE.MathUtils.degToRad(52);
 const FOV = 34;
 const PIXEL = 2; // render at half resolution, scaled up crisp: the pixel-art look
+/** where the sun sits relative to the camera target, ~48° up (shadows fall the other way: towards the bottom right) */
+const SUN_OFFSET = new THREE.Vector3(-16, 22, -12);
+
+/** tilt-shift: a sharp band around you, blurring more towards the top and bottom of the screen (one axis per pass) */
+const TiltShiftShader = {
+  name: 'TiltShiftShader',
+  uniforms: {
+    tDiffuse: { value: null },
+    dir: { value: new THREE.Vector2(1, 0) },
+    focus: { value: 0.5 },
+    band: { value: 0.12 },
+    amount: { value: 0 },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform vec2 dir;
+    uniform float focus, band, amount;
+    varying vec2 vUv;
+    void main() {
+      vec2 d = dir * amount * smoothstep(0.0, 0.35, abs(vUv.y - focus) - band);
+      vec4 sum = texture2D(tDiffuse, vUv) * 0.1633;
+      sum += (texture2D(tDiffuse, vUv - d) + texture2D(tDiffuse, vUv + d)) * 0.1531;
+      sum += (texture2D(tDiffuse, vUv - 2.0 * d) + texture2D(tDiffuse, vUv + 2.0 * d)) * 0.12245;
+      sum += (texture2D(tDiffuse, vUv - 3.0 * d) + texture2D(tDiffuse, vUv + 3.0 * d)) * 0.0918;
+      sum += (texture2D(tDiffuse, vUv - 4.0 * d) + texture2D(tDiffuse, vUv + 4.0 * d)) * 0.051;
+      gl_FragColor = sum;
+    }`,
+};
 
 const BUILDING_TILES = new Set<number>([T.ROOF, T.SKYLIGHT, T.SOLAR, T.GREEN_ROOF, T.WALL, T.WALL_BASE, T.DOOR, T.DOOR_REVIR]);
 const SKIP_KEYS = new Set(['bust', 'gatepost', 'tree', 'lamp', 'bench', 'flowers', 'bush', 'fountain', 'flag', 'warm', 'glow', '__DEFAULT', '__MISSING', '__WHITE']);
@@ -66,7 +103,8 @@ function pixelTex(src: HTMLCanvasElement, repeat = false): THREE.CanvasTexture {
   return t;
 }
 
-type Mirror = { sprite: THREE.Sprite; source: CanvasImageSource; frameKey: string; textKey: string; overlay: boolean };
+/** a Phaser object drawn in 3D; people also get a shadow cut-out and a soft contact shadow at their feet */
+type Mirror = { sprite: THREE.Sprite; source: CanvasImageSource; frameKey: string; textKey: string; overlay: boolean; caster?: THREE.Mesh; blob?: THREE.Mesh };
 
 export class World3D {
   private renderer: THREE.WebGLRenderer;
@@ -74,6 +112,8 @@ export class World3D {
   private camera = new THREE.PerspectiveCamera(FOV, 1, 0.5, 400);
   private hemi = new THREE.HemisphereLight(0xffffff, 0x5a7050, 1);
   private sun = new THREE.DirectionalLight(0xfff2dc, 1.6);
+  /** soft light from the camera side: the sun is behind the buildings' camera-facing walls */
+  private fill = new THREE.DirectionalLight(0xe8f0ff, 0.5);
   private target = new THREE.Vector3();
   private lastRoom: RoomKey | 'none' = 'none';
   private mirrors = new Map<Phaser.GameObjects.GameObject, Mirror>();
@@ -88,6 +128,13 @@ export class World3D {
   private weather: { kind: string; points: THREE.Points | THREE.LineSegments | null; vel: Float32Array | null } = { kind: '', points: null, vel: null };
   private ray = new THREE.Raycaster();
   private disposed = false;
+  private composer: EffectComposer;
+  private bloom: UnrealBloomPass;
+  private tilt: ShaderPass[];
+  private trees: Array<{ obj: THREE.Object3D; phase: number }> = [];
+  private casterGeo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
+  private blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  private blobMat: THREE.MeshBasicMaterial;
 
   constructor(private host: Host3D, parent: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -95,6 +142,8 @@ export class World3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // highlights roll off instead of clipping to white (which also used to erase shadows on light paving)
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
     const el = this.renderer.domElement;
     el.className = 'view-3d';
     parent.appendChild(el);
@@ -106,7 +155,35 @@ export class World3D {
     const sc = this.sun.shadow.camera;
     sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 120;
     this.sun.shadow.bias = -0.0008;
-    this.scene.add(this.sun, this.sun.target);
+    this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.radius = 2; // soft edges
+    this.scene.add(this.sun, this.sun.target, this.fill, this.fill.target);
+    // a little haze in the distance (near/far follow the camera distance)
+    this.scene.fog = new THREE.Fog(0xb4c4c8, 40, 90);
+
+    // contact shadow under people's feet
+    const { c: bc, g: bg } = canvas(64, 32);
+    const grd = bg.createRadialGradient(32, 16, 0, 32, 16, 32);
+    grd.addColorStop(0, 'rgba(0,0,0,1)'); grd.addColorStop(0.55, 'rgba(0,0,0,0.6)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    bg.setTransform(1, 0, 0, 0.5, 0, 8); bg.fillStyle = grd; bg.fillRect(0, -16, 64, 64);
+    this.blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), transparent: true, depthWrite: false, opacity: 0.75, fog: false });
+
+    // post: bloom (lamps and windows at night), tilt-shift, vignette
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0, 0.5, 1.05);
+    this.composer.addPass(this.bloom);
+    this.tilt = [new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)].map((dir) => {
+      const pass = new ShaderPass(TiltShiftShader);
+      pass.uniforms.dir.value = dir;
+      this.composer.addPass(pass);
+      return pass;
+    });
+    const vignette = new ShaderPass(VignetteShader);
+    vignette.uniforms.offset.value = 0.9;
+    vignette.uniforms.darkness.value = 1.15;
+    this.composer.addPass(vignette);
+    this.composer.addPass(new OutputPass());
 
     this.buildGround();
     this.buildFog();
@@ -358,10 +435,26 @@ export class World3D {
         a.position.set(cx, 1.75, cz + 0.08 * out); c2.position.copy(a.position); group.add(a, c2);
       }
     }
+    group.add(this.contactShadow(r));
     this.scene.add(group);
     const box = new THREE.Box3().setFromObject(group);
     this.buildings.push({ b, group, box, mats, faded: false, height: H + 0.2 });
     this.fog.hideables.push({ obj: group, x: r.x + r.w / 2, y: r.y + r.h / 2 });
+  }
+
+  /** soft darkening on the ground hugging a building's walls (cheap ambient occlusion) */
+  private contactShadow(r: Rect): THREE.Mesh {
+    const P = 1.5, S = 8; // padding in tiles, pixels per tile
+    const { c, g } = canvas((r.w + 2 * P) * S, (r.h + 2 * P) * S);
+    g.shadowColor = 'rgba(0,0,0,1)'; g.shadowBlur = 10; g.fillStyle = '#000';
+    g.fillRect(P * S, P * S, r.w * S, r.h * S);
+    g.shadowBlur = 0; g.globalCompositeOperation = 'destination-out';
+    g.fillRect(P * S, P * S, r.w * S, r.h * S);
+    const tex = new THREE.CanvasTexture(c);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(r.w + 2 * P, r.h + 2 * P), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.42 }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(r.x + r.w / 2, 0.012, r.y + r.h / 2);
+    return m;
   }
 
   private buildDecor() {
@@ -379,6 +472,7 @@ export class World3D {
       g.position.set(x, 0, z);
       this.scene.add(g);
       this.fog.hideables.push({ obj: g, x, y: z });
+      this.trees.push({ obj: g, phase: x * 0.7 + z * 1.3 });
     };
     for (const [x, y] of TREES) tree(x + 0.5, y + 0.85);
 
@@ -636,6 +730,7 @@ export class World3D {
     const cur = this.renderer.getSize(new THREE.Vector2());
     if (cur.x === rw && cur.y === rh) return;
     this.renderer.setSize(rw, rh, false);
+    this.composer.setSize(rw, rh);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
@@ -690,11 +785,21 @@ export class World3D {
           map = new THREE.CanvasTexture(go.canvas!);
           map.colorSpace = THREE.SRGBColorSpace; map.minFilter = THREE.LinearFilter; map.generateMipmaps = false;
         } else map = this.baseTexture(source).clone();
-        const mat = new THREE.SpriteMaterial({ map, transparent: true, alphaTest: overlay ? 0.02 : 0.5, depthTest: !overlay, depthWrite: !overlay, fog: false });
+        const mat = new THREE.SpriteMaterial({ map, transparent: true, alphaTest: overlay ? 0.02 : 0.5, depthTest: !overlay, depthWrite: !overlay, fog: false, toneMapped: false });
         const sprite = new THREE.Sprite(mat);
         sprite.renderOrder = overlay ? 1000 + d / 1000 : 0;
         this.scene.add(sprite);
         m = { sprite, source, frameKey: '', textKey, overlay };
+        if (!overlay) {
+          // sprites can't cast shadows: a cut-out of the same frame, turned to face the sun, does it for them
+          // (it draws nothing on screen; the shadow pass takes the frame's alpha from its map)
+          m.caster = new THREE.Mesh(this.casterGeo, new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, colorWrite: false, depthWrite: false, shadowSide: THREE.DoubleSide }));
+          m.caster.castShadow = true;
+          m.caster.rotation.y = Math.atan2(SUN_OFFSET.x, SUN_OFFSET.z);
+          m.blob = new THREE.Mesh(this.blobGeo, this.blobMat);
+          m.blob.renderOrder = 7;
+          this.scene.add(m.caster, m.blob);
+        }
         this.mirrors.set(o, m);
       }
       const mat = m.sprite.material;
@@ -725,6 +830,14 @@ export class World3D {
         mat.color.copy(tint);
         // people hidden in thick fog stay hidden
         m.sprite.visible = this.host.room() !== null || this.host.fogAt(Math.floor(X), Math.floor(Z - 0.1)) < 2;
+        const solid = m.sprite.visible && a > 0.5;
+        m.caster!.visible = m.blob!.visible = solid;
+        if (solid) {
+          m.caster!.position.set(X, 0.02, Z);
+          m.caster!.scale.set(dw / TILE, dh / TILE, 1);
+          m.blob!.position.set(X, 0.03, Z + 0.02);
+          m.blob!.scale.set(dw / TILE * 0.7, 1, 0.34);
+        }
       }
       m.sprite.scale.set(dw / TILE, dh / TILE, 1);
       mat.opacity = a;
@@ -735,6 +848,10 @@ export class World3D {
 
   private dropMirror(o: Phaser.GameObjects.GameObject, m: Mirror) {
     this.scene.remove(m.sprite);
+    if (m.caster) {
+      this.scene.remove(m.caster, m.blob!);
+      (m.caster.material as THREE.Material).dispose();
+    }
     if (m.textKey) m.sprite.material.map?.dispose();
     m.sprite.material.dispose();
     this.mirrors.delete(o);
@@ -764,17 +881,29 @@ export class World3D {
     const lum = (tint[0] + tint[1] + tint[2]) / 765;
     this.hemi.color.copy(t);
     this.hemi.groundColor.setRGB(0.35 * t.r, 0.42 * t.g, 0.32 * t.b);
-    this.hemi.intensity = room ? 1.5 : 0.5 + 1.1 * lum;
-    this.sun.intensity = room ? 0.9 * lum : Math.max(0, 2.2 * lum * lum - 0.1);
+    this.hemi.intensity = room ? 1.0 : 0.2 + 0.5 * lum;
+    this.sun.intensity = room ? 0.55 * lum : Math.max(0, 1.3 * lum * lum - 0.05);
+    this.fill.intensity = room ? 0.35 : 0.6 * lum;
+    this.fill.color.copy(t);
     this.sun.color.setRGB(1, 0.92 + 0.08 * lum, 0.8 + 0.2 * lum);
     this.scene.background = new THREE.Color(0x1c2e28).multiply(t);
     const night = room ? 0 : Math.max(0, Math.min(1, (dark - 0.25) * 2.5));
-    for (const m of this.windowMats) m.emissiveIntensity = night * 1.1;
+    for (const m of this.windowMats) m.emissiveIntensity = night * 1.5;
+    // only the night glows: lamps and lit windows go past white and bloom
+    this.bloom.strength = night * 0.85;
+    this.bloom.enabled = night > 0.02;
+    const fog = this.scene.fog as THREE.Fog;
+    fog.color.setRGB(0.7, 0.77, 0.79).multiply(t);
     for (const p of this.pools) (p.material as THREE.MeshBasicMaterial).opacity = night * 0.55;
     const pl = this.host.player();
     this.torch.position.set(pl.x / TILE, 0.09, pl.y / TILE + 0.4);
     (this.torch.material as THREE.MeshBasicMaterial).opacity = night * 0.3;
-    for (const g of this.glowMats) g.color.setRGB(1, 0.95, 0.77).multiplyScalar(0.55 + 0.45 * night);
+    for (const g of this.glowMats) g.color.setRGB(1, 0.95, 0.77).multiplyScalar(0.55 + 0.45 * night + 2.5 * night);
+    // trees sway a little in the breeze
+    for (const tr of this.trees) {
+      tr.obj.rotation.z = Math.sin(time / 1100 + tr.phase) * 0.018;
+      tr.obj.rotation.x = Math.sin(time / 1500 + tr.phase * 1.7) * 0.012;
+    }
     // the flag waves
     const pos = this.flag.mesh.geometry.attributes.position;
     const base = this.flag.base;
@@ -806,8 +935,22 @@ export class World3D {
     this.camera.position.copy(this.target).add(off);
     this.camera.lookAt(this.target);
     // the sun follows along so shadows stay sharp near you
-    this.sun.position.copy(this.target).add(new THREE.Vector3(-14, 30, -10));
+    this.sun.position.copy(this.target).add(SUN_OFFSET);
     this.sun.target.position.copy(this.target);
+    this.fill.position.copy(this.target).add(new THREE.Vector3(4, 14, 22));
+    this.fill.target.position.copy(this.target);
+    // haze starts just past what's around you; none indoors
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = room ? 1e4 : dist + 4;
+    fog.far = room ? 2e4 : dist + 48;
+    // tilt-shift focuses on you (on the middle of the room indoors)
+    const focus = room ? 0.5 : (new THREE.Vector3(pl.x / TILE, 0.6, pl.y / TILE).project(this.camera).y + 1) / 2;
+    const size = this.renderer.getSize(new THREE.Vector2());
+    for (const p of this.tilt) {
+      p.uniforms.focus.value = focus;
+      p.uniforms.band.value = room ? 0.3 : 0.2;
+      p.uniforms.amount.value = (room ? 0.6 : 1.2) / ((p.uniforms.dir.value as THREE.Vector2).x ? size.x : size.y);
+    }
   }
 
   /** buildings between the camera and you turn see-through */
@@ -888,7 +1031,7 @@ export class World3D {
     this.mirror(tint);
     this.updateOcclusion();
     this.updateWeather(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render(dt / 1000);
   }
 
   dispose() {
@@ -900,6 +1043,8 @@ export class World3D {
       for (const m of mats) { (m as THREE.MeshBasicMaterial).map?.dispose(); m.dispose(); }
     });
     for (const t of this.baseTex.values()) t.dispose();
+    this.blobMat.map?.dispose();
+    this.composer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
