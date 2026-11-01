@@ -938,6 +938,43 @@ function spor(ctx: GameCtx): PanelView {
   };
 }
 
+/** the indoor court by the dorms: a pick-up game of one of four sports, once a day */
+function kapaliSaha(ctx: GameCtx): PanelView {
+  const st = ctx.st;
+  const phase = phaseOf(ctx.clock.minutes);
+  const games = [
+    { id: 'futbol', name: T('⚽ Salon futbolu', '⚽ Indoor football'), mood: 8, fitness: 2 },
+    { id: 'hentbol', name: T('🤾 Hentbol', '🤾 Handball'), mood: 6, fitness: 2 },
+    { id: 'badminton', name: T('🏸 Badminton', '🏸 Badminton'), mood: 6, fitness: 1 },
+    { id: 'voleybol', name: T('🏐 Voleybol', '🏐 Volleyball'), mood: 7, fitness: 1 },
+  ];
+  const play: ActionView = {
+    id: 'play', label: T('Bir oyuna katıl', 'Join a game'), hint: T('45 dk · −15 enerji · +Kondisyon · +moral (günde bir)', '45 min · −15 energy · +Fitness · +mood (once a day)'),
+    locked: sickLock(ctx) ?? (phase === 'etut' ? T('Etüt saati: salon 20:00\'de açılıyor.', 'Study hour: the hall opens at 20:00.')
+      : currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson' && reached('derse_gir', ctx.mc()) ? T('Ders saatinde salon kapalı.', 'The hall is closed during lessons.')
+        : !st.school.kit ? T('Spor ayakkabın yok. Ambar\'dan al.', 'You have no sports shoes. Get them at the Ambar.')
+          : doneToday(ctx, 'kapali_saha') ? T('Bugün zaten oynadın.', 'You already played today.')
+            : st.energy < 20 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
+    run: async () => {
+      const id = await ctx.panel.choose(T('Ne oynanıyor?', "What's on?"), games.map((g) => ({ id: g.id, label: g.name })));
+      const g = games.find((x) => x.id === id);
+      if (!g) return;
+      markToday(ctx, 'kapali_saha');
+      ctx.advance(45);
+      ctx.gain({ xp: 15, mood: g.mood, energy: -15, hunger: -8, attrs: { fitness: g.fitness, social: 1 } });
+      ctx.toast(T(`${g.name}: iyi bir maçtı!`, `${g.name}: a good game!`), 'good');
+    },
+  };
+  return {
+    title: 'Kapalı Saha', sub: T('Futbol · hentbol · badminton · voleybol', 'Football · handball · badminton · volleyball'), status: status(ctx),
+    rooms: [{
+      id: 'saha', name: T('Saha', 'Court'),
+      note: T('Parke zeminde futbol kaleleri, hentbol çizgileri ve gerilmiş bir file. Akşamları yurtlardan gelenlerle dolup taşar.', 'Football goals, handball lines and a net strung across the parquet. In the evenings it fills up with kids from the dorms.'),
+      actions: [play],
+    }],
+  };
+}
+
 function teknik(ctx: GameCtx): PanelView {
   return {
     title: 'Teknik Alan', sub: T('Hüseyin Usta\'nın atölyesi', "Hüseyin Usta's workshop"), status: status(ctx),
@@ -1734,6 +1771,7 @@ export function buildingPanel(locId: string, ctx: GameCtx): PanelView | null {
     case 'tim': return tim(ctx);
     case 'revir': return revir(ctx);
     case 'spor': return spor(ctx);
+    case 'kapali_saha': return kapaliSaha(ctx);
     case 'teknik': return ctx.ch.cause === 'work' ? teknik(ctx) : null;
     default: return null;
   }

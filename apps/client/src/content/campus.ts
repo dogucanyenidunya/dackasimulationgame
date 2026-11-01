@@ -1,5 +1,5 @@
-// Daçka campus layout in tiles (layout v5, from the annotated satellite map; north is up).
-// West: Erkek Yurdu (the wedge, top) and Kız Yurdu + Revir (bottom) facing each other across the
+// Daçka campus layout in tiles (layout v6, from the annotated satellite map; north is up).
+// West: Erkek Yurdu (top, with the basketball court and the Kapalı Saha on the lawn east of it) and Kız Yurdu + Revir (bottom) facing each other across the
 // Yurt Meydanı; TIM Gösteri Merkezi (round) beside the girls' dorm; Eğitim Binası + Kütüphane (one
 // building, the library in its long east wing). Middle: Yemekhane (Teknik Alan behind it, on Ayaz Cd)
 // and the Merkez Meydan with the Atatürk bust. East: Spor Salonu and the football pitch. South:
@@ -12,7 +12,7 @@ export const TILE = 32;
 export const MAP_W = 96;
 export const MAP_H = 56;
 /** bump when buildings move: old saves get their fog and position reset */
-export const LAYOUT = 5;
+export const LAYOUT = 6;
 
 export const T = {
   FOREST: 0,
@@ -170,7 +170,10 @@ const ROADS: Pt[][] = [
 const HOUSES: Pt[] = [[30, 0], [96, 0], [96, 9], [33, 9], [30, 5]];
 
 export const BUILDINGS: Building[] = [
-  bld({ id: 'erkek_yurdu', shape: [[8, 8.5], [12.5, 5.5], [28.5, 17.2], [8, 21.5]], roof: 'grey', courtyard: [[11, 11], [18, 14.5], [11, 17]] }),
+  bld({
+    id: 'erkek_yurdu', shape: [[8, 8.5], [12.5, 5.5], [24, 5.5], [26.3, 5.8], [27.8, 6.6], [28.4, 7.6], [28.5, 9], [28.5, 17.2], [8, 21.5]], roof: 'grey',
+    courtyard: [[11, 8.5], [25.5, 8.5], [25.5, 14.8], [11, 17.8]],
+  }),
   bld({ id: 'kiz_yurdu', shape: [[7, 25.5], [18.5, 31], [14.5, 40], [5.5, 35.5]], roof: 'grey', courtyard: circlePts(11.2, 34, 1.7, 14) }),
   bld({ id: 'tim', shape: circlePts(25.5, 35.5, 5.2, 32), roof: 'white', roofStyle: 'dome' }),
   bld({
@@ -183,6 +186,8 @@ export const BUILDINGS: Building[] = [
   bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], greenPatches: [{ x: 43, y: 18.8, w: 10.5, h: 2 }] }),
   bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [70, 15], [71.5, 16.5], [71.5, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
   bld({ id: 'cemiyet', shape: rectPts({ x: 41, y: 40, w: 15, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
+  // the indoor court between the boys' dorm and Eğitim, against the garden wall
+  bld({ id: 'kapali_saha', shape: rectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }), roof: 'white', skylights: [{ x: 31.2, y: 15.6, w: 5.6, h: 0.7 }, { x: 31.2, y: 16.9, w: 5.6, h: 0.7 }] }),
   bld({ id: 'kantin', shape: rectPts({ x: 58, y: 41, w: 5, h: 6 }), roof: 'green' }),
 ];
 
@@ -205,6 +210,8 @@ export const PATHS: Rect[] = [
   { x: 36, y: 44, w: 3, h: 2 },    // behind the Eğitim wing, off the main street
   { x: 20, y: 28, w: 11, h: 2 },   // Yurt Meydanı → TIM
   { x: 19, y: 19, w: 2, h: 2 },    // boys' dorm door → Yurt Meydanı
+  { x: 27, y: 19, w: 10, h: 1 },   // Yurt Meydanı → Kapalı Saha door, along Eğitim
+  { x: 29, y: 10, w: 1, h: 9 },    // up the dorm's east side to the basketball court
   { x: 12, y: 26, w: 2, h: 2 },    // girls' dorm door → Yurt Meydanı
   { x: 56, y: 40, w: 2, h: 11 },   // Müze door, between the Cemiyet and the Kantin
 ];
@@ -213,8 +220,14 @@ export const COURTS = {
   basketball: { x: 75, y: 42, w: 10, h: 5 },
   football: { x: 74, y: 16, w: 16, h: 21 },
 };
-/** the small court next to the Kantin (just for show) */
-export const EXTRA_COURTS: Rect[] = [{ x: 64, y: 42, w: 6, h: 4 }];
+/** the basketball court on the lawn east of the boys' dorm */
+export const DORM_COURT: Rect = { x: 30, y: 10, w: 6, h: 4 };
+/** courts drawn besides the main two: the small one next to the Kantin (just for show) and the dorm court */
+export const EXTRA_COURTS: Rect[] = [{ x: 64, y: 42, w: 6, h: 4 }, DORM_COURT];
+/** where you can call friends over for a pick-up game */
+export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }> = [
+  { sport: 'basketball', rect: COURTS.basketball }, { sport: 'basketball', rect: DORM_COURT }, { sport: 'football', rect: COURTS.football },
+];
 
 /** garden walls closing off the dorm side: one from the north fence to Eğitim (between it and the Yemekhane),
  *  one from the end of the Eğitim wing to the south fence. The corridor through Eğitim is the way across. */
@@ -229,7 +242,7 @@ export const GATE_IN: Pt = [40, 51];
 export const SPAWN = { x: 40, y: 50.5 };
 
 export const TREES: Array<[number, number]> = [
-  [5, 10], [5, 15], [5, 20], [33, 9], [36, 12], [31, 14], [4, 26], [4, 30],
+  [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
   [9, 40], [19, 42], [24, 43], [28, 46], [34, 48],
   [90, 40], [73, 48], [87, 49], [70, 48], [90, 31], [90, 20], [60, 50],
 ];
@@ -240,7 +253,7 @@ export const BENCHES: Array<[number, number]> = [
 
 /** street lamps: they light up at night */
 export const LAMPS: Array<[number, number]> = [
-  [10, 22], [26, 20], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37, 50], [43, 51], [33, 33], [72, 40], [54, 30], [86, 40],
+  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37, 50], [43, 51], [33, 33], [72, 40], [54, 30], [86, 40],
 ];
 
 export const FLOWERS: Array<[number, number]> = [
@@ -254,7 +267,7 @@ export const FLAGPOLE: [number, number] = [50, 29];
 
 /** daytime hangouts for students: [x, y, roam] */
 export const HANGOUTS: Array<[number, number, number]> = [
-  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [33, 11, 2], [33, 40, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [5, 15, 2],
+  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [33, 40, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [5, 15, 2],
 ];
 
 /** where each age group hangs out by day (lawns between the buildings and the campus walls) */
@@ -262,8 +275,8 @@ export type AgeGroup = 'g4' | 'g56' | 'g78' | 'lise';
 export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
   // 4th graders: the lawns west of the boys' dorm and south of the girls' dorm
   g4: [{ x: 4, y: 9, w: 3, h: 12 }, { x: 13, y: 41, w: 8, h: 2 }],
-  // 5th–6th graders: the lawn north of Eğitim, and beside the girls' dorm
-  g56: [{ x: 31, y: 9, w: 6, h: 7 }, { x: 4, y: 26, w: 2, h: 8 }],
+  // 5th–6th graders: the dorm basketball court north of Eğitim, and beside the girls' dorm
+  g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 4, y: 26, w: 2, h: 8 }],
   // 7th–8th graders: round the Kantin court and the big court
   g78: [{ x: 64, y: 47, w: 7, h: 3 }, { x: 84, y: 40, w: 7, h: 2 }],
   // high schoolers: east of the basketball court and behind the Kantin
@@ -281,9 +294,9 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
   '4': { x: 4, y: 9, w: 3, h: 12 },       // west of the boys' dorm
   '5': { x: 9, y: 22.5, w: 6, h: 2 },     // west end of the Yurt Meydanı
   '6': { x: 20, y: 20, w: 6, h: 2 },      // east end of the Yurt Meydanı
-  '7': { x: 31, y: 9, w: 5, h: 7 },       // the lawn north of Eğitim
+  '7': { x: 30, y: 9, w: 6, h: 5 },       // the dorm basketball court
   '8': { x: 4, y: 26, w: 2, h: 5 },       // beside the girls' dorm
-  lise: { x: 27, y: 18, w: 8, h: 2 },     // along Eğitim, by the boys' dorm
+  lise: { x: 29, y: 19, w: 8, h: 1 },     // along Eğitim, in front of the Kapalı Saha
 };
 export const EVENING_CENTER: Rect = { x: 11, y: 22, w: 12, h: 4 };
 
@@ -330,7 +343,7 @@ export const LOCATIONS: Location[] = [
     id: 'erkek_yurdu', kind: 'building',
     name: { tr: 'Erkek Yurdu', en: 'Erkek Yurdu' }, sub: { tr: 'Erkeklerin yurdu · A1–A3 blokları', en: "Boys' dorm · blocks A1–A3" },
     info: { tr: 'A1, A2 ve A3 blokları; her blokta 4 kat ve 14 bölüm. Girişi Yurt Meydanı\'na ve Kız Yurdu\'na bakar.', en: 'Blocks A1, A2 and A3, each with 4 floors and 14 sections. The entrance faces the dorm plaza and the girls\' dorm.' },
-    rect: { x: 8, y: 5.5, w: 20.5, h: 16 }, label: { x: 13, y: 9.5 }, doors: [{ x: 19, y: 18, side: 's' }, { x: 20, y: 18, side: 's' }], minimapColor: '#7fa8d9',
+    rect: { x: 8, y: 5.5, w: 20.5, h: 16 }, label: { x: 18, y: 7.2 }, doors: [{ x: 19, y: 18, side: 's' }, { x: 20, y: 18, side: 's' }], minimapColor: '#7fa8d9',
   },
   {
     id: 'yurt_meydani', kind: 'zone',
@@ -380,6 +393,12 @@ export const LOCATIONS: Location[] = [
     name: { tr: 'Spor Salonu', en: 'Spor Salonu' }, sub: { tr: 'Havuz · eskrim · basketbol', en: 'Pool · fencing · basketball' },
     info: { tr: 'Basketbol, voleybol, futsal, yüzme havuzu ve eskrim salonu. Antrenörlerin odası da burada.', en: "Basketball, volleyball, futsal, the swimming pool and the fencing room. The coaches' office is here too." },
     rect: { x: 58, y: 15, w: 13.5, h: 24.5 }, doors: [{ x: 58, y: 30, side: 'w' }, { x: 58, y: 31, side: 'w' }], minimapColor: '#dfe3e6',
+  },
+  {
+    id: 'kapali_saha', kind: 'building',
+    name: { tr: 'Kapalı Saha', en: 'Kapalı Saha' }, sub: { tr: 'Futbol · hentbol · badminton · voleybol', en: 'Indoor court · football · handball · badminton · volleyball' },
+    info: { tr: 'Yurtların yanındaki kapalı saha: futbol, hentbol, badminton ve voleybol. Akşam etüt sonrası da açık.', en: 'The indoor court by the dorms: football, handball, badminton and volleyball. Open in the evening too, after study hour.' },
+    rect: { x: 30, y: 14.8, w: 8, h: 3.8 }, label: { x: 34, y: 16.4 }, doors: [{ x: 33, y: 18, side: 's' }, { x: 34, y: 18, side: 's' }], minimapColor: '#c8d6e0',
   },
   {
     id: 'kantin', kind: 'building',

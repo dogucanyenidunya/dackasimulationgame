@@ -40,7 +40,7 @@ export interface Host3D {
 
 const FLOORS: Record<string, [number, number]> = {
   // [floors, floor height]
-  kiz_yurdu: [4, 1.15], erkek_yurdu: [4, 1.15], egitim: [3, 1.2], yemekhane: [2, 1.35], cemiyet: [2, 1.25], spor: [1, 2.9], tim: [1, 3.2], kantin: [1, 1.9],
+  kiz_yurdu: [4, 1.15], erkek_yurdu: [4, 1.15], egitim: [3, 1.2], yemekhane: [2, 1.35], cemiyet: [2, 1.25], spor: [1, 2.9], tim: [1, 3.2], kantin: [1, 1.9], kapali_saha: [1, 2.4],
 };
 const PITCH = THREE.MathUtils.degToRad(52);
 const FOV = 34;
@@ -371,7 +371,7 @@ export class World3D {
     const style = b.roofStyle ?? 'flat';
     const group = new THREE.Group();
     const mats: THREE.Material[] = [];
-    const facade = b.id === 'spor' ? 'glass' : b.id === 'tim' ? 'drum' : 'ribbon';
+    const facade = b.id === 'spor' || b.id === 'kapali_saha' ? 'glass' : b.id === 'tim' ? 'drum' : 'ribbon';
     const module = facade === 'drum' ? 1 : 4; // tiles per texture repeat along the wall
     const tex = this.facadeTextures(facade, Math.round(r.x * 31 + r.y));
     tex.map.repeat.set(1, floors); tex.emissive.repeat.set(1, floors);

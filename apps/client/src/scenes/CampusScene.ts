@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -107,7 +107,9 @@ export class CampusScene extends Phaser.Scene {
   private cemilOut!: Phaser.Physics.Arcade.Sprite;
   private visitor!: Phaser.GameObjects.Sprite;
   /** a pick-up game: friends on their way to the court */
-  private match: { sport: CourtSport; mates: Phaser.Physics.Arcade.Sprite[]; until: number; ready: boolean } | null = null;
+  private match: { sport: CourtSport; court: Rect; mates: Phaser.Physics.Arcade.Sprite[]; until: number; ready: boolean } | null = null;
+  /** the court whose panel was opened last (there's more than one basketball court) */
+  private courtAt: Rect | null = null;
   /** sleeping: the night fast-forwards in about a minute; night challenges can interrupt it */
   private sleepRun: { msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }> } | null = null;
   private zzz: Phaser.GameObjects.Text[] = [];
@@ -838,10 +840,9 @@ export class CampusScene extends Phaser.Scene {
     }
     if (this.match) return null;
     const px = this.player.x / TILE, py = this.player.y / TILE;
-    for (const sport of ['basketball', 'football'] as const) {
-      const r = COURTS[sport];
+    for (const { sport, rect: r } of PLAY_COURTS) {
       if (px >= r.x - 0.5 && px <= r.x + r.w + 0.5 && py >= r.y - 0.5 && py <= r.y + r.h + 0.5) {
-        return { label: L(sport === 'basketball' ? { tr: 'Basketbol sahası', en: 'Basketball court' } : { tr: 'Futbol sahası', en: 'Football pitch' }), open: () => { const g = ctx(); this.panel.open(() => courtPanel(g, sport)); } };
+        return { label: L(sport === 'basketball' ? { tr: 'Basketbol sahası', en: 'Basketball court' } : { tr: 'Futbol sahası', en: 'Football pitch' }), open: () => { this.courtAt = r; const g = ctx(); this.panel.open(() => courtPanel(g, sport)); } };
       }
     }
     return null;
@@ -852,7 +853,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.match) return L({ tr: 'Zaten arkadaşlarını bekliyorsun.', en: "You're already waiting for your friends." });
     const need = COURT_PLAYERS[sport];
     const st = this.save.state;
-    const court = COURTS[sport];
+    const court = this.courtAt ?? COURTS[sport];
     const cx = court.x + court.w / 2, cy = court.y + court.h / 2;
     const pals = this.npcs.filter((n) => {
       const def = n.getData('def') as NpcDef;
@@ -866,7 +867,7 @@ export class CampusScene extends Phaser.Scene {
       n.setData('summon', [cx + Math.cos(a) * (court.w / 2 - 1.2), cy + Math.sin(a) * (court.h / 2 - 1)]);
       n.setData('arriveAt', this.time.now + 3000 + Math.random() * 9000);
     });
-    this.match = { sport, mates: pals, until: this.time.now + 75_000, ready: false };
+    this.match = { sport, court, mates: pals, until: this.time.now + 75_000, ready: false };
     const names = pals.map((n) => (n.getData('def') as NpcDef).name).join(', ');
     this.hud.toast(L({ tr: `📣 ${names}: "Geliyoruz!"`, en: `📣 ${names}: "On our way!"` }), 'good');
     return null;
@@ -876,7 +877,7 @@ export class CampusScene extends Phaser.Scene {
     const m = this.match;
     if (!m) return;
     if (m.ready) { if (!this.panel.isOpen) this.endMatch(); return; }
-    const court = COURTS[m.sport];
+    const court = m.court;
     const cx = (court.x + court.w / 2) * TILE, cy = (court.y + court.h / 2) * TILE;
     if (this.room || Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) > 12 * TILE) {
       this.endMatch(); this.hud.toast(L({ tr: 'Sahadan ayrıldın; arkadaşların dağıldı.', en: 'You left the court; your friends wandered off.' })); return;

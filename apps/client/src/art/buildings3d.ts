@@ -13,11 +13,11 @@ export function liftOf(b: Building): number {
   return doorsOf(b).some((d) => d.side === 'n') ? 0 : 1;
 }
 /** façade height in tiles (taller buildings look taller) */
-const FACADE: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 4, yemekhane: 3, cemiyet: 3, spor: 3, tim: 3, kantin: 2 };
+const FACADE: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 4, yemekhane: 3, cemiyet: 3, spor: 3, tim: 3, kantin: 2, kapali_saha: 2 };
 /** extra pixels left and right for side entrance canopies */
 export const PAD = 10;
 
-const FLOORS: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 3, yemekhane: 2, cemiyet: 2, spor: 1, tim: 1, kantin: 1 };
+const FLOORS: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 3, yemekhane: 2, cemiyet: 2, spor: 1, tim: 1, kantin: 1, kapali_saha: 1 };
 
 const ROOF = {
   grey: { base: '#bcc3c9', dark: '#a6aeb5', light: '#d3d9de', rim: '#e6eaed', rimDark: '#8f979e' },
@@ -310,7 +310,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
         const lo = vb + fhf * (floors - 1 - f), hi = lo + fhf;
         const ground = f === floors - 1;
         if (f > 0) q(0, 1, hi - v(1), hi + v(1), '#dcdfe0'); // slab line between floors
-        if (b.id === 'spor') {
+        if (b.id === 'spor' || b.id === 'kapali_saha') {
           // tall curtain wall of the sports hall
           q(u(8), 1 - u(8), lo + v(2), hi - v(4), '#5f819f');
           q(u(8), 1 - u(8), hi - v(8), hi - v(4), '#a9c9e2');
