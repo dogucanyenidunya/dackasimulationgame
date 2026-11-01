@@ -26,7 +26,7 @@ import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, D
 import { BELLETMENS, GROUPS, NPCS, ageGroup, type NpcDef } from '../content/npcs';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { LIGHTS_OUT, WAKE_UP, phaseOf, type DayPhase } from '../game/schedule';
+import { ETUT_START, LIGHTS_OUT, WAKE_UP, phaseOf, type DayPhase } from '../game/schedule';
 import {
   MISSIONS, missionById, nextObjective, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
@@ -47,6 +47,12 @@ const MS_PER_MIN_NIGHT = 240_000 / (8.5 * 60);
 
 const DIRS = { down: 0, left: 1, right: 2, up: 3 } as const;
 const PLAZA_RECT = PLAZA_EVENING;
+/** belletmens on the search: they walk at first, then speed up until they can outpace you */
+const SEARCH_SPEED = 80;
+const SEARCH_SPEED_MAX = 230;
+/** how close (tiles) a searching belletmen has to be to see you */
+const SPOT_RANGE = 7;
+const ESCORT_SPEED = 85;
 
 export class CampusScene extends Phaser.Scene {
   private save!: SaveData;
@@ -95,6 +101,12 @@ export class CampusScene extends Phaser.Scene {
   private target: { x: number; y: number } | null = null;
   private lastAllowed: { x: number; y: number } | null = null;
   private lastCurfewToast = 0;
+  /** out at study time or after lights out: belletmens search for you (t = ms of searching, seen = where you were last seen) */
+  private hunt: { t: number; npcs: Phaser.Physics.Arcade.Sprite[]; seen: { x: number; y: number }; tipAt: number; cutAt: number; spotted: boolean } | null = null;
+  /** real time you've been out of place (the grace period before the search starts) */
+  private outFor = 0;
+  /** caught: the belletmen walks you back to your dorm (walking = the scolding is over) */
+  private escort: { npc: Phaser.Physics.Arcade.Sprite; t: number; walking: boolean; done: boolean } | null = null;
   private groupId: string | null = null;
   private sleeping = false;
   private layoutReset = false;
@@ -737,7 +749,8 @@ export class CampusScene extends Phaser.Scene {
   }
 
   /** walk into your dorm room */
-  private enterDorm() {
+  /** `escortedBy`: a belletmen caught you outside and brought you in */
+  private enterDorm(escortedBy?: string) {
     if (!this.room) this.outdoorZoom = this.cameras.main.zoom;
     this.room = 'dorm';
     this.player.setPosition((ROOM_OX + ROOM_SPAWN[0]) * TILE, ROOM_SPAWN[1] * TILE).setVelocity(0, 0);
@@ -745,7 +758,12 @@ export class CampusScene extends Phaser.Scene {
     this.setCameraArea();
     this.cameras.main.fadeIn(280, 10, 14, 20);
     this.hud.setPrompt(null);
-    if (!this.save.state.once.luggage) this.hud.toast(L({ tr: 'Yatağın sağdaki yatakhanede (sarı etiket). Bavulunu oraya götür.', en: 'Your bed is in the sleeping room on the right (yellow tag). Take your suitcase there.' }));
+    if (escortedBy) {
+      this.hud.toast(phaseOf(this.save.clock.minutes) === 'etut'
+        ? L({ tr: `${escortedBy}: "Masana otur ve ders çalış. Gözüm üstünde!"`, en: `${escortedBy}: "Sit at your desk and study. I'm watching you!"` })
+        : L({ tr: `${escortedBy}: "Doğru yatağına! Bir daha olmasın."`, en: `${escortedBy}: "Straight to bed! Don't let it happen again."` }));
+    }
+    else if (!this.save.state.once.luggage) this.hud.toast(L({ tr: 'Yatağın sağdaki yatakhanede (sarı etiket). Bavulunu oraya götür.', en: 'Your bed is in the sleeping room on the right (yellow tag). Take your suitcase there.' }));
     else if (phaseOf(this.save.clock.minutes) === 'night') {
       const mm = this.save.clock.minutes;
       const late = mm >= 22 * 60 ? mm - 22 * 60 : mm + 120;
@@ -1302,7 +1320,9 @@ export class CampusScene extends Phaser.Scene {
     for (const npc of this.npcs) {
       const def = npc.getData('def') as NpcDef;
       if (def.id === 'bel-selim') npc.setData('patrol', route[leg]);
-      const plan = this.npcPlan(def, phase, lessonNow, npc);
+      // belletmens searching for you (or walking you back) leave their usual spots
+      const onDuty = !!this.hunt?.npcs.includes(npc) || this.escort?.npc === npc;
+      const plan = onDuty ? { home: [npc.x / TILE - 0.5, (npc.y + 10) / TILE - 0.5] as [number, number], roam: 0 } : this.npcPlan(def, phase, lessonNow, npc);
       const label = this.npcNames.get(npc)!;
       if (!plan) {
         if (npc.visible) { npc.setVisible(false); npc.body!.enable = false; npc.setVelocity(0, 0); }
@@ -1317,7 +1337,8 @@ export class CampusScene extends Phaser.Scene {
         npc.body!.enable = true;
       }
       const talking = this.panel.isOpen && this.nearNpc?.id === def.id;
-      if (talking) {
+      if (onDuty) this.dutyStep(npc, time);
+      else if (talking) {
         npc.setVelocity(0, 0);
         npc.setData('wantMove', false);
       } else if (plan.roam === 0 || Math.hypot(npc.x - hx, npc.y - hy) > (plan.roam + 3) * TILE) {
@@ -1342,7 +1363,7 @@ export class CampusScene extends Phaser.Scene {
       const vx = npc.body!.velocity.x, vy = npc.body!.velocity.y;
       const moving = Math.abs(vx) + Math.abs(vy) > 1;
       let dir = !moving ? npc.getData('dir') ?? 0 : Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : vy < 0 ? 3 : 0;
-      if (talking) { const dx = this.player.x - npc.x, dy = this.player.y - npc.y; dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0; }
+      if (talking || (this.escort?.npc === npc && !this.escort.walking)) { const dx = this.player.x - npc.x, dy = this.player.y - npc.y; dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0; }
       npc.setData('dir', dir);
       const step = moving ? [1, 0, 2, 0][Math.floor(time / 130) % 4] : 0;
       npc.setFrame(dir * 3 + step);
@@ -1746,7 +1767,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private updatePrompt(force = false) {
-    if (this.panel?.isOpen || this.sleepRun) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
+    if (this.panel?.isOpen || this.sleepRun || this.escort) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
     const peer = this.peers.size ? this.nearPeer() : null;
     if (peer) { this.nearDoor = null; this.hud.setPrompt(L({ tr: `E — ${peer.profile.name} (oyuncu)`, en: `E — ${peer.profile.name} (player)` })); return; }
     if (this.room === 'dining') {
@@ -1823,7 +1844,7 @@ export class CampusScene extends Phaser.Scene {
     });
   }
 
-  private blocked() { return this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null; }
+  private blocked() { return this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
 
   private findNearNpc(): NpcDef | null {
     let best: NpcDef | null = null, bestD = 1.7 * TILE;
@@ -1945,12 +1966,6 @@ export class CampusScene extends Phaser.Scene {
     this.refreshClockAndNeeds();
   }
 
-  /** teleports you to your dorm door and opens the dorm (curfew) */
-  private sendToDorm() {
-    this.save.state.escaped = false;
-    this.enterDorm();
-  }
-
   private startEscape() {
     const st = this.save.state;
     st.escaped = true;
@@ -1975,10 +1990,9 @@ export class CampusScene extends Phaser.Scene {
     if (st.escaped) {
       if (phase !== 'night') { st.escaped = false; this.penalize(10, L({ tr: 'Sabah yoklamasında yatağında değildin!', en: "You weren't in bed at the morning roll call!" })); return; }
       const patrol = this.npcs.find((n) => (n.getData('def') as NpcDef).id === 'bel-selim');
+      // sneaking out is the one time you can stay out: only Selim Bey's torch ends it, and then he walks you back
       if (patrol?.visible && Phaser.Math.Distance.Between(patrol.x, patrol.y, this.player.x, this.player.y) < 3.5 * TILE) {
-        this.penalize(15, L({ tr: 'Selim Bey seni fenerle yakaladı! Doğru yatağa.', en: 'Mr. Selim caught you in his torchlight! Straight to bed.' }));
-        this.changeMood(-10);
-        this.sendToDorm();
+        this.caught(patrol, 15, L({ tr: 'Selim Bey seni fenerle yakaladı! Doğru yatağa.', en: 'Mr. Selim caught you in his torchlight! Straight to bed.' }));
       }
       return;
     }
@@ -2030,10 +2044,232 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
+  // ---------- belletmens out looking for you ----------
+
+  /** settled in, study time or after lights out, and not in your dorm (sneaking out is Selim Bey's patrol's business) */
+  private outOfPlace(): boolean {
+    const st = this.save.state;
+    if (!st.once.luggage || !st.missionsDone.includes('kayit') || st.escaped || this.sleeping || this.room === 'dorm') return false;
+    const phase = phaseOf(this.save.clock.minutes);
+    return phase === 'etut' || phase === 'night';
+  }
+
+  /** minutes since study time started / the lights went out */
+  private minutesLate(): number {
+    const m = this.save.clock.minutes;
+    if (phaseOf(m) === 'etut') return m - ETUT_START;
+    return m >= LIGHTS_OUT ? m - LIGHTS_OUT : m + 24 * 60 - LIGHTS_OUT;
+  }
+
+  /** where the belletmens head for you: you, or the door of the building you're hiding in */
+  private playerSpot(): { x: number; y: number } {
+    if (!this.room) return { x: this.player.x, y: this.player.y };
+    const p = this.campusPos();
+    const [x, y] = this.npcSpot(p.x - 0.5, p.y - 0.5);
+    return { x, y };
+  }
+
+  private updateHunt(delta: number) {
+    if (this.escort) { if (this.escort.walking) this.escort.t += delta; return; }
+    if (!this.outOfPlace()) { if (this.hunt) this.endHunt(); this.outFor = 0; return; }
+    if (this.blocked()) return;
+    this.outFor += delta;
+    if (!this.hunt) {
+      // a short grace period: the 5 minutes the countdown gives you, and a few real seconds on top
+      if (this.minutesLate() >= 5 && this.outFor > 4000) this.startHunt();
+      return;
+    }
+    const h = this.hunt;
+    h.t += delta;
+    // Selim Bey joins in at night, or once study time has gone on a while
+    if (h.npcs.length < 2 && (phaseOf(this.save.clock.minutes) === 'night' || h.t > 20_000)) {
+      const selim = this.npcs.find((n) => (n.getData('def') as NpcDef).id === 'bel-selim');
+      if (selim && !h.npcs.includes(selim)) {
+        h.npcs.push(selim);
+        if (h.t > 0) this.hud.toast(L({ tr: '🔦 Selim Bey de fenerini alıp aramaya katıldı!', en: '🔦 Mr. Selim has grabbed his torch and joined the search!' }));
+      }
+    }
+    // other students tip them off now and then
+    if (h.t >= h.tipAt) { h.tipAt = h.t + 6000; h.seen = this.playerSpot(); }
+    // a search that drags on ends with someone cutting you off round a corner
+    if (h.t >= h.cutAt) { h.cutAt = h.t + 15_000; this.cutOff(); }
+  }
+
+  private startHunt() {
+    const belId = this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet';
+    const own = this.npcs.find((n) => (n.getData('def') as NpcDef).id === belId);
+    if (!own) return;
+    this.hunt = { t: 0, npcs: [own], seen: this.playerSpot(), tipAt: 6000, cutAt: 60_000, spotted: false };
+    const name = (own.getData('def') as NpcDef).name;
+    sfx.warn();
+    this.hud.toast(phaseOf(this.save.clock.minutes) === 'night'
+      ? L({ tr: `🔦 ${name} boş yatağını fark etti ve seni aramaya çıktı!`, en: `🔦 ${name} found your bed empty and has come looking for you!` })
+      : L({ tr: `🔦 ${name} etütte yokluğunu fark etti ve seni aramaya çıktı!`, en: `🔦 ${name} noticed you're missing from study time and has come looking for you!` }));
+  }
+
+  private endHunt() {
+    for (const n of this.hunt!.npcs) n.setData('huntGoal', undefined).setData('path', undefined);
+    this.hunt = null;
+  }
+
+  /** one frame of a belletmen on the search or walking you back (instead of their usual plan) */
+  private dutyStep(npc: Phaser.Physics.Arcade.Sprite, time: number) {
+    const stop = () => { npc.setVelocity(0, 0); npc.setData('wantMove', false); };
+    const e = this.escort;
+    if (e?.npc === npc) {
+      if (!e.walking) { stop(); return; }
+      const door = doorStandTile(this.ownDormLoc().doors![0]);
+      const there = this.steerNpc(npc, ...this.npcSpot(door.x, door.y), ESCORT_SPEED);
+      // a long walk ends in a fade; so does getting wedged apart
+      const apart = Phaser.Math.Distance.Between(npc.x, npc.y, this.player.x, this.player.y) > 5 * TILE;
+      if (there || e.t > 9000 || apart) this.finishEscort();
+      return;
+    }
+    const h = this.hunt!;
+    if (this.blocked()) { stop(); return; }
+    const out = !this.room;
+    const me = this.playerSpot();
+    const d = Math.hypot(me.x - npc.x, me.y - npc.y);
+    if (d < (out ? 1.3 : 1.6) * TILE) { this.caught(npc); return; }
+    if (out && d < SPOT_RANGE * TILE) { h.spotted = true; h.seen = me; }
+    // they start at a walk and keep speeding up, so in the end they outpace you
+    const speed = Math.min(SEARCH_SPEED_MAX, SEARCH_SPEED + h.t / 400 + (h.spotted ? 40 : 0));
+    if (d < 2 * TILE) {
+      const a = Math.atan2(me.y - npc.y, me.x - npc.x);
+      npc.setVelocity(Math.cos(a) * speed, Math.sin(a) * speed);
+      npc.setData('wantMove', true);
+      return;
+    }
+    if (d < SPOT_RANGE * TILE) { npc.setData('huntGoal', undefined); this.steerNpc(npc, me.x, me.y, speed); return; }
+    // otherwise comb the area where you were last seen, in ever smaller circles
+    let goal = npc.getData('huntGoal') as [number, number] | undefined;
+    if (!goal || time > (npc.getData('huntUntil') ?? 0)) {
+      goal = this.searchSpot(h.seen, Math.max(0, 10 * (1 - h.t / 40_000)));
+      npc.setData('huntGoal', goal).setData('huntUntil', time + 5000);
+    }
+    if (this.steerNpc(npc, goal[0], goal[1], speed)) npc.setData('huntGoal', undefined);
+  }
+
+  /** an open spot up to `r` tiles from `at` (sprite pixels) */
+  private searchSpot(at: { x: number; y: number }, r: number): [number, number] {
+    const t = this.npcTile(at.x, at.y);
+    const cx = t % MAP_W, cy = Math.floor(t / MAP_W);
+    for (let i = 0; i < 10; i++) {
+      const x = Math.round(cx + (Math.random() * 2 - 1) * r), y = Math.round(cy + (Math.random() * 2 - 1) * r);
+      if (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H && this.npcGrid[y * MAP_W + x]) return this.npcSpot(x, y);
+    }
+    return [at.x, at.y];
+  }
+
+  /** the nearest searcher, if still far off, turns up just out of sight near you */
+  private cutOff() {
+    const h = this.hunt!;
+    const me = this.playerSpot();
+    const far = (n: Phaser.Physics.Arcade.Sprite) => Math.hypot(n.x - me.x, n.y - me.y);
+    const npc = h.npcs.reduce((a, b) => (far(a) < far(b) ? a : b));
+    if (far(npc) < 12 * TILE) return;
+    const t = this.npcTile(me.x, me.y);
+    const cx = t % MAP_W, cy = Math.floor(t / MAP_W);
+    const view = this.cameras.main.worldView;
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * Math.PI * 2, r = 8 + Math.random() * 3;
+      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H || !this.npcGrid[y * MAP_W + x]) continue;
+      const [sx, sy] = this.npcSpot(x, y);
+      if (view.contains(sx, sy)) continue;
+      npc.setPosition(sx, sy).setData('path', undefined).setData('huntGoal', undefined);
+      h.seen = me;
+      return;
+    }
+  }
+
+  /** a belletmen has you: a telling-off, discipline points, then they walk you back to your dorm (no arguing) */
+  private caught(npc: Phaser.Physics.Arcade.Sprite, points = 10, why?: string) {
+    const st = this.save.state;
+    const def = npc.getData('def') as NpcDef;
+    const night = phaseOf(this.save.clock.minutes) === 'night';
+    if (this.hunt) this.endHunt();
+    this.outFor = 0;
+    st.escaped = false;
+    this.escort = { npc, t: 0, walking: false, done: false };
+    this.player.setVelocity(0, 0);
+    npc.setVelocity(0, 0).setData('path', undefined);
+    this.penalize(points, why ?? (night
+      ? L({ tr: `${def.name} seni ışıklar söndükten sonra dışarıda yakaladı!`, en: `${def.name} caught you outside after lights out!` })
+      : L({ tr: `${def.name} seni etüt saatinde dışarıda yakaladı!`, en: `${def.name} caught you outside during study time!` })));
+    this.befriend(def.id, -5);
+    this.changeMood(night ? -10 : -6);
+    const lines = night ? [
+      { tr: '"Işıklar söneli kaç dakika oldu, haberin var mı? Herkes uyurken senin burada ne işin var? Doğru yatağa!"', en: '"Do you know how long ago the lights went out? Everyone\'s asleep, what are you doing out here? Straight to bed!"' },
+      { tr: '"Gecenin bu saatinde dışarıda dolaşmak ha? Bu, defterine yazılacak. Yürü bakalım!"', en: '"Wandering about at this time of night? That\'s going in your record. Come on, move!"' },
+    ] : [
+      { tr: '"Etüt saatinde dışarıda ne arıyorsun? Kitapların seni bekliyor. Yürü, yurda!"', en: '"What are you doing outside during study time? Your books are waiting. Come on, back to the dorm!"' },
+      { tr: '"Herkes masasında çalışırken sen ortalıkta geziyorsun. Bu son olsun! Haydi, önüme düş."', en: '"Everyone\'s at their desk studying and you\'re wandering about. That\'s the last time! Go on, in front of me."' },
+    ];
+    this.hud.showModal({
+      title: L({ tr: '🔦 Yakalandın!', en: '🔦 Caught!' }), sub: def.name,
+      body: L(lines[Math.floor(Math.random() * lines.length)]),
+      note: L({ tr: 'Seni yurduna kadar götürüyor. İtiraz etmek yok.', en: "They're walking you back to your dorm. No arguing." }),
+      button: L({ tr: 'Yurda dön', en: 'Back to the dorm' }),
+      onClose: () => {
+        if (!this.escort) return;
+        if (this.room) this.finishEscort(); // found at a door: straight over to the dorm
+        else this.escort.walking = true;
+      },
+    });
+  }
+
+  /** while you're being walked back you just follow the belletmen */
+  private escortFollow(): [number, number] {
+    const e = this.escort!;
+    if (!e.walking || this.room) return [0, 0];
+    const dx = e.npc.x - this.player.x, dy = e.npc.y - this.player.y;
+    return Math.hypot(dx, dy) < 1.1 * TILE ? [0, 0] : [dx, dy];
+  }
+
+  private finishEscort() {
+    const e = this.escort;
+    if (!e || e.done) return;
+    e.done = true;
+    e.walking = false;
+    const name = (e.npc.getData('def') as NpcDef).name;
+    this.screenFade(() => {
+      this.escort = null;
+      e.npc.setData('path', undefined).setData('wander', undefined);
+      this.tray = null;
+      this.enterDorm(name);
+    });
+  }
+
+  /** a quick fade to black and back, over both the 2D and the 3D view */
+  private screenFade(mid: () => void) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;background:#0a0e14;opacity:0;transition:opacity 0.35s;pointer-events:none;z-index:1';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    this.time.delayedCall(400, () => {
+      mid();
+      el.style.opacity = '0';
+      this.time.delayedCall(450, () => el.remove());
+    });
+  }
+
   /** the countdown banner at the top: study time at 18:00, lights out at 22:00 */
   private updateCountdown() {
     const st = this.save.state;
     const m = this.save.clock.minutes;
+    if (this.escort) {
+      const name = (this.escort.npc.getData('def') as NpcDef).name;
+      this.hud.setCountdown(L({ tr: `🚶 ${name} seni yurduna götürüyor…`, en: `🚶 ${name} is walking you back to your dorm…` }), true);
+      return;
+    }
+    if (this.hunt) {
+      const names = this.hunt.npcs.map((n) => (n.getData('def') as NpcDef).name);
+      this.hud.setCountdown(this.hunt.spotted
+        ? L({ tr: `👀 ${names.join(' ve ')} seni gördü! Kaçamazsın…`, en: `👀 ${names.join(' and ')} spotted you! There's no getting away…` })
+        : L({ tr: `🔦 ${names.join(' ve ')} seni arıyor! Bulunmadan yurduna dön.`, en: `🔦 ${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} looking for you! Get back to your dorm before you're found.` }), true);
+      return;
+    }
     if (this.room === 'dorm' || st.escaped || !st.once.luggage || !st.missionsDone.includes('kayit')) { this.hud.setCountdown(null); return; }
     const phase = phaseOf(m);
     const evci = (this.save.character.boarding ?? 'daimi') === 'evci';
@@ -2508,7 +2744,8 @@ export class CampusScene extends Phaser.Scene {
     const k = this.keys;
     const blocked = this.blocked();
     let vx = 0, vy = 0;
-    if (!blocked) {
+    if (this.escort) [vx, vy] = this.escortFollow();
+    else if (!blocked) {
       if (k.left.isDown || k.a.isDown) vx -= 1;
       if (k.right.isDown || k.d.isDown) vx += 1;
       if (k.up.isDown || k.w.isDown) vy -= 1;
@@ -2517,7 +2754,7 @@ export class CampusScene extends Phaser.Scene {
     const len = Math.hypot(vx, vy) || 1;
     const running = k.shift.isDown && this.save.state.energy > 10 && (vx !== 0 || vy !== 0);
     if (running) this.save.state.energy = clamp(this.save.state.energy - delta * 0.0008); // running tires you out
-    const speed = this.save.state.energy < 10 ? SPEED * 0.6 : running ? SPEED * 1.6 : SPEED;
+    const speed = this.escort ? ESCORT_SPEED : this.save.state.energy < 10 ? SPEED * 0.6 : running ? SPEED * 1.6 : SPEED;
     this.dust.setDepth(this.player.y + 15);
     this.dust.emitting = (vx !== 0 || vy !== 0) && !this.room;
     this.dust.frequency = running ? 70 : 160;
@@ -2536,6 +2773,7 @@ export class CampusScene extends Phaser.Scene {
     if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.player.y + (this.dir === 3 ? 15 : 17));
     this.showNextAnnouncement();
     this.enforceCurfew();
+    this.updateHunt(delta);
     this.updateCountdown();
     this.trackerTimer += delta;
     if (this.trackerTimer > 400) { this.trackerTimer = 0; this.updateTracker(); }
