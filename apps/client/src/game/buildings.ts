@@ -3,7 +3,7 @@ import { L, type Text } from '../i18n';
 import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, keepsakeName, capitalize, type Attributes, type CharacterData } from '../content/character';
 import { BOOKS } from '../content/quiz';
-import { currentPeriod, fmtTime, isWeekend, PERIODS, periodLabel, phaseOf, subjectFor } from './schedule';
+import { currentPeriod, fmtTime, isSnackTime, isWeekend, PERIODS, periodLabel, phaseOf, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_FOR_EXAM, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { missionById, reached, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday } from './weekend';
@@ -69,6 +69,13 @@ const KANTIN: Array<{ id: string; name: Text; price: number; hunger: number; moo
   { id: 'tost', name: { tr: 'Kaşarlı tost', en: 'Cheese toastie' }, price: 12, hunger: 30, mood: 5 },
   { id: 'atistirmalik', name: { tr: 'Cips & çikolata', en: 'Crisps & chocolate' }, price: 8, hunger: 10, mood: 6 },
   { id: 'ayran', name: { tr: 'Ayran', en: 'Ayran' }, price: 4, hunger: 8, mood: 3 },
+];
+/** the dining hall's afternoon snack (ara öğün): free with your meal card, one a day */
+const ARA_OGUN: Array<{ id: string; name: Text; hunger: number; mood: number }> = [
+  { id: 'pogaca', name: { tr: 'Peynirli poğaça', en: 'Cheese poğaça' }, hunger: 40, mood: 4 },
+  { id: 'catalsimit', name: { tr: 'Çatal simit', en: 'Çatal simit' }, hunger: 35, mood: 4 },
+  { id: 'dieforyou', name: { tr: '"Die for you" kek', en: '"Die for you" cake' }, hunger: 30, mood: 9 },
+  { id: 'acma', name: { tr: 'Açma', en: 'Açma' }, hunger: 40, mood: 4 },
 ];
 /** a phone card for the dorm payphone */
 const PHONE_CARD = { price: 25, units: 30, perCall: 10 };
@@ -511,6 +518,35 @@ export function tim(ctx: GameCtx): PanelView {
   return { title: 'TIM Gösteri Merkezi', sub: T('Konferans salonu · sahne', 'Auditorium · stage'), status: status(ctx), rooms: [konferansRoom(ctx)] };
 }
 
+/** the afternoon snack at the serving counter, 16:00–17:00 */
+function snackRoom(ctx: GameCtx): RoomView {
+  const hours = `${fmtTime(SNACK_START)}–${fmtTime(SNACK_END)}`;
+  const lock = !ctx.st.school.registered ? T('Yemek kartın yok. Önce Cemiyet\'te kayıt ol.', 'You have no meal card yet. Register at the Cemiyet building first.')
+    : !isSnackTime(ctx.clock.minutes) ? T(`Ara öğün sadece ${hours} arası verilir.`, `The afternoon snack is only served ${hours}.`)
+      : doneToday(ctx, 'snack') ? T('Bugünkü ara öğününü aldın.', "You've had today's snack.") : undefined;
+  return {
+    id: 'araogun', name: T('Ara öğün', 'Afternoon snack'),
+    note: isSnackTime(ctx.clock.minutes)
+      ? T('Tezgâhta sıcak poğaçalar ve kekler. Yemek kartınla bir tane al.', 'Warm pastries and cakes on the counter. Take one with your meal card.')
+      : T(`Ara öğün ${hours} arası tezgâhta.`, `The afternoon snack is at the counter ${hours}.`),
+    actions: ARA_OGUN.map((k) => ({
+      id: `snack-${k.id}`, label: L(k.name), hint: T(`15 dk · +${k.hunger} tokluk · +${k.mood} moral · günde bir`, `15 min · +${k.hunger} fullness · +${k.mood} mood · once a day`),
+      locked: lock,
+      run: () => {
+        markToday(ctx, 'snack');
+        ctx.advance(15);
+        ctx.gain({ hunger: k.hunger, mood: k.mood });
+        ctx.toast(T(`${L(k.name)} · afiyet olsun!`, `${L(k.name)} · enjoy!`), 'good');
+      },
+    })),
+  };
+}
+
+/** the snack counter on its own (the serving counter inside the dining hall) */
+export function araOgun(ctx: GameCtx): PanelView {
+  return { title: T('Ara öğün', 'Afternoon snack'), sub: 'Yemekhane', status: status(ctx), rooms: [snackRoom(ctx)] };
+}
+
 /** dining hall menus: 'kantin' = the canteen counter (also the Kantin building), 'exit' = the door (outside, roof terrace) */
 export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): PanelView {
   const minutes = ctx.clock.minutes;
@@ -576,6 +612,7 @@ export function yemekhane(ctx: GameCtx, mode: 'kantin' | 'exit' = 'exit'): Panel
     title: 'Yemekhane', sub: T('Yemekhane & Sosyal Merkez', 'Dining hall & social center'), status: status(ctx),
     rooms: [
       { id: 'cikis', name: T('Çıkış', 'Exit'), note: T('Merdivenler çatı terasına çıkıyor.', 'The stairs lead up to the roof terrace.'), actions: [{ id: 'out', label: T('Dışarı çık', 'Go outside'), run: () => { ctx.panel.close(); ctx.leaveDorm(); } }] },
+      snackRoom(ctx),
       ...rooms.filter((r) => r.id !== 'kantin'),
     ],
   };

@@ -378,7 +378,7 @@ export const LOCATIONS: Location[] = [
   {
     id: 'yemekhane', kind: 'building',
     name: { tr: 'Yemekhane', en: 'Yemekhane' }, sub: { tr: 'Yemek salonu · çatı terası', en: 'Dining hall · roof terrace' },
-    info: { tr: 'Kahvaltı 07:00, öğle 12:20, akşam 17:00. Kulüp odaları ve çatı terası da burada; arkasında Teknik Alan var.', en: 'Breakfast 07:00, lunch 12:20, dinner 17:00. Club rooms and the roof terrace too; the Teknik Alan is at the back.' },
+    info: { tr: 'Kahvaltı 07:00, öğle 12:20, ara öğün 16:00–17:00 (poğaça, simit, kek), akşam 17:00. Kulüp odaları ve çatı terası da burada; arkasında Teknik Alan var.', en: 'Breakfast 07:00, lunch 12:20, afternoon snack 16:00–17:00 (poğaça, simit, cake), dinner 17:00. Club rooms and the roof terrace too; the Teknik Alan is at the back.' },
     rect: { x: 41.5, y: 14, w: 13.5, h: 9 }, label: { x: 48.2, y: 19.5 }, doors: [{ x: 47, y: 22, side: 's' }, { x: 48, y: 22, side: 's' }], minimapColor: '#9fb3c8',
   },
   {

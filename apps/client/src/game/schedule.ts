@@ -43,6 +43,11 @@ export function phaseOf(minutes: number): DayPhase {
   return 'day';
 }
 
+/** afternoon snack (ara öğün) at the dining hall counter; it runs alongside sports & clubs */
+export const SNACK_START = h(16);
+export const SNACK_END = h(17);
+export const isSnackTime = (minutes: number) => minutes >= SNACK_START && minutes < SNACK_END;
+
 export const BREAK: Text = { tr: 'Teneffüs', en: 'Break' };
 export const NIGHT: Text = { tr: 'Gece · ışıklar kapalı', en: 'Night · lights out' };
 export const WEEKEND_FREE: Text = { tr: 'Hafta sonu', en: 'Weekend' };

@@ -20,7 +20,7 @@ import {
   BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
-import { currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
+import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, awayForWeekend, carsiNow, isFriday, isWednesday, npcIsEvci, weekday } from '../game/weekend';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
 import { BELLETMENS, GROUPS, NPCS, ageGroup, type NpcDef } from '../content/npcs';
@@ -33,7 +33,7 @@ import {
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
 import { SUBJECTS, average, season, SEASON_NAME, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, type CourtSport } from '../game/state';
-import { PERIODS, currentPeriod, fmtTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
+import { PERIODS, currentPeriod, fmtTime, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp } from '../game/state';
 import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
@@ -41,9 +41,9 @@ import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData }
 const REVEAL_RADIUS = 7;
 const SEEN_RADIUS = 9;
 const SPEED = 150;
-/** real milliseconds per game minute: day (07:00–22:30) ≈ 1 game hour per 40 s; night is compressed */
-const MS_PER_MIN_DAY = 40_000 / 60;
-const MS_PER_MIN_NIGHT = 120_000 / (8.5 * 60);
+/** real milliseconds per game minute: day (07:00–22:30) ≈ 1 game hour per 80 s; night is compressed */
+const MS_PER_MIN_DAY = 80_000 / 60;
+const MS_PER_MIN_NIGHT = 240_000 / (8.5 * 60);
 
 const DIRS = { down: 0, left: 1, right: 2, up: 3 } as const;
 const PLAZA_RECT = PLAZA_EVENING;
@@ -534,6 +534,7 @@ export class CampusScene extends Phaser.Scene {
     const m = currentMeal(this.gameCtx());
     this.hud.toast(m
       ? L({ tr: `${m.name} servisi var: ellerini yıka, tezgâhtan tepsini al ve boş bir yere otur.`, en: `${m.name} is being served: wash your hands, get a tray at the counter and find a free seat.` })
+      : isSnackTime(this.save.clock.minutes) ? L({ tr: 'Ara öğün saati: tezgâhta poğaça, simit ve kek var.', en: 'Snack time: poğaça, simit and cake at the counter.' })
       : L({ tr: 'Şu an servis yok. Kantin sağ köşede.', en: 'Nothing is being served right now. The canteen is in the right corner.' }));
     this.persist();
   }
@@ -546,7 +547,8 @@ export class CampusScene extends Phaser.Scene {
       const seat = d.getData('seat') as { faces: number };
       d.setFrame(seat.faces * 3 + (Math.floor(time / 500 + d.x) % 7 === 0 ? 1 : 0)); // munching
     }
-    this.cooks.forEach((c, i) => c.setVisible(serving).setFrame(Math.floor(time / 900 + i) % 5 === 0 ? 1 : 0));
+    const snack = isSnackTime(this.save.clock.minutes);
+    this.cooks.forEach((c, i) => c.setVisible(serving || snack).setFrame(Math.floor(time / 900 + i) % 5 === 0 ? 1 : 0));
     // carry your tray
     this.trayImg.setVisible(this.room === 'dining' && !!this.tray);
     if (this.tray) this.trayImg.setPosition(this.player.x, this.player.y + 4).setDepth(this.player.y + 18);
@@ -569,7 +571,8 @@ export class CampusScene extends Phaser.Scene {
     const px = this.player.x / TILE - DINING_OX, py = this.player.y / TILE + 0.3;
     const near = (x: number, y: number, r = 1.3) => Math.hypot(px - (x + 0.5), py - (y + 0.5)) < r;
     if (this.tray && this.freeSeatNear()) return { id: 'seat', label: L({ tr: 'Otur ve ye', en: 'Sit down and eat' }) };
-    if (COUNTER_TILES.some(([x, y]) => near(x, y + 0.9, 1))) return { id: 'counter', label: this.tray ? L({ tr: 'Tepsin elinde: boş bir yere otur', en: 'You have your tray: find a free seat' }) : L({ tr: 'Tepsini al', en: 'Get a tray' }) };
+    if (COUNTER_TILES.some(([x, y]) => near(x, y + 0.9, 1))) return { id: 'counter', label: this.tray ? L({ tr: 'Tepsin elinde: boş bir yere otur', en: 'You have your tray: find a free seat' })
+      : !currentMeal(this.gameCtx()) && isSnackTime(this.save.clock.minutes) ? L({ tr: 'Ara öğün', en: 'Afternoon snack' }) : L({ tr: 'Tepsini al', en: 'Get a tray' }) };
     if (SINKS.some(([x, y]) => near(x + 0.8, y, 1.1))) return { id: 'sink', label: L({ tr: 'Ellerini yıka', en: 'Wash your hands' }) };
     if (KANTIN_TILES.some(([x, y]) => near(x, y - 0.8, 1.1))) return { id: 'kantin', label: L({ tr: 'Kantin', en: 'Canteen' }) };
     for (const d of this.diners) {
@@ -590,6 +593,7 @@ export class CampusScene extends Phaser.Scene {
     switch (th.id) {
       case 'counter': {
         if (this.tray) { this.hud.toast(th.label); break; }
+        if (!currentMeal(ctx) && isSnackTime(ctx.clock.minutes)) { this.panel.open(() => araOgun(ctx)); break; }
         const lock = trayLock(ctx);
         if (lock) { this.hud.toast(lock); break; }
         this.tray = currentMeal(ctx);
