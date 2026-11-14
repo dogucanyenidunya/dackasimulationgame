@@ -20,6 +20,7 @@ import { ROOM_OX, ROOM_W, ROOM_H, ROOM_SOLID, RT, buildRoom } from '../content/d
 import { CLASS_OX, CLASS_W, CLASS_H, buildClassroom } from '../content/classroom';
 import { DINING_OX, DINING_W, DINING_H, DINING_SOLID, DT, buildDining } from '../content/dining';
 import { TILESET_KEY, TILESET_MARGIN, TILESET_SPACING } from '../art/textures';
+import { shade, wallColor } from '../art/buildings3d';
 import { bushSpots, entrances, sideX } from '../art/buildings3d';
 
 export type RoomKey = 'dorm' | 'class' | 'dining' | null;
@@ -307,14 +308,14 @@ export class World3D {
 
   /** the white façade module (plus a matching "lit windows" map): 8 windows wide and one floor high,
    *  a glass curtain wall (4 tiles), or the round hall's drum (one glass slit per tile) */
-  private facadeTextures(style: 'ribbon' | 'glass' | 'drum', seed: number) {
+  private facadeTextures(style: 'ribbon' | 'glass' | 'drum', seed: number, wall = '#f1f2f0') {
     const W = style === 'drum' ? 32 : style === 'glass' ? 128 : 256, H = 40;
     const { c, g } = canvas(W, H);
     const { c: e, g: eg } = canvas(W, H);
     eg.fillStyle = '#000'; eg.fillRect(0, 0, W, H);
     const r = rng(seed);
-    g.fillStyle = '#f1f2f0'; g.fillRect(0, 0, W, H);
-    g.fillStyle = '#dcdfe0'; g.fillRect(0, H - 3, W, 3);
+    g.fillStyle = wall; g.fillRect(0, 0, W, H);
+    g.fillStyle = shade(wall, 0.92); g.fillRect(0, H - 3, W, 3);
     if (style === 'glass') {
       g.fillStyle = '#5f819f'; g.fillRect(0, 3, W, H - 8);
       g.fillStyle = '#a9c9e2'; g.fillRect(0, 3, W, 4);
@@ -328,8 +329,8 @@ export class World3D {
       eg.fillStyle = '#fff0c4'; eg.fillRect(10, 8, 12, H - 13);
     } else {
       // plaster with a little grain, and the floor slab with a lit top edge
-      for (let i = 0; i < 360; i++) { g.fillStyle = r() < 0.5 ? '#e7e9e6' : '#fafbf9'; g.fillRect(Math.floor(r() * W), Math.floor(r() * (H - 4)), 1, 1); }
-      g.fillStyle = '#f7f8f6'; g.fillRect(0, H - 4, W, 1);
+      for (let i = 0; i < 360; i++) { g.fillStyle = r() < 0.5 ? shade(wall, 0.96) : shade(wall, 1.03); g.fillRect(Math.floor(r() * W), Math.floor(r() * (H - 4)), 1, 1); }
+      g.fillStyle = shade(wall, 1.02); g.fillRect(0, H - 4, W, 1);
       const curtains = ['#e8d8b0', '#c9d6e3', '#e6c3b8', '#d8e4c8', '#f0e6d2', '#b8c9a8'];
       for (let i = 0; i < 8; i++) {
         const x = i * 32 + 4;
@@ -390,7 +391,7 @@ export class World3D {
     const mats: THREE.Material[] = [];
     const facade = b.id === 'spor' || b.id === 'kapali_saha' ? 'glass' : b.id === 'tim' ? 'drum' : 'ribbon';
     const module = facade === 'drum' ? 1 : facade === 'glass' ? 4 : 8; // tiles per texture repeat along the wall
-    const tex = this.facadeTextures(facade, Math.round(r.x * 31 + r.y));
+    const tex = this.facadeTextures(facade, Math.round(r.x * 31 + r.y), wallColor(b.id));
     tex.map.repeat.set(1, floors); tex.emissive.repeat.set(1, floors);
     const wallMat = new THREE.MeshLambertMaterial({ map: tex.map, emissiveMap: tex.emissive, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0, vertexColors: true });
     this.windowMats.push(wallMat); mats.push(wallMat);
@@ -425,7 +426,7 @@ export class World3D {
         idx.push(i0, i0 + 3, i0 + 2, i0, i0 + 2, i0 + 1);
       }
     };
-    const band = new THREE.MeshLambertMaterial({ color: 0xe4e6e5 }); mats.push(band);
+    const band = new THREE.MeshLambertMaterial({ color: shade(wallColor(b.id), 0.95) }); mats.push(band);
     const pipe = new THREE.MeshLambertMaterial({ color: 0x9aa1a6 }); mats.push(pipe);
     const ring = (pts: Pt[], inward: boolean) => {
       let s = 0;

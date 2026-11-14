@@ -17,6 +17,16 @@ const FACADE: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 4
 /** extra pixels left and right for side entrance canopies */
 export const PAD = 10;
 
+/** plaster colour of the walls (everything else stays off-white) */
+export const WALL_COLOR: Record<string, string> = { erkek_yurdu: '#e5d5bb', kiz_yurdu: '#e5d5bb', egitim: '#ddb6a9', cemiyet: '#dcb27d' };
+export const wallColor = (id: string) => WALL_COLOR[id] ?? '#f1f2f0';
+/** the same colour, darker (f < 1) or lighter (f > 1) */
+export function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (s: number) => Math.max(0, Math.min(255, Math.round(((n >> s) & 255) * f))).toString(16).padStart(2, '0');
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+}
+
 const FLOORS: Record<string, number> = { kiz_yurdu: 4, erkek_yurdu: 4, egitim: 3, yemekhane: 2, cemiyet: 2, spor: 1, tim: 1, kantin: 1, kapali_saha: 1 };
 
 const ROOF = {
@@ -130,6 +140,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   const c = tex.getContext(), L = lit.getContext();
   const rand = rng(b.id.length * 977 + Math.round(r.x * 31 + r.y));
   const pal = ROOF[b.roof];
+  const wall = wallColor(b.id);
   const style = b.roofStyle ?? 'flat';
 
   /** a footprint point (tiles) in canvas pixels: h = 0 on the ground, 1 at roof level */
@@ -309,13 +320,13 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     /** pixels → fraction along the wall (u) or up it (v) */
     const u = (p: number) => p / Lpx, v = (p: number) => p / hpx;
     // sun from the north-west: east-facing walls sit in shade
-    q(0, 1, 0, 1, '#f1f2f0');
+    q(0, 1, 0, 1, wall);
     if (w.nx > 0) q(0, 1, 0, 1, `rgba(0,0,0,${(0.03 + w.nx * 0.13).toFixed(3)})`);
     // plaster grain, and the wall darkening towards the ground
-    for (let i = 0; i < (Lpx * hpx) / 70; i++) { const [gx, gy] = G(rand(), rand()); c.fillStyle = rand() < 0.5 ? '#e4e6e3' : '#fbfcfa'; c.fillRect(Math.round(gx), Math.round(gy), 1, 1); }
+    for (let i = 0; i < (Lpx * hpx) / 70; i++) { const [gx, gy] = G(rand(), rand()); c.fillStyle = rand() < 0.5 ? shade(wall, 0.95) : shade(wall, 1.03); c.fillRect(Math.round(gx), Math.round(gy), 1, 1); }
     q(0, 1, 0, v(26), 'rgba(0,0,0,0.04)'); q(0, 1, 0, v(16), 'rgba(0,0,0,0.05)');
     q(0, 1, 1 - v(4), 1, 'rgba(0,0,0,0.16)'); // shadow under the coping
-    q(0, 1, 1 - v(9), 1 - v(5), '#e4e6e5');    // cornice band
+    q(0, 1, 1 - v(9), 1 - v(5), shade(wall, 0.95)); // cornice band
     q(0, 1, 1 - v(10), 1 - v(9), 'rgba(0,0,0,0.12)');
     const plinth = 9;
     const vb = v(plinth + 2), vt = 1 - v(7);
@@ -343,7 +354,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       for (let f = 0; f < floors; f++) {
         const lo = vb + fhf * (floors - 1 - f), hi = lo + fhf;
         const ground = f === floors - 1;
-        if (f > 0) { q(0, 1, hi - v(1), hi + v(2), '#e4e6e5'); q(0, 1, hi + v(1), hi + v(2), '#f7f8f6'); q(0, 1, hi - v(2), hi - v(1), 'rgba(0,0,0,0.12)'); } // slab band
+        if (f > 0) { q(0, 1, hi - v(1), hi + v(2), shade(wall, 0.95)); q(0, 1, hi + v(1), hi + v(2), shade(wall, 1.02)); q(0, 1, hi - v(2), hi - v(1), 'rgba(0,0,0,0.12)'); } // slab band
         if (b.id === 'spor' || b.id === 'kapali_saha') {
           // tall curtain wall of the sports hall
           q(u(8), 1 - u(8), lo + v(2), hi - v(4), '#5f819f');
@@ -439,7 +450,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       const y = P(e.x, e.y - e.w / 2, 0)[1], h = e.w * TILE;
       const nx = east ? ex - 30 : ex;
       const dir = east ? 1 : -1;
-      px(nx, y - 14, 30, h + 12, '#f1f2f0');                    // vestibule wall
+      px(nx, y - 14, 30, h + 12, wall);                         // vestibule wall
       px(nx, y - 18, 30, 4, pal.rim);                           // its low roof edge
       px(east ? nx : nx + 26, y - 14, 4, h + 12, 'rgba(0,0,0,0.12)');
       const gx = east ? ex - 16 : ex + 2;
