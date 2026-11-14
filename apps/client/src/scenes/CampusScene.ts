@@ -14,6 +14,7 @@ import { CABIN_SIZE, GATE_LEAF_SIZE, WALL_FACE, makeGatewayTextures } from '../a
 import { World3D, type Host3D } from '../three/World3D';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
+import { ClassLife } from './classLife';
 import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { saveToCloud } from '../net/cloudSave';
 import type { NetUser } from '../main';
@@ -37,8 +38,8 @@ import {
 } from '../game/missions';
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
-import { SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, type CourtSport } from '../game/state';
-import { PERIODS, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
+import { SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, type CourtSport, type SubjectId } from '../game/state';
+import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp } from '../game/state';
 import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
@@ -162,6 +163,8 @@ export class CampusScene extends Phaser.Scene {
   private get inside() { return this.room !== null; }
   private classMates: Phaser.Physics.Arcade.Sprite[] = [];
   private teacher!: Phaser.Physics.Arcade.Sprite;
+  /** teneffüs in the classroom: games, chats, a word with the teacher */
+  private classLife!: ClassLife;
   private classLabels: Phaser.GameObjects.Text[] = [];
   private outdoorZoom = 1;
   private roomMates: Phaser.Physics.Arcade.Sprite[] = [];
@@ -715,6 +718,7 @@ export class CampusScene extends Phaser.Scene {
     for (const [id, tch] of Object.entries(TEACHERS)) makeCharacterTexture(this, `teacher-${id}`, { ...DEFAULT_LOOK, ...tch.look });
     this.teacher = this.physics.add.sprite((CLASS_OX + TEACHER_ROUTE[0][0]) * TILE, TEACHER_ROUTE[0][1] * TILE, 'teacher-matematik', 0);
     this.teacher.setData('leg', 0);
+    this.classLife = new ClassLife(this, this.classMates.map((sp, i) => ({ sp, desk: seats[i % seats.length] })), this.teacher, (sp, text) => this.bubbleAbove(sp, text));
   }
 
   private currentLesson() {
@@ -741,27 +745,52 @@ export class CampusScene extends Phaser.Scene {
     this.persist();
   }
 
-  private updateClass(time: number) {
+  /** the break the class is on (null in a lesson, or when there are no lessons yet) */
+  private classBreakNow() {
+    const c = this.save.clock;
+    return this.routineClock().lessonsOn ? classBreak(c.day, c.minutes) : null;
+  }
+
+  /** who's at the front: the lesson's teacher, or in a short break the one whose lesson just ended (they stay at their desk) */
+  private classTeacher(): { subject: SubjectId; name: string; lesson: boolean } | null {
     const les = this.currentLesson();
-    for (const sp of this.classMates) {
-      const inClass = this.whereIs(sp.getData('def') as NpcDef) === 'egitim';
-      sp.setVisible(inClass);
-      sp.body!.enable = inClass;
-      sp.setFrame(9 + (inClass && Math.floor(time / 650 + sp.x) % 6 === 0 ? 1 : 0));
-    }
+    if (les) return { subject: les.subject, name: les.teacher.name, lesson: true };
+    const brk = this.classBreakNow();
+    if (!brk?.short || !brk.prev) return null;
+    const subject = subjectFor(this.save.clock.day, brk.prev.id);
+    return { subject, name: TEACHERS[subject].name, lesson: false };
+  }
+
+  private updateClass(time: number, delta: number) {
+    const brk = this.classBreakNow();
+    const tch = this.classTeacher();
+    this.classLife.update(time, delta, {
+      inRoom: this.room === 'class',
+      breakKey: brk?.key ?? null,
+      teacher: tch && !tch.lesson ? { name: tch.name } : null,
+      present: (def) => this.whereIs(def) === 'egitim',
+    });
     this.classLabels.forEach((l) => l.setVisible(this.room === 'class'));
     const t = this.teacher;
-    t.setVisible(!!les);
-    if (!les) { t.setVelocity(0, 0); return; }
-    if (t.texture.key !== `teacher-${les.subject}`) t.setTexture(`teacher-${les.subject}`, 0);
+    t.setVisible(!!tch);
+    if (!tch) { t.setVelocity(0, 0); t.setData('shown', false); return; }
+    if (t.texture.key !== `teacher-${tch.subject}`) t.setTexture(`teacher-${tch.subject}`, 0);
+    if (!t.getData('shown')) {
+      // just come in: start at the left end of the blackboard
+      t.setPosition((CLASS_OX + TEACHER_ROUTE[0][0]) * TILE, TEACHER_ROUTE[0][1] * TILE);
+    }
+    t.setData('shown', true);
     const leg = t.getData('leg') as number;
-    const [tx, ty] = TEACHER_ROUTE[leg % TEACHER_ROUTE.length];
+    // at a break the teacher goes round behind their desk and stays there for anyone who comes up
+    const [tx, ty] = tch.lesson ? TEACHER_ROUTE[leg % TEACHER_ROUTE.length] : t.x < (CLASS_OX + 13) * TILE - 4 ? [13, 2.3] : [15, 2.3];
     const gx = (CLASS_OX + tx) * TILE, gy = ty * TILE;
-    if (Math.hypot(gx - t.x, gy - t.y) < 6) { t.setData('leg', leg + 1); t.setData('pause', time + 2500); }
-    if ((t.getData('pause') ?? 0) > time) { t.setVelocity(0, 0); t.setFrame(0); }
+    const there = Math.hypot(gx - t.x, gy - t.y) < 6;
+    if (tch.lesson && there) { t.setData('leg', leg + 1); t.setData('pause', time + 2500); }
+    if (!tch.lesson && there && tx === 15) { t.setPosition(gx, gy).setVelocity(0, 0); t.setFrame(0); }
+    else if (tch.lesson && (t.getData('pause') ?? 0) > time) { t.setVelocity(0, 0); t.setFrame(0); }
     else {
-      const a = Math.atan2(gy - t.y, gx - t.x);
-      t.setVelocity(Math.cos(a) * 35, Math.sin(a) * 35);
+      const a = Math.atan2(gy - t.y, gx - t.x), v = tch.lesson ? 35 : 60;
+      t.setVelocity(Math.cos(a) * v, Math.sin(a) * v);
       t.setFrame((t.body!.velocity.x < 0 ? 1 : 2) * 3 + [1, 0, 2, 0][Math.floor(time / 170) % 4]);
     }
     t.setDepth(t.y + 16);
@@ -770,9 +799,9 @@ export class CampusScene extends Phaser.Scene {
   private classThingNear(): { id: string; label: string; npc?: NpcDef } | null {
     const px = this.player.x / TILE - CLASS_OX, py = this.player.y / TILE + 0.3;
     const near = (x: number, y: number, r = 1.3) => Math.hypot(px - (x + 0.5), py - (y + 0.5)) < r;
-    const les = this.currentLesson();
-    if (les && this.teacher.visible && Phaser.Math.Distance.Between(this.teacher.x, this.teacher.y, this.player.x, this.player.y) < 1.7 * TILE) {
-      return { id: 'teacher', label: L({ tr: `${les.teacher.name} ile konuş`, en: `talk to ${les.teacher.name}` }) };
+    const tch = this.classTeacher();
+    if (tch && this.teacher.visible && Phaser.Math.Distance.Between(this.teacher.x, this.teacher.y, this.player.x, this.player.y) < 1.7 * TILE) {
+      return { id: 'teacher', label: L({ tr: `${tch.name} ile konuş`, en: `talk to ${tch.name}` }) };
     }
     for (const sp of this.classMates) {
       if (sp.visible && Phaser.Math.Distance.Between(sp.x, sp.y, this.player.x, this.player.y) < 1.5 * TILE) {
@@ -790,19 +819,23 @@ export class CampusScene extends Phaser.Scene {
     if (!th) return;
     this.player.setVelocity(0, 0);
     const ctx = this.gameCtx();
-    const les = this.currentLesson();
+    const tch = this.classTeacher();
     switch (th.id) {
       case 'desk': this.panel.open(() => egitim(ctx, 'desk')); break;
       case 'exit': this.panel.open(() => egitim(ctx, 'corridor')); break;
       case 'teacher':
         this.hud.showModal({
-          title: les!.teacher.name, sub: L(SUBJECTS.find((x) => x.id === les!.subject)!.name),
-          body: L({ tr: '"Ders başladı! Hadi sırana geç, bugün güzel bir konumuz var."', en: '"Class has started! Go to your desk, we have a great topic today."' }),
+          title: tch!.name, sub: L(SUBJECTS.find((x) => x.id === tch!.subject)!.name),
+          body: L(tch!.lesson
+            ? { tr: '"Ders başladı! Hadi sırana geç, bugün güzel bir konumuz var."', en: '"Class has started! Go to your desk, we have a great topic today."' }
+            : { tr: '"Teneffüs, biraz dinlen! Bir sorun olursa çekinme, sor."', en: '"It\'s break time, have a rest! If you have a question, just ask."' }),
           button: L({ tr: 'Tamam', en: 'OK' }),
         });
         break;
       case 'mate':
-        this.hud.toast(L({ tr: `${th.npc!.name}: "Şşş! Ders var, sonra konuşuruz."`, en: `${th.npc!.name}: "Shh! We're in class, talk later."` }));
+        // at a break you can actually talk; in a lesson they shush you
+        if (this.classBreakNow()) { this.nearNpc = th.npc!; this.panel.open(() => npcPanel(th.npc!, ctx)); }
+        else this.hud.toast(L({ tr: `${th.npc!.name}: "Şşş! Ders var, sonra konuşuruz."`, en: `${th.npc!.name}: "Shh! We're in class, talk later."` }));
         break;
     }
   }
@@ -2992,7 +3025,7 @@ export class CampusScene extends Phaser.Scene {
     this.emoteTimer += delta;
     if (this.emoteTimer > 1400) { this.emoteTimer = 0; this.showEmote(); }
     this.updateRoom(time);
-    this.updateClass(time);
+    this.updateClass(time, delta);
     this.updateDining(time);
     this.revealAround();
     this.updatePrompt();

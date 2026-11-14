@@ -72,6 +72,18 @@ export function currentPeriod(day: number, minutes: number): Period | null {
   return p;
 }
 
+/** teneffüs: a school day between 08:00 and 15:30, outside a lesson, when the class waits in its classroom.
+ *  `prev`/`next` are the lessons either side; `short` = the ten minutes between two lessons (the teacher stays in). */
+export interface ClassBreak { key: string; prev: Period | null; next: Period | null; short: boolean }
+export function classBreak(day: number, minutes: number): ClassBreak | null {
+  if (isWeekend(day) || minutes < h(8) || minutes >= h(15, 30)) return null;
+  if (currentPeriod(day, minutes)?.kind === 'lesson') return null;
+  const lessons = PERIODS.filter((p) => p.kind === 'lesson');
+  const prev = [...lessons].reverse().find((p) => p.end <= minutes) ?? null;
+  const next = lessons.find((p) => p.start > minutes) ?? null;
+  return { key: `${day}:${next?.id ?? 'out'}`, prev, next, short: !!prev && !!next && next.start - prev.end <= 10 };
+}
+
 /** which subject a lesson period teaches on a given day (rotates through the week) */
 export function subjectFor(day: number, periodId: string): SubjectId {
   const idx = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].indexOf(periodId);
