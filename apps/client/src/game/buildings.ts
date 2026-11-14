@@ -87,6 +87,7 @@ const PHONE_CARD = { price: 25, units: 30, perCall: 10 };
 
 /** everyday actions nudge who you are becoming a little (dilemmas move it more) */
 function nudge(ctx: GameCtx, d: Partial<Record<AxisId, number>>) { shape(ctx.st, d); }
+const TEAM_SPORTS: string[] = ['basketball', 'volleyball', 'football'];
 const LESSON_NUDGE: Record<string, Partial<Record<AxisId, number>>> = {
   answer: { ambition: 1, presence: 1 }, notes: { rules: -1, ambition: 1 }, talk: { rules: 1, loyalty: 1 },
   tease: { warmth: 2, presence: 1, rules: 1 }, else: { rules: 1, ambition: -1 },
@@ -260,6 +261,7 @@ function libraryActionsFor(ctx: GameCtx): ActionView[] {
       hint: T('45 dk · −5 enerji · +15 XP', '45 min · −5 energy · +15 XP'),
       locked: ctx.st.energy < 8 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
       run: () => {
+        nudge(ctx, { loyalty: -1 }); // a book of your own, in the quiet
         reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: 1 } });
         ctx.toast(reading.sessions >= 3 ? T('Kitabı bitirdin! Kütüphaneciyle konuş.', 'You finished the book! Talk to the librarian.') : T(`Okuma ${reading.sessions}/3`, `Reading ${reading.sessions}/3`), 'good');
       },
@@ -491,7 +493,7 @@ export function washHands(ctx: GameCtx) {
 /** you sat down with a tray: eat, and get to know the people at your table */
 export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates: NpcDef[]) {
   markToday(ctx, `meal-${meal}`);
-  nudge(ctx, tablemates.length ? { loyalty: 1 } : { presence: -1 }); // with friends, or on your own
+  nudge(ctx, tablemates.length ? { loyalty: 1 } : { presence: -1, loyalty: -1 }); // with friends, or on your own
   // every meal you eat counts toward "Three Meals", even before that mission opens
   if (!ctx.st.meals.includes(meal)) {
     ctx.st.meals.push(meal);
@@ -972,7 +974,7 @@ function spor(ctx: GameCtx): PanelView {
     hint: T('1 saat · −15 enerji · +2 Kondisyon · +15 XP', '1 hour · −15 energy · +2 Fitness · +15 XP'),
     locked: sickLock(ctx) ?? (!trainingTime ? T('Antrenmanlar hafta içi 15:30–17:00 (hafta sonu 10:00–17:00).', 'Training is weekdays 15:30–17:00 (weekends 10:00–17:00).')
       : ctx.st.energy < 15 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
-    run: () => { nudge(ctx, { ambition: 1 });
+    run: () => { nudge(ctx, { ambition: 1, loyalty: TEAM_SPORTS.includes(st.sport!) ? 1 : -1 });
       ctx.st.health = clamp(ctx.st.health + 2);
       st.trainings++; ctx.advance(60); ctx.gain({ xp: 15, energy: -15, mood: 4, attrs: { fitness: 2 } });
       ctx.toast(T(`Antrenman tamam (${st.trainings}).`, `Training done (${st.trainings}).`), 'good');
@@ -1138,7 +1140,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
     {
       id: 'gossip', label: T('🗣️ Dedikodu yap', '🗣️ Gossip about someone'), hint: T('Dinleyen +6 · hedefin −8 · duyulursa daha kötü', 'Listener +6 · your target −8 · worse if it gets back to them'),
       locked: lock ?? once('gossip') ?? (others.length ? undefined : T('Dedikodu yapacak kimseyi tanımıyorsun.', "You don't know anyone to gossip about.")),
-      run: async () => { nudge(ctx, { warmth: 2, presence: 1, loyalty: -1 });
+      run: async () => { nudge(ctx, { warmth: 2, presence: 1 });
         const who = await ctx.panel.choose(T('Kimin hakkında?', 'About whom?'), others.slice(0, 14).map((n) => ({ id: n.id, label: n.name, hint: L(friendLevel(st.friends[n.id] ?? 0)) })));
         if (!who) return;
         mark('gossip');
@@ -1539,6 +1541,7 @@ function musicRoom(ctx: GameCtx): RoomView {
             { id: 'band', label: T('🤘 Okulun rock grubuna katıl', "🤘 Join the school's rock band"), hint: T('Rock müzik yarışmalarına katılırsınız', 'You enter rock music competitions together') },
             { id: 'solo', label: T('🎼 Solo devam et', '🎼 Carry on solo'), hint: T('Her yıl bir solo resital verirsin', 'You give a solo recital every year') },
           ]);
+          if (p) nudge(ctx, p === 'band' ? { loyalty: 3 } : { loyalty: -3 });
           if (p) { m.path = p as 'band' | 'solo'; ctx.toast(p === 'band' ? T('Gruba katıldın! Provalar perşembe akşamüstü.', 'You joined the band! Rehearsals on Thursday afternoons.') : T('Solo yolunu seçtin.', 'You chose the solo path.'), 'good'); }
         },
       });

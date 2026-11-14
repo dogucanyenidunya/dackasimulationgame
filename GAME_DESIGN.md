@@ -1242,7 +1242,7 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 - *Hırslı*: answering in class, homework, try-outs, training, practice, running for class rep (+4). *Rahat*: films, TV, daydreaming.
 - *Gösterişli*: jokes, nicknames, shows, campaigning, speeches. *Sessiz*: eating alone, the roof terrace, drawing at your desk.
 - *Sert*: teasing and mocking (+3), gossip, nicknames. *Şefkatli*: sharing a simit, apologising, helping an abi.
-- *Devreci*: eating with others, games together, calling friends to the court. *Kendi yolunda*: gossiping about someone.
+- *Devreci*: eating with others, games together, calling friends to the court, a team sport, the band. *Kendi yolunda* (independent, not disloyal): eating on your own, reading in the library, an individual sport, the solo music path, skipping the party.
 - *Açık*: chatting, sharing a secret (+3), the counselor, the nurse, letters and calls home.
 
 The karne card shows "Who you're becoming": your two strongest leanings. New characters start with a 30-unit phone card from home, so the phone queue can happen in Year 1.

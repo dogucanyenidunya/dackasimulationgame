@@ -66,7 +66,7 @@ function telefon(ctx: GameCtx): Dilemma {
     {
       id: 'call', label: { tr: 'Kendi aramanı yap', en: 'Make your call' },
       run: () => {
-        markCall(ctx); st.phoneUnits -= 10; shape(st, { loyalty: -6 }); ctx.befriend(kid.id, -3); ctx.advance(10); ctx.gain({ mood: 12 });
+        markCall(ctx); st.phoneUnits -= 10; shape(st, { warmth: 5 }); ctx.befriend(kid.id, -3); ctx.advance(10); ctx.gain({ mood: 12 });
         return { tr: `${g} sesini duyunca çok sevindi. Arkandaki burun çekmeleri gittikçe yükseldi; telefonu kapattığında ${kid.name} çoktan yatağına dönmüştü.`, en: `${g} was so happy to hear you. Behind you the sniffles got louder; by the time you hung up, ${kid.name} had already gone back to bed.` };
       },
     },
@@ -92,7 +92,7 @@ function telefon(ctx: GameCtx): Dilemma {
     },
     {
       id: 'bed', label: { tr: 'Yatağına git', en: 'Go to bed' },
-      run: () => { shape(st, { heart: -5, loyalty: -3 }); return { tr: 'Sıradan çıkıp yatağına döndün. Işıklar sönerken koridordan hâlâ hıçkırık sesleri geliyordu.', en: 'You left the queue and went to bed. As the lights went out you could still hear sobbing from the corridor.' }; },
+      run: () => { shape(st, { heart: -5, warmth: 2 }); return { tr: 'Sıradan çıkıp yatağına döndün. Işıklar sönerken koridordan hâlâ hıçkırık sesleri geliyordu.', en: 'You left the queue and went to bed. As the lights went out you could still hear sobbing from the corridor.' }; },
     },
   ];
   return {
@@ -119,7 +119,7 @@ function arka(ctx: GameCtx): Dilemma {
       {
         id: 'tell', label: { tr: `Belletmene söyle (${bel.name})`, en: `Tell your belletmen, ${bel.name}` },
         run: () => {
-          shape(st, { rules: -10, loyalty: -4 }); ctx.befriend(bel.id, 10); both(-30); ctx.ch.respect = Math.max(0, ctx.ch.respect - 5);
+          shape(st, { rules: -10 }); ctx.befriend(bel.id, 10); both(-30); ctx.ch.respect = Math.max(0, ctx.ch.respect - 5);
           return { tr: `${bel.name} hemen arkaya gitti. Ertesi gün büyükler seni görünce susup birbirlerine baktı. Biri arkandan "ispiyoncu" diye fısıldadı.`, en: `${bel.name} went straight round the back. The next day the older students went quiet when they saw you, and someone whispered "snitch" behind your back.` };
         },
       },
