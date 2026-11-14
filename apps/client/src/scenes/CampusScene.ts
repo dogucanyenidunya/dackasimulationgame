@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -10,6 +10,7 @@ import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildings3d';
+import { CABIN_SIZE, makeGatewayTextures } from '../art/gateway';
 import { World3D, type Host3D } from '../three/World3D';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
@@ -141,7 +142,7 @@ export class CampusScene extends Phaser.Scene {
   private match: { sport: CourtSport; court: Rect; mates: Phaser.Physics.Arcade.Sprite[]; until: number; ready: boolean } | null = null;
   /** the court whose panel was opened last (there's more than one basketball court) */
   private courtAt: Rect | null = null;
-  /** sleeping: the night fast-forwards in about a minute; night challenges can interrupt it */
+  /** sleeping: the night fast-forwards in about 40 seconds; night challenges can interrupt it */
   private sleepRun: { msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }> } | null = null;
   private zzz: Phaser.GameObjects.Text[] = [];
   /** online play (null = offline) */
@@ -193,6 +194,8 @@ export class CampusScene extends Phaser.Scene {
     const ground = tilemap.createLayer(0, tileset, 0, 0)!;
     ground.setCollision(BLOCK_TILES); // buildings collide through their outlines (see pushOutOfBuildings)
     this.drawCourtLines();
+    makeGatewayTextures(this);
+    this.add.image(STAIRS.x * TILE, STAIRS.y * TILE, 'stairs').setOrigin(0).setDepth(3);
 
     this.drawBuildings();
 
@@ -223,15 +226,32 @@ export class CampusScene extends Phaser.Scene {
     flag.setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave');
     flag.body!.setSize(6, 6).setOffset(5, 86);
     this.lightSpots.push({ x: FOUNTAIN[0] * TILE, y: FOUNTAIN[1] * TILE, r: 2.5 });
-    // the main gate's brick pillars, either side of the gateway
+    // the big green main gate: stone pillars, a green arch with the school's name, the leaves slid open
+    // along the fence, and the guards' cabin just inside
     const vertical = GATE.h > GATE.w;
     const posts: Array<[number, number]> = vertical
       ? [[GATE.x + 0.5, GATE.y - 0.5], [GATE.x + 0.5, GATE.y + GATE.h + 0.5]]
       : [[GATE.x - 0.5, GATE.y + 0.5], [GATE.x + GATE.w + 0.5, GATE.y + 0.5]];
     for (const [gx, gy] of posts) {
-      const post = trees.create(gx * TILE, gy * TILE - 8, 'gatepost') as Phaser.Physics.Arcade.Sprite;
+      const post = trees.create(gx * TILE, gy * TILE - 24, 'gatepost') as Phaser.Physics.Arcade.Sprite;
       post.setDepth(gy * TILE + 16);
-      post.body!.setSize(24, 12).setOffset(4, 34);
+      post.body!.setSize(24, 12).setOffset(4, 66);
+    }
+    if (!vertical) {
+      const gy = GATE.y + 0.5;
+      this.add.image((GATE.x + GATE.w / 2) * TILE, gy * TILE - 50, 'gatearch').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
+      for (const lx of [GATE.x - 1.35, GATE.x + GATE.w + 1.35]) this.add.image(lx * TILE, gy * TILE + 12, 'gateleaf').setOrigin(0.5, 1).setDepth(gy * TILE + 14);
+    }
+    const cabin = trees.create(CABIN.x * TILE, (CABIN.y + CABIN.h) * TILE, 'cabin') as Phaser.Physics.Arcade.Sprite;
+    cabin.setOrigin(0, 1).setDepth((CABIN.y + CABIN.h) * TILE).refreshBody();
+    cabin.body!.setSize(CABIN_SIZE.w - 4, 18).setOffset(2, CABIN_SIZE.h - 20);
+    this.lightSpots.push({ x: (CABIN.x + 0.6) * TILE, y: (CABIN.y + CABIN.h) * TILE - 10, r: 1.4 });
+    // the aqueduct over the main street: walk through its big arch; its two piers stand against the walls
+    const aqFront = (AQUEDUCT.y + AQUEDUCT.h) * TILE;
+    this.add.image(AQUEDUCT.x * TILE, aqFront, 'aqueduct').setOrigin(0, 1).setDepth(aqFront + 1);
+    for (const px of [AQUEDUCT.x, AQUEDUCT.x + AQUEDUCT.w - AQUEDUCT_PIER]) {
+      const pier = this.add.rectangle((px + AQUEDUCT_PIER / 2) * TILE, (AQUEDUCT.y + AQUEDUCT.h / 2) * TILE, AQUEDUCT_PIER * TILE, AQUEDUCT.h * TILE).setVisible(false);
+      trees.add(pier);
     }
     // Cemil Emmi sweeps in front of the boys' dorm by day
     this.cemilOut = trees.create(CEMIL_OUT[0] * TILE, CEMIL_OUT[1] * TILE, 'player', 0) as Phaser.Physics.Arcade.Sprite;
@@ -2763,7 +2783,7 @@ export class CampusScene extends Phaser.Scene {
     this.refreshClockAndNeeds();
   }
 
-  /** into bed: the night fast-forwards in about a minute (your roommates are asleep around you) */
+  /** into bed: the night fast-forwards in about 40 seconds (your roommates are asleep around you) */
   private sleep() {
     if (this.sleepRun) return;
     const c = this.save.clock;
@@ -2774,7 +2794,7 @@ export class CampusScene extends Phaser.Scene {
     this.player.setFrame(0);
     this.player.body!.enable = false;
     if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 0.45) * TILE).setAngle(-90);
-    this.sleepRun = { msPerMin: Math.min(150, 60_000 / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
+    this.sleepRun = { msPerMin: Math.min(100, 40_000 / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
     this.hud.toast(L({ tr: '😴 İyi geceler…', en: '😴 Good night…' }));
   }
 

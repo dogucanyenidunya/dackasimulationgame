@@ -13,7 +13,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
-  BENCHES, BUILDINGS, BUST, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, LOCATIONS, MAP_H, MAP_W, T, TILE, TREES,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BUILDINGS, BUST, CABIN, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, STAIRS, LOCATIONS, MAP_H, MAP_W, T, TILE, TREES,
   inBuilding, nearestEdge, type Building, type Pt, type Rect,
 } from '../content/campus';
 import { ROOM_OX, ROOM_W, ROOM_H, ROOM_SOLID, RT, buildRoom } from '../content/dormroom';
@@ -21,6 +21,7 @@ import { CLASS_OX, CLASS_W, CLASS_H, buildClassroom } from '../content/classroom
 import { DINING_OX, DINING_W, DINING_H, DINING_SOLID, DT, buildDining } from '../content/dining';
 import { TILESET_KEY, TILESET_MARGIN, TILESET_SPACING } from '../art/textures';
 import { shade, wallColor } from '../art/buildings3d';
+import { AQ, BRIDGE_STONE, GATE_GREEN } from '../art/gateway';
 import { bushSpots, entrances, sideX } from '../art/buildings3d';
 
 export type RoomKey = 'dorm' | 'class' | 'dining' | null;
@@ -79,7 +80,7 @@ const TiltShiftShader = {
 };
 
 const BUILDING_TILES = new Set<number>([T.ROOF, T.SKYLIGHT, T.SOLAR, T.GREEN_ROOF, T.WALL, T.WALL_BASE, T.DOOR, T.DOOR_REVIR]);
-const SKIP_KEYS = new Set(['bust', 'gatepost', 'tree', 'lamp', 'bench', 'flowers', 'bush', 'fountain', 'flag', 'warm', 'glow', '__DEFAULT', '__MISSING', '__WHITE']);
+const SKIP_KEYS = new Set(['bust', 'gatepost', 'gatearch', 'gateleaf', 'cabin', 'aqueduct', 'stairs', 'tree', 'lamp', 'bench', 'flowers', 'bush', 'fountain', 'flag', 'warm', 'glow', '__DEFAULT', '__MISSING', '__WHITE']);
 
 function rng(seed: number) {
   return () => {
@@ -241,6 +242,8 @@ export class World3D {
       if (across) { g.moveTo(x + w / 2, y); g.lineTo(x + w / 2, y + h); g.stroke(); g.strokeRect(x, y + h / 2 - 48, 64, 96); g.strokeRect(x + w - 64, y + h / 2 - 48, 64, 96); }
       else { g.moveTo(x, y + h / 2); g.lineTo(x + w, y + h / 2); g.stroke(); g.strokeRect(x + w / 2 - 64, y, 128, 64); g.strokeRect(x + w / 2 - 64, y + h - 64, 128, 64); }
     }
+    // the steps up from the gate (same painting as the 2D view)
+    if (this.host.scene.textures.exists('stairs')) g.drawImage(this.host.scene.textures.get('stairs').getSourceImage() as HTMLCanvasElement, STAIRS.x * TILE, STAIRS.y * TILE);
     const tex = pixelTex(c);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), new THREE.MeshLambertMaterial({ map: tex }));
     ground.rotation.x = -Math.PI / 2;
@@ -737,19 +740,37 @@ export class World3D {
     flag.castShadow = true;
     this.scene.add(flag);
     this.flag = { mesh: flag, base: Float32Array.from(fgeo.attributes.position.array as ArrayLike<number>) };
-    // the main gate: two brick pillars and a sign over the gateway
-    const brick = new THREE.MeshLambertMaterial({ color: 0x8a2d2d });
+    // the big green main gate: stone pillars with green caps and lanterns, a green beam with the name board,
+    // the two leaves slid open along the fence
+    const stone = new THREE.MeshLambertMaterial({ color: new THREE.Color(BRIDGE_STONE) });
+    const brick = new THREE.MeshLambertMaterial({ color: new THREE.Color(GATE_GREEN) });
+    const gold = new THREE.MeshLambertMaterial({ color: 0xd9b44a });
+    const lantern = new THREE.MeshBasicMaterial({ color: 0xfff3c4 }); this.glowMats.push(lantern);
     const vertical = GATE.h > GATE.w;
     const ends = vertical
       ? [[GATE.x + 0.5, GATE.y - 0.25], [GATE.x + 0.5, GATE.y + GATE.h + 0.25]]
       : [[GATE.x - 0.25, GATE.y + 0.5], [GATE.x + GATE.w + 0.25, GATE.y + 0.5]];
     for (const [gx, gz] of ends) {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.3, 0.6), brick); p.position.set(gx, 1.15, gz); p.castShadow = true;
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.15, 0.75), new THREE.MeshLambertMaterial({ color: 0xa94040 })); cap.position.set(gx, 2.35, gz);
-      this.scene.add(p, cap);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.9, 0.7), stone); p.position.set(gx, 1.45, gz); p.castShadow = true;
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.18, 0.85), brick); cap.position.set(gx, 2.99, gz);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.28), lantern); lamp.position.set(gx, 3.23, gz);
+      this.scene.add(p, cap, lamp);
+    }
+    if (!vertical) {
+      for (const lx of [GATE.x - 1.35, GATE.x + GATE.w + 1.35]) {
+        const leaf = new THREE.Group();
+        for (const y of [0.15, 0.8, 1.45]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.06), brick); rail.position.y = y; leaf.add(rail); }
+        for (let x = -0.7; x <= 0.71; x += 0.155) {
+          const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.45, 0.04), brick); bar.position.set(x, 0.8, 0); bar.castShadow = true;
+          const tip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.07), gold); tip.position.set(x, 1.58, 0);
+          leaf.add(bar, tip);
+        }
+        leaf.position.set(lx, 0, GATE.y + 0.5);
+        this.scene.add(leaf);
+      }
     }
     const { c: sc, g: sg } = canvas(160, 24);
-    sg.fillStyle = '#2d3a44'; sg.fillRect(0, 0, 160, 24);
+    sg.fillStyle = '#1f3d24'; sg.fillRect(0, 0, 160, 24);
     sg.fillStyle = '#f2c14e'; sg.font = 'bold 15px "Pixelify Sans", monospace'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
     sg.fillText('DARÜŞŞAFAKA', 80, 13);
     const span = (vertical ? GATE.h : GATE.w) + 0.9;
@@ -758,8 +779,9 @@ export class World3D {
       new THREE.BoxGeometry(vertical ? 0.12 : span, 0.42, vertical ? span : 0.12),
       vertical ? [signFace, signFace, brick, brick, brick, brick] : [brick, brick, brick, brick, signFace, signFace],
     );
-    sign.position.set(vertical ? GATE.x + 0.5 : GATE.x + GATE.w / 2, 2.55, vertical ? GATE.y + GATE.h / 2 : GATE.y + 0.5);
+    sign.position.set(vertical ? GATE.x + 0.5 : GATE.x + GATE.w / 2, 2.62, vertical ? GATE.y + GATE.h / 2 : GATE.y + 0.5);
     this.scene.add(sign);
+    this.buildGateway(stone);
     // the Atatürk bust: marble pedestal with a plaque, bronze bust on top
     const marble = new THREE.MeshLambertMaterial({ color: 0xe4dfd3 });
     const bronze = new THREE.MeshLambertMaterial({ color: 0x6e5a42 });
@@ -950,6 +972,58 @@ export class World3D {
       this.baseTex.set(src, t);
     }
     return t;
+  }
+
+  /** the guards' cabin by the gate, the cheek walls of the steps, and the aqueduct between Eğitim and the Cemiyet */
+  private buildGateway(stone: THREE.MeshLambertMaterial) {
+    const green = new THREE.MeshLambertMaterial({ color: new THREE.Color(GATE_GREEN) });
+    const white = new THREE.MeshLambertMaterial({ color: 0xf1f2f0 });
+    const glass = new THREE.MeshLambertMaterial({ color: 0x4f6f8c, emissive: new THREE.Color(0xffd57e), emissiveIntensity: 0 }); this.windowMats.push(glass);
+    const dark = new THREE.MeshLambertMaterial({ color: 0x5b646a });
+    const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, shadow = true) => {
+      const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; this.scene.add(o); return o;
+    };
+    // cabin: white box, green roof slab, a wide window and a door at the front, a window on the street side
+    const cx = CABIN.x + CABIN.w / 2, cz = CABIN.y + CABIN.h / 2, front = CABIN.y + CABIN.h;
+    box(CABIN.w, 1.4, CABIN.h, white, cx, 0.7, cz);
+    box(CABIN.w + 0.3, 0.15, CABIN.h + 0.3, green, cx, 1.47, cz);
+    box(1.0, 0.55, 0.04, glass, CABIN.x + 0.65, 0.85, front + 0.02, false);
+    box(0.45, 1.0, 0.04, dark, CABIN.x + 1.55, 0.5, front + 0.02, false);
+    box(0.04, 0.5, 0.9, glass, CABIN.x + CABIN.w + 0.02, 0.85, cz, false);
+    box(1.0, 0.14, 0.05, green, CABIN.x + 0.65, 1.22, front + 0.03, false);
+    // the steps' cheek walls
+    for (const x of [STAIRS.x + 0.07, STAIRS.x + STAIRS.w - 0.07]) box(0.14, 0.3, STAIRS.h, stone, x, 0.15, STAIRS.y + STAIRS.h / 2);
+    // the aqueduct: one wall extruded north–south, its outline running up the piers and round the big arch,
+    // with three small open arches above; a cornice at the impost and a coping on top
+    const W = AQUEDUCT.w, P = AQUEDUCT_PIER, r = (W - 2 * P) / 2;
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.lineTo(P, 0); shape.lineTo(P, AQ.spring);
+    shape.absarc(W / 2, AQ.spring, r, Math.PI, 0, true);
+    shape.lineTo(W - P, 0); shape.lineTo(W, 0); shape.lineTo(W, AQ.top); shape.lineTo(0, AQ.top); shape.lineTo(0, 0);
+    for (let i = 0; i < 3; i++) {
+      const x = (W * (i + 0.5)) / 3, r2 = 0.26, y0 = AQ.impost + 0.12, spring = AQ.impost + 0.3;
+      const hole = new THREE.Path();
+      hole.moveTo(x - r2, y0); hole.lineTo(x + r2, y0); hole.lineTo(x + r2, spring); hole.absarc(x, spring, r2, 0, Math.PI, false); hole.lineTo(x - r2, y0);
+      shape.holes.push(hole);
+    }
+    const { c, g } = canvas(32, 32);
+    g.fillStyle = BRIDGE_STONE; g.fillRect(0, 0, 32, 32);
+    g.fillStyle = shade(BRIDGE_STONE, 0.78);
+    for (let y = 0, row = 0; y < 32; y += 6.4, row++) { g.fillRect(0, Math.round(y), 32, 1); for (let x = (row % 2) * 7; x < 32; x += 14) g.fillRect(x, Math.round(y), 1, 6); }
+    const tex = pixelTex(c, true);
+    const aq = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: AQUEDUCT.h, bevelEnabled: false }), new THREE.MeshLambertMaterial({ map: tex }));
+    aq.position.set(AQUEDUCT.x, 0, AQUEDUCT.y);
+    aq.castShadow = aq.receiveShadow = true;
+    const group = new THREE.Group();
+    group.add(aq);
+    const light = new THREE.MeshLambertMaterial({ color: new THREE.Color(shade(BRIDGE_STONE, 1.08)) });
+    for (const [y, h] of [[AQ.impost + 0.05, 0.1], [AQ.top + 0.05, 0.1]]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(W, h, AQUEDUCT.h + 0.14), light);
+      band.position.set(AQUEDUCT.x + W / 2, y, AQUEDUCT.y + AQUEDUCT.h / 2); band.castShadow = true;
+      group.add(band);
+    }
+    this.scene.add(group);
+    this.fog.hideables.push({ obj: group, x: AQUEDUCT.x + W / 2, y: AQUEDUCT.y + AQUEDUCT.h / 2 });
   }
 
   /** copies people, items and labels from Phaser into the 3D scene */

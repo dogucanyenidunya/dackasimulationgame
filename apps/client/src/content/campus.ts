@@ -185,7 +185,7 @@ export const BUILDINGS: Building[] = [
   }),
   bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], greenPatches: [{ x: 43, y: 18.8, w: 10.5, h: 2 }] }),
   bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [70, 15], [71.5, 16.5], [71.5, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
-  bld({ id: 'cemiyet', shape: rectPts({ x: 41, y: 40, w: 15, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
+  bld({ id: 'cemiyet', shape: rectPts({ x: 42, y: 40, w: 14, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
   // the indoor court between the boys' dorm and Eğitim, against the garden wall
   bld({ id: 'kapali_saha', shape: rectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }), roof: 'white', skylights: [{ x: 31.2, y: 15.6, w: 5.6, h: 0.7 }, { x: 31.2, y: 16.9, w: 5.6, h: 0.7 }] }),
   bld({ id: 'kantin', shape: rectPts({ x: 58, y: 41, w: 5, h: 6 }), roof: 'green' }),
@@ -198,6 +198,7 @@ export const PLAZAS: Pt[][] = [
 
 export const PATHS: Rect[] = [
   { x: 39, y: 13, w: 2, h: 39 },   // the main street: Ana Kapı → north, between Eğitim and the Meydan
+  { x: 41, y: 38, w: 1, h: 14 },   // …a tile wider between Eğitim and the Cemiyet, up the stairs and under the aqueduct
   { x: 41, y: 13, w: 51, h: 1 },   // service road behind the Yemekhane (Teknik Alan door)
   { x: 41, y: 23, w: 14, h: 1 },   // in front of the Yemekhane
   { x: 55, y: 14, w: 3, h: 26 },   // between the Meydan and the Spor Salonu
@@ -234,12 +235,21 @@ export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }
 export const CAMPUS_WALLS: Rect[] = [{ x: 38, y: 12, w: 1, h: 10 }, { x: 35, y: 43, w: 1, h: 9 }];
 
 /** Ana Kapı, in the south fence on Darüşşafaka Cd */
-export const GATE: Rect = { x: 39, y: 52, w: 2, h: 1 };
+export const GATE: Rect = { x: 39, y: 52, w: 3, h: 1 };
 /** the tile just inside the gate */
 export const GATE_IN: Pt = [40, 51];
 
 /** player spawn (tile coords, can be fractional) */
-export const SPAWN = { x: 40, y: 50.5 };
+export const SPAWN = { x: 40.5, y: 50.5 };
+/** the guards' cabin just inside the gate, west of the street */
+export const CABIN: Rect = { x: 36.6, y: 49.6, w: 2, h: 1.6 };
+
+/** a Roman-style aqueduct joining Eğitim and the Cemiyet over the main street: you walk through its big arch */
+export const AQUEDUCT: Rect = { x: 39, y: 41.8, w: 3, h: 0.8 };
+/** how wide each of the aqueduct's two piers is, against the building walls (tiles) */
+export const AQUEDUCT_PIER = 0.55;
+/** the steps up from Ana Kapı to the landing in front of the Cemiyet door */
+export const STAIRS: Rect = { x: 39, y: 46, w: 3, h: 2.5 };
 
 export const TREES: Array<[number, number]> = [
   [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
@@ -253,7 +263,7 @@ export const BENCHES: Array<[number, number]> = [
 
 /** street lamps: they light up at night */
 export const LAMPS: Array<[number, number]> = [
-  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37, 50], [43, 51], [33, 33], [72, 40], [54, 30], [86, 40],
+  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [43, 51], [33, 33], [72, 40], [54, 30], [86, 40],
 ];
 
 export const FLOWERS: Array<[number, number]> = [
@@ -310,7 +320,7 @@ export const LOCATIONS: Location[] = [
     id: 'ana_kapi', kind: 'zone',
     name: { tr: 'Ana Kapı', en: 'Ana Kapı' }, sub: { tr: 'Ana giriş', en: 'Main gate' },
     info: { tr: 'Herkesin hikâyesi burada başlar. Pazar günleri ziyaret günüdür.', en: "Everyone's story starts here. Sundays are visiting day." },
-    rect: { x: 35, y: 47, w: 11, h: 5 }, label: { x: 40, y: 47.6 }, minimapColor: '#8a2d2d',
+    rect: { x: 35, y: 47, w: 11, h: 5 }, label: { x: 40.5, y: 49.4 }, minimapColor: '#8a2d2d',
   },
   {
     id: 'cemiyet', kind: 'building',
@@ -319,14 +329,14 @@ export const LOCATIONS: Location[] = [
       tr: 'İlk durağın: kayıt burada yapılır. Müdür, rehber öğretmen ve ziyaretçi odası buradadır. Ambar (−1. kat) üniforma, ayakkabı ve eşofman dağıtır.',
       en: 'Your first stop: registration happens here. The principal, the guidance counselor and the visitors\' room are here. The Ambar (floor −1) hands out uniforms, shoes and tracksuits.',
     },
-    rect: { x: 41, y: 40, w: 15, h: 9 }, label: { x: 46, y: 44.5 }, doors: [{ x: 41, y: 44, side: 'w' }, { x: 41, y: 45, side: 'w' }], minimapColor: '#b9c0c6',
+    rect: { x: 42, y: 40, w: 14, h: 9 }, label: { x: 46.5, y: 44.5 }, doors: [{ x: 42, y: 44, side: 'w' }, { x: 42, y: 45, side: 'w' }], minimapColor: '#b9c0c6',
   },
   {
     id: 'muze', kind: 'building',
     name: { tr: 'Müze', en: 'Müze' }, sub: { tr: 'Okulun tarihi', en: "The school's history" },
     info: { tr: 'Okulun 1863\'ten bu yana hikâyesi. Her yıl yeni bir bölüm açılır.', en: "The school's story since 1863. A new chapter opens every year." },
     rect: { x: 51, y: 42, w: 5, h: 6 }, doors: [{ x: 55, y: 45, side: 'e' }, { x: 55, y: 46, side: 'e' }],
-    label: { x: 53.2, y: 46.6 }, revealRect: { x: 41, y: 40, w: 15, h: 9 }, minimapColor: '#7a4e2a',
+    label: { x: 53.2, y: 46.6 }, revealRect: { x: 42, y: 40, w: 14, h: 9 }, minimapColor: '#7a4e2a',
   },
   {
     id: 'kiz_yurdu', kind: 'building',

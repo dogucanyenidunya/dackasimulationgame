@@ -542,13 +542,16 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillStyle = '#1f1f22'; c.fillRect(10, 2, 3, 12); c.fillRect(11, 14, 1, 8);
     c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(2, 22, 13, 2);
   });
-  // brick pillar of the main gate (32x48)
-  canvas('gatepost', 32, 48, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 42, 28, 5);
-    c.fillStyle = '#8a2d2d'; c.fillRect(4, 10, 24, 34);
-    c.fillStyle = '#6f2222'; for (let y = 14; y < 44; y += 6) c.fillRect(4, y, 24, 1);
-    c.fillStyle = '#a94040'; c.fillRect(2, 4, 28, 7); c.fillStyle = '#c45a5a'; c.fillRect(2, 4, 28, 2);
-    c.fillStyle = '#f2c14e'; c.fillRect(13, 0, 6, 5);
+  // stone pillar of the big green main gate (32x80): coursed stone, a green cap and a lantern on top
+  canvas('gatepost', 32, 80, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 74, 28, 5);
+    c.fillStyle = '#dcb27d'; c.fillRect(4, 20, 24, 56);
+    c.fillStyle = '#b8925e'; for (let y = 26; y < 76; y += 7) { c.fillRect(4, y, 24, 1); c.fillRect(y % 14 ? 11 : 20, y - 6, 1, 6); }
+    c.fillStyle = '#ecd2a4'; c.fillRect(4, 20, 2, 56); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(24, 20, 4, 56);
+    c.fillStyle = '#c49a66'; c.fillRect(2, 68, 28, 8);
+    c.fillStyle = '#2f6b3a'; c.fillRect(1, 13, 30, 8); c.fillStyle = '#4d9459'; c.fillRect(1, 13, 30, 2);
+    c.fillStyle = '#1f2326'; c.fillRect(10, 4, 12, 9); c.fillRect(13, 0, 6, 4);
+    c.fillStyle = '#fff3c4'; c.fillRect(12, 6, 8, 5);
   });
   // park bench: backrest slats, seat, cast-iron ends, a shadow to the south-east
   canvas('bench', 32, 18, (c) => {
