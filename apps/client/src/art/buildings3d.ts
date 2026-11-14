@@ -212,18 +212,47 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     const clear = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].every(([qx, qy]) =>
       inBuilding(qx, qy, b) && nearestEdge(qx, qy, b.shape).d > 0.7 && !(b.courtyard && nearestEdge(qx, qy, b.courtyard).d < 0.7))
       && !features.some((f) => x < f.x + f.w + 0.3 && x + w > f.x - 0.3 && y < f.y + f.h + 0.3 && y + h > f.y - 0.3);
-    for (let i = 0, placed = 0; i < 60 && placed < Math.max(2, Math.floor(r.w / 5)); i++) {
-      const w = (10 + Math.floor(rand() * 3) * 4) / TILE, h = (10 + Math.floor(rand() * 2) * 5) / TILE;
-      const x = r.x + rand() * (r.w - w), y = r.y + rand() * (r.h - h);
-      if (!clear(x, y, w, h)) continue;
-      const q = toCanvas({ x, y, w, h }), tall = 5;
-      px(q.x + 3, q.y + q.h, q.w, 4, 'rgba(0,0,0,0.2)');        // shadow
-      px(q.x, q.y + q.h - tall, q.w, tall, '#9aa2a8');           // front face
-      px(q.x, q.y - tall, q.w, q.h, '#d6dbdf');                  // top face
+    const free = (w: number, h: number) => {
+      for (let i = 0; i < 80; i++) {
+        const x = r.x + rand() * (r.w - w), y = r.y + rand() * (r.h - h);
+        if (clear(x, y, w, h) && !(b.passages ?? []).some((p) => x < p.x + p.w && x + w > p.x && y < p.y + p.h + 0.4 && y + h > p.y - 0.4)) { features.push({ x, y, w, h }); return toCanvas({ x, y, w, h }); }
+      }
+      return null;
+    };
+    /** a box on the roof: its top, its sunlit front and a shadow to the south-east */
+    const box = (q: Rect, tall: number, top = '#d6dbdf', front = '#9aa2a8') => {
+      px(q.x + 3, q.y + q.h, q.w, 4, 'rgba(0,0,0,0.2)');
+      px(q.x, q.y + q.h - tall, q.w, tall, front);
+      px(q.x, q.y - tall, q.w, q.h, top);
       px(q.x, q.y - tall, q.w, 1, '#eef1f3');
       px(q.x + q.w - 2, q.y - tall, 2, q.h + tall, 'rgba(0,0,0,0.12)');
-      features.push({ x, y, w, h });
-      placed++;
+    };
+    if (r.w * r.h > 40) {
+      // stair housing with its door, a water tank, an antenna
+      const st = free(50 / TILE, 26 / TILE);
+      if (st) { box(st, 14, '#e2e6e9', '#c9ced2'); px(st.x + st.w - 20, st.y + st.h - 13, 10, 12, '#4a5560'); px(st.x - 1, st.y - 15, st.w + 2, 2, pal.rim); }
+      const wt = free(22 / TILE, 18 / TILE);
+      if (wt) {
+        px(wt.x + 3, wt.y + wt.h, wt.w, 4, 'rgba(0,0,0,0.2)');
+        c.fillStyle = '#9aa2a8'; c.fillRect(Math.round(wt.x), Math.round(wt.y), Math.round(wt.w), Math.round(wt.h - 4));
+        c.beginPath(); c.ellipse(wt.x + wt.w / 2, wt.y + wt.h - 4, wt.w / 2, 4, 0, 0, Math.PI); c.fill();
+        c.fillStyle = '#d6dbdf'; c.beginPath(); c.ellipse(wt.x + wt.w / 2, wt.y, wt.w / 2, 5, 0, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#eef1f3'; c.lineWidth = 1; c.stroke();
+      }
+      const an = free(14 / TILE, 10 / TILE);
+      if (an) {
+        const ax = Math.round(an.x + an.w / 2), ay = Math.round(an.y + an.h);
+        px(ax + 2, ay, 10, 2, 'rgba(0,0,0,0.18)');
+        px(ax, ay - 22, 1, 22, '#4a5258');
+        px(ax - 5, ay - 18, 11, 1, '#4a5258'); px(ax - 4, ay - 13, 9, 1, '#4a5258');
+      }
+    }
+    for (let i = 0; i < Math.max(2, Math.floor(r.w / 5)); i++) {
+      const w = (10 + Math.floor(rand() * 3) * 4) / TILE, h = (10 + Math.floor(rand() * 2) * 5) / TILE;
+      const q = free(w, h);
+      if (!q) break;
+      box(q, 5);
+      c.fillStyle = '#4a5258'; c.beginPath(); c.ellipse(q.x + q.w / 2, q.y - 5 + q.h / 2, Math.min(q.w, q.h) / 3, Math.min(q.w, q.h) / 4, 0, 0, Math.PI * 2); c.fill(); // fan
     }
   }
   // parapet: light coping along the edge with a darker inside lip (so the roof reads as recessed)
@@ -282,7 +311,12 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     // sun from the north-west: east-facing walls sit in shade
     q(0, 1, 0, 1, '#f1f2f0');
     if (w.nx > 0) q(0, 1, 0, 1, `rgba(0,0,0,${(0.03 + w.nx * 0.13).toFixed(3)})`);
+    // plaster grain, and the wall darkening towards the ground
+    for (let i = 0; i < (Lpx * hpx) / 70; i++) { const [gx, gy] = G(rand(), rand()); c.fillStyle = rand() < 0.5 ? '#e4e6e3' : '#fbfcfa'; c.fillRect(Math.round(gx), Math.round(gy), 1, 1); }
+    q(0, 1, 0, v(26), 'rgba(0,0,0,0.04)'); q(0, 1, 0, v(16), 'rgba(0,0,0,0.05)');
     q(0, 1, 1 - v(4), 1, 'rgba(0,0,0,0.16)'); // shadow under the coping
+    q(0, 1, 1 - v(9), 1 - v(5), '#e4e6e5');    // cornice band
+    q(0, 1, 1 - v(10), 1 - v(9), 'rgba(0,0,0,0.12)');
     const plinth = 9;
     const vb = v(plinth + 2), vt = 1 - v(7);
     const fhf = (vt - vb) / floors;
@@ -309,7 +343,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       for (let f = 0; f < floors; f++) {
         const lo = vb + fhf * (floors - 1 - f), hi = lo + fhf;
         const ground = f === floors - 1;
-        if (f > 0) q(0, 1, hi - v(1), hi + v(1), '#dcdfe0'); // slab line between floors
+        if (f > 0) { q(0, 1, hi - v(1), hi + v(2), '#e4e6e5'); q(0, 1, hi + v(1), hi + v(2), '#f7f8f6'); q(0, 1, hi - v(2), hi - v(1), 'rgba(0,0,0,0.12)'); } // slab band
         if (b.id === 'spor' || b.id === 'kapali_saha') {
           // tall curtain wall of the sports hall
           q(u(8), 1 - u(8), lo + v(2), hi - v(4), '#5f819f');
@@ -326,11 +360,17 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
           const t0 = u(off + j * 22), t1 = t0 + u(16);
           if (ground && [...doorSpans, ...mouths].some((s) => t1 + u(6) > s.t0 && t0 - u(6) < s.t1)) continue;
           // window with frame, sky reflection and a wooden fin beside it (as in the aerial render)
+          q(t0 - u(1), t1 + u(1), w0 - v(1), w1 + v(1), '#c3c8cb'); // frame
           q(t0, t1, w0, w1, '#4f6f8c');
-          q(t0, t1, w1 - v(3), w1, '#9cc0dd');
-          q(t0 + u(2), t0 + u(6), w1 - v(7), w1 - v(5), '#9cc0dd');
+          q(t0, t1, w1 - v(3), w1, '#2f475c');               // reveal shadow along the top
+          q(t0, t0 + u(1), w0, w1, '#2f475c');
+          q(t0 + u(9), t0 + u(14), w1 - v(7), w1 - v(5), '#7fa3c2'); // sky reflection
+          const curtain = rand() < 0.45 ? ['#e8d8b0', '#c9d6e3', '#e6c3b8', '#d8e4c8', '#f0e6d2'][Math.floor(rand() * 5)] : null;
+          const cside = rand() < 0.5;
+          if (curtain) q(cside ? t0 + u(1) : t1 - u(5), cside ? t0 + u(5) : t1 - u(1), w0 + v(1), w1 - v(3), curtain);
           q(t0 + u(7), t0 + u(8), w0, w1, '#e8ecef');
-          q(t0, t1, w0 - v(2), w0, '#c9ced2');              // sill
+          q(t0 - u(1), t1 + u(1), w0 - v(2), w0, '#d9dde0');  // sill
+          q(t0 - u(1), t1 + u(1), w0 - v(3), w0 - v(2), 'rgba(0,0,0,0.15)');
           q(t1 + u(1), t1 + u(4), w0 - v(2), w1 + v(2), '#c98a4b'); // fin
           q(t1 + u(3), t1 + u(4), w0 - v(2), w1 + v(2), '#9c6633');
           if (rand() < 0.72) ql(t0, t1, w0 + v(1), w1 - v(3), rand() < 0.2 ? '#fff0c4' : '#ffd57e');
@@ -339,6 +379,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     }
     // corner shading at the wall's ends
     q(0, u(2), 0, 1, 'rgba(0,0,0,0.07)'); q(1 - u(3), 1, 0, 1, 'rgba(0,0,0,0.14)');
+    // downpipes at the corners of longer walls (not on the round hall)
+    if (b.id !== 'tim' && Lpx > 96) for (const t of [u(4), 1 - u(7)]) { q(t, t + u(3), v(plinth), 1 - v(6), '#aeb4b8'); q(t + u(2), t + u(3), v(plinth), 1 - v(6), 'rgba(0,0,0,0.2)'); }
     // plinth
     q(0, 1, 0, v(plinth), '#9aa1a6');
     q(0, 1, v(plinth) - v(1), v(plinth), '#b8bec3');

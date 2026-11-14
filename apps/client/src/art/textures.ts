@@ -16,7 +16,7 @@ const PAL = {
   door: '#5b3a22', doorFrame: '#7a4e2a', revir: '#c0392b',
 };
 
-function rng(seed: number) {
+export function rng(seed: number) {
   return () => {
     seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -282,6 +282,91 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
   },
 };
 
+/** one tile painted on its own canvas (the ground layer uses them as fill patterns) */
+export function tileCanvas(id: number): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  cv.width = TILE; cv.height = TILE;
+  TILE_PAINTERS[id]?.(cv.getContext('2d')!, 0);
+  return cv;
+}
+
+/** snaps antialiased canvas edges to hard pixels (alpha in or out) */
+function crisp(c: Ctx, w: number, h: number) {
+  const img = c.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] < 110 ? 0 : 255;
+  c.putImageData(img, 0, 0);
+}
+
+// ---------- trees: three shapes, in leaf all year ----------
+
+export type TreeShape = 'round' | 'broad' | 'cypress';
+export const TREE_SHAPES: TreeShape[] = ['round', 'broad', 'round', 'cypress', 'broad'];
+export const treeKey = (shape: TreeShape, tone: number) => `tree-${shape}-${tone}`;
+
+/** leaf palettes: outline, shade, base, light, highlight, sparkle */
+const LEAF: Record<string, string[]> = {
+  green: ['#1d4227', '#2a6036', '#357443', '#4a9152', '#67ad62', '#8fcc76'],
+  fresh: ['#22492a', '#2f6d38', '#3f8a45', '#5aa853', '#7fc46a', '#a6dc88'],
+  pine: ['#142f22', '#1d4430', '#27573b', '#33704a', '#4a8a5c', '#6aa676'],
+};
+
+function canopy(c: Ctx, blobs: Array<[number, number, number]>, pal: string[], seed: number) {
+  const disc = (x: number, y: number, r: number, col: string) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
+  for (const [x, y, r] of blobs) disc(x + 0.5, y + 1, r + 1, pal[0]);
+  for (const [x, y, r] of blobs) disc(x, y, r, pal[1]);
+  for (const [x, y, r] of blobs) disc(x - r * 0.15, y - r * 0.2, r * 0.8, pal[2]);
+  for (const [x, y, r] of blobs) disc(x - r * 0.3, y - r * 0.38, r * 0.5, pal[3]);
+  for (const [x, y, r] of blobs) disc(x - r * 0.4, y - r * 0.5, r * 0.22, pal[4]);
+  // leaf clusters: light flecks on the sunny north-west, dark ones on the shaded south-east
+  const rnd = rng(seed);
+  for (const [x, y, rad] of blobs) for (let i = 0; i < rad * 2.4; i++) {
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (rad - 1.5);
+    const sun = -(Math.cos(a) + Math.sin(a)) * 0.7;
+    c.fillStyle = sun > 0.2 && d > rad * 0.35 ? pal[rnd() < 0.5 ? 4 : 5] : sun < -0.2 ? pal[rnd() < 0.6 ? 1 : 0] : pal[3];
+    c.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), 2, 1);
+  }
+}
+
+function trunk(c: Ctx, x: number, top: number, w: number, bottom: number) {
+  c.fillStyle = '#3a2716'; c.fillRect(x - 1, top, w + 2, bottom - top); c.fillRect(x - 2, bottom - 3, w + 4, 3);
+  c.fillStyle = '#5e4027'; c.fillRect(x, top, w, bottom - top - 1);
+  c.fillStyle = '#7a5434'; c.fillRect(x, top, 2, bottom - top - 1);
+  c.fillStyle = '#4a321e'; for (let y = top + 3; y < bottom - 3; y += 5) c.fillRect(x + w - 2, y, 1, 2);
+}
+
+function paintTree(c: Ctx, shape: TreeShape, tone: number) {
+  const seed = 200 + tone * 17 + shape.length * 5;
+  if (shape === 'cypress') {
+    trunk(c, 22, 52, 4, 67);
+    const blobs: Array<[number, number, number]> = [[24, 52, 8], [24, 43, 10], [24, 33, 9], [24, 24, 8], [24, 15, 6], [24, 8, 4]];
+    canopy(c, blobs, LEAF.pine, seed);
+    return;
+  }
+  const broad = shape === 'broad';
+  trunk(c, broad ? 20 : 21, 34, broad ? 7 : 6, 67);
+  const pal = tone === 2 ? LEAF.green : LEAF.fresh;
+  const blobs: Array<[number, number, number]> = broad
+    ? [[24, 28, 13], [12, 28, 10], [36, 28, 10], [17, 19, 11], [31, 19, 11], [24, 12, 9]]
+    : [[24, 29, 17], [15, 25, 11], [33, 24, 11], [24, 15, 12], [20, 9, 7], [29, 11, 6]];
+  canopy(c, blobs, pal, seed);
+  if (broad) {
+    // blossom: a judas tree in pink, a plum in white
+    const rnd = rng(seed + 1);
+    for (let i = 0; i < 46; i++) {
+      const [x, y, r] = blobs[Math.floor(rnd() * blobs.length)], a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (r - 1);
+      c.fillStyle = tone === 1 ? (rnd() < 0.6 ? '#f4f4f0' : '#e8d8e0') : (rnd() < 0.6 ? '#e48ab8' : '#f4b6d0');
+      c.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), 2, 2);
+    }
+  }
+}
+
+/** a mesh of thin lines, for goal nets */
+function mesh(c: Ctx, x0: number, y0: number, x1: number, y1: number, step = 3) {
+  c.fillStyle = 'rgba(236, 240, 242, 0.55)';
+  for (let x = x0; x <= x1; x += step) c.fillRect(x, y0, 1, y1 - y0);
+  for (let y = y0; y <= y1; y += step) c.fillRect(x0, y, x1 - x0, 1);
+}
+
 export const TILESET_KEY = 'tiles';
 /** tileset padding (see the extrusion in generateTextures) */
 export const TILESET_MARGIN = 1;
@@ -343,14 +428,97 @@ export function generateTextures(scene: Phaser.Scene) {
     t.refresh();
   };
 
-  // tree (48x72): tall trunk and a layered canopy, so it stands up in the 3/4 view
-  canvas('tree', 48, 72, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(27, 66, 17, 5, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#5e4027'; c.fillRect(21, 36, 6, 30); c.fillStyle = '#7a5434'; c.fillRect(21, 36, 2, 30);
-    c.fillStyle = '#4a321e'; c.fillRect(19, 63, 10, 3);
-    const blob = (x: number, y: number, rad: number, col: string) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill(); };
-    blob(24, 30, 19, '#2a6036'); blob(24, 27, 19, '#2f6b3b'); blob(16, 24, 13, '#3d7f47'); blob(32, 22, 12, '#3d7f47');
-    blob(24, 15, 13, '#4a9152'); blob(18, 13, 6, '#67ad62'); blob(29, 10, 4, '#7cc070');
+  // trees (48x72): tall trunk and a layered canopy, so they stand up in the 3/4 view. 'tree' is the
+  // default; the scene swaps in a shape and tone per spot (see Ambient)
+  const tree = (key: string, shape: TreeShape, tone: number) => canvas(key, 48, 72, (c) => {
+    paintTree(c, shape, tone);
+    crisp(c, 48, 72);
+    c.fillStyle = 'rgba(0,0,0,0.25)'; c.beginPath(); c.ellipse(24.5, 66.5, 8, 2.5, 0, 0, Math.PI * 2); c.fill();
+  });
+  tree('tree', 'round', 2);
+  for (const shape of ['round', 'broad', 'cypress'] as const) for (let tone = 0; tone < 3; tone++) tree(treeKey(shape, tone), shape, tone);
+  // their shadows, cast south-east (sun from the north-west); the trunk's foot sits at (10, 6)
+  for (const [shape, rx, ry, rot] of [['round', 21, 10, 0.2], ['broad', 25, 11, 0.15], ['cypress', 22, 6, 0.5]] as const) {
+    canvas(`treeshadow-${shape}`, 80, 40, (c) => {
+      c.fillStyle = '#000';
+      c.beginPath(); c.moveTo(8, 5); c.lineTo(12, 4); c.lineTo(30, 14); c.lineTo(24, 18); c.closePath(); c.fill();
+      c.beginPath(); c.ellipse(shape === 'cypress' ? 38 : 40, 19, rx, ry, rot, 0, Math.PI * 2); c.fill();
+      crisp(c, 80, 40);
+    });
+  }
+  // a basketball hoop at the west end of a court: pole, backboard seen edge-on, orange rim, net.
+  // The pole's foot is at (10, 53); flip it for the east end
+  canvas('hoop', 40, 56, (c) => {
+    c.fillStyle = '#2a2f33'; c.fillRect(5, 50, 11, 4);
+    c.fillStyle = '#3d4246'; c.fillRect(8, 13, 4, 39); c.fillStyle = '#6b7378'; c.fillRect(8, 13, 1, 39);
+    c.fillStyle = '#3d4246'; c.fillRect(10, 15, 8, 3); c.fillStyle = '#6b7378'; c.fillRect(10, 15, 8, 1);
+    c.fillStyle = '#7d858a'; c.fillRect(16, 1, 7, 27);
+    c.fillStyle = '#f4f4f0'; c.fillRect(17, 2, 4, 25);
+    c.fillStyle = '#c9ced2'; c.fillRect(21, 2, 1, 25);
+    c.fillStyle = '#d6452b'; c.fillRect(18, 13, 2, 8);
+    c.strokeStyle = '#e2572b'; c.lineWidth = 2; c.beginPath(); c.ellipse(28, 21, 6, 2.5, 0, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#f4f4f0';
+    for (let i = 0; i < 4; i++) { const x0 = 23 + i * 3.3, x1 = 25.5 + i * 1.7; for (let y = 23; y < 31; y++) c.fillRect(Math.round(x0 + ((x1 - x0) * (y - 23)) / 8), y, 1, 1); }
+    c.fillRect(25, 26, 7, 1); c.fillRect(26, 29, 4, 1);
+    crisp(c, 40, 56);
+  });
+  // football goals: the north one faces you (net seen through the mouth), the south one shows its back
+  canvas('goal-n', 64, 34, (c) => {
+    mesh(c, 5, 5, 59, 22);
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(4, 32, 58, 2);
+    c.fillStyle = '#5a6066'; c.fillRect(2, 11, 60, 4); c.fillRect(2, 11, 4, 22); c.fillRect(58, 11, 4, 22);
+    c.fillStyle = '#f8f8f4'; c.fillRect(3, 12, 58, 2); c.fillRect(3, 12, 2, 20); c.fillRect(59, 12, 2, 20);
+  });
+  canvas('goal-s', 64, 34, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(4, 30, 58, 3);
+    c.fillStyle = '#5a6066'; c.fillRect(2, 1, 60, 4); c.fillRect(2, 1, 4, 21); c.fillRect(58, 1, 4, 21);
+    c.fillStyle = '#f8f8f4'; c.fillRect(3, 2, 58, 2); c.fillRect(3, 2, 2, 19); c.fillRect(59, 2, 2, 19);
+    mesh(c, 5, 4, 59, 30);
+    c.fillStyle = 'rgba(220, 226, 230, 0.8)'; c.fillRect(5, 14, 55, 1); c.fillRect(5, 30, 55, 1);
+  });
+  // a gull over the campus (2 wing frames) and a plaza pigeon (stand, peck, fly)
+  if (!scene.textures.exists('gull')) {
+    const t = scene.textures.createCanvas('gull', 14 * 2, 8)!;
+    const c = t.getContext();
+    const p = (x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+    // wings up
+    p(5, 3, 4, 2, '#f4f4f0'); p(1, 0, 2, 1, '#8a949b'); p(2, 1, 3, 2, '#c9d0d5'); p(9, 1, 3, 2, '#c9d0d5'); p(11, 0, 2, 1, '#8a949b'); p(9, 4, 2, 1, '#e8a33b');
+    // wings down
+    p(14 + 5, 2, 4, 2, '#f4f4f0'); p(14 + 1, 4, 4, 1, '#c9d0d5'); p(14 + 0, 5, 2, 1, '#8a949b'); p(14 + 9, 4, 4, 1, '#c9d0d5'); p(14 + 12, 5, 2, 1, '#8a949b'); p(14 + 9, 3, 2, 1, '#e8a33b');
+    t.refresh();
+    t.add(0, 0, 0, 0, 14, 8); t.add(1, 0, 14, 0, 14, 8);
+  }
+  if (!scene.textures.exists('pigeon')) {
+    const t = scene.textures.createCanvas('pigeon', 12 * 3, 10)!;
+    const c = t.getContext();
+    const p = (f: number, x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(f * 12 + x, y, w, h); };
+    for (const f of [0, 1]) {
+      const hy = f ? 5 : 2, hx = f ? 8 : 7;
+      p(f, 2, 9, 8, 1, 'rgba(0,0,0,0.2)');
+      p(f, 1, 4, 3, 2, '#5d646b');                                  // tail
+      p(f, 3, 4, 6, 4, '#8f979e'); p(f, 4, 4, 3, 1, '#aab2b8');      // body
+      p(f, 4, 6, 4, 1, '#6f777e');                                   // wing bar
+      p(f, hx - 1, hy + 1, 2, 2, '#5f8f7a');                         // green neck
+      p(f, hx, hy, 3, 2, '#7a8289'); p(f, hx + 1, hy, 1, 1, '#1d2326'); p(f, hx + 3, hy + 1, 1, 1, '#d9a07a');
+      p(f, 5, 8, 1, 1, '#c2645a'); p(f, 7, 8, 1, 1, '#c2645a');      // feet
+    }
+    p(2, 4, 3, 4, 3, '#8f979e'); p(2, 0, 1, 4, 2, '#aab2b8'); p(2, 8, 1, 4, 2, '#aab2b8'); p(2, 0, 0, 2, 1, '#6f777e'); p(2, 10, 0, 2, 1, '#6f777e');
+    p(2, 5, 1, 2, 2, '#7a8289'); p(2, 5, 3, 2, 1, '#5f8f7a');
+    t.refresh();
+    for (let f = 0; f < 3; f++) t.add(f, 0, f * 12, 0, 12, 10);
+  }
+  // rain puddles (3 shapes), drawn soft so they sit in the paving
+  for (let i = 0; i < 3; i++) canvas(`puddle-${i}`, 40, 18, (c) => {
+    const r = rng(300 + i);
+    const blobs = Array.from({ length: 3 }, (_, k) => [10 + k * 9 + r() * 4, 8 + r() * 3, 6 + r() * 4, 3 + r() * 2]);
+    c.fillStyle = 'rgba(74, 92, 110, 0.55)';
+    for (const [x, y, rx, ry] of blobs) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
+    crisp(c, 40, 18);
+    const img = c.getImageData(0, 0, 40, 18), d = img.data;
+    for (let k = 3; k < d.length; k += 4) if (d[k]) { d[k - 3] = 104; d[k - 2] = 136; d[k - 1] = 166; d[k] = 140; }
+    c.putImageData(img, 0, 0);
+    c.fillStyle = 'rgba(214, 230, 242, 0.55)';
+    for (const [x, y, rx] of blobs) c.fillRect(Math.round(x - rx * 0.5), Math.round(y - 2), Math.round(rx * 0.6), 1);
   });
   // Atatürk bust (40x64): marble pedestal with a gold plaque, bronze head and shoulders
   canvas('bust', 40, 64, (c) => {
@@ -382,18 +550,28 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillStyle = '#a94040'; c.fillRect(2, 4, 28, 7); c.fillStyle = '#c45a5a'; c.fillRect(2, 4, 28, 2);
     c.fillStyle = '#f2c14e'; c.fillRect(13, 0, 6, 5);
   });
+  // park bench: backrest slats, seat, cast-iron ends, a shadow to the south-east
   canvas('bench', 32, 18, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(2, 15, 28, 3);
-    c.fillStyle = '#8a5a32'; c.fillRect(2, 3, 28, 4); c.fillRect(2, 9, 28, 3);
-    c.fillStyle = '#a8703f'; c.fillRect(2, 3, 28, 1); c.fillRect(2, 9, 28, 1);
-    c.fillStyle = '#3d4246'; c.fillRect(4, 12, 2, 5); c.fillRect(26, 12, 2, 5);
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 15, 28, 3);
+    c.fillStyle = '#2a2f33'; c.fillRect(2, 1, 3, 15); c.fillRect(27, 1, 3, 15);
+    c.fillStyle = '#5b3a22'; c.fillRect(4, 1, 24, 6); c.fillRect(4, 8, 24, 5);
+    c.fillStyle = '#9a6538'; c.fillRect(4, 2, 24, 1); c.fillRect(4, 4, 24, 1); c.fillRect(4, 9, 24, 1); c.fillRect(4, 11, 24, 1);
+    c.fillStyle = '#c08a52'; c.fillRect(4, 2, 24, 0.5); c.fillRect(5, 9, 22, 1);
+    c.fillStyle = '#4a5156'; c.fillRect(2, 1, 1, 15); c.fillRect(27, 1, 1, 15);
+    c.fillStyle = '#2a2f33'; c.fillRect(3, 12, 2, 4); c.fillRect(27, 12, 2, 4);
   });
+  // street lamp: a lantern on a fluted post
   canvas('lamp', 16, 56, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.2)'; c.beginPath(); c.ellipse(8, 53, 6, 2.5, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#2f3438'; c.fillRect(7, 12, 3, 41); c.fillRect(4, 50, 9, 3);
-    c.fillStyle = '#4a5156'; c.fillRect(7, 12, 1, 41);
-    c.fillStyle = '#2f3438'; c.fillRect(3, 6, 11, 3); c.fillRect(5, 2, 7, 4);
-    c.fillStyle = '#fff3c4'; c.fillRect(5, 9, 7, 4);
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.beginPath(); c.ellipse(9, 53, 6, 2.5, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#1f2326'; c.fillRect(6, 13, 5, 39); c.fillRect(3, 49, 11, 4); c.fillRect(4, 46, 9, 3);
+    c.fillStyle = '#3d4449'; c.fillRect(7, 13, 3, 38); c.fillStyle = '#5b646a'; c.fillRect(7, 13, 1, 38);
+    c.fillStyle = '#5b646a'; c.fillRect(5, 47, 1, 2);
+    c.fillStyle = '#1f2326'; c.fillRect(3, 4, 11, 10); c.fillRect(5, 1, 7, 3); c.fillRect(7, 0, 3, 1);
+    c.fillStyle = '#fff3c4'; c.fillRect(4, 6, 9, 6);
+    c.fillStyle = '#ffffff'; c.fillRect(5, 7, 2, 3);
+    c.fillStyle = '#e8c06a'; c.fillRect(4, 11, 9, 1);
+    c.fillStyle = '#1f2326'; c.fillRect(8, 6, 1, 6); c.fillRect(2, 4, 13, 2);
+    c.fillStyle = '#3d4449'; c.fillRect(3, 4, 11, 1);
   });
   canvas('bush', 30, 20, (c) => {
     c.fillStyle = 'rgba(0,0,0,0.15)'; c.beginPath(); c.ellipse(15, 17, 13, 3, 0, 0, Math.PI * 2); c.fill();
@@ -435,18 +613,26 @@ export function generateTextures(scene: Phaser.Scene) {
     const c = t.getContext();
     for (let f = 0; f < 2; f++) {
       const o = f * 72;
-      c.fillStyle = 'rgba(0,0,0,0.2)'; c.beginPath(); c.ellipse(o + 38, 48, 32, 7, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#b8b0a2'; c.beginPath(); c.ellipse(o + 36, 40, 32, 12, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#d6cfc2'; c.beginPath(); c.ellipse(o + 36, 37, 30, 10, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#4f9ad0'; c.beginPath(); c.ellipse(o + 36, 37, 25, 7, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#9fd0f0'; for (let i = 0; i < 6; i++) c.fillRect(o + 16 + ((i * 7 + f * 3) % 40), 34 + (i % 3) * 2, 4, 1);
-      c.fillStyle = '#b8b0a2'; c.fillRect(o + 33, 14, 6, 22);
-      c.fillStyle = '#d6cfc2'; c.beginPath(); c.ellipse(o + 36, 15, 10, 4, 0, 0, Math.PI * 2); c.fill();
+      const ell = (x: number, y: number, rx: number, ry: number, col: string) => { c.fillStyle = col; c.beginPath(); c.ellipse(o + x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); };
+      ell(41, 47, 32, 7, 'rgba(0,0,0,0.22)');
+      ell(36, 41, 33, 12.5, '#7d7466');            // outline
+      ell(36, 40, 32, 12, '#a39a8a');              // basin wall
+      ell(36, 37, 31, 10.5, '#e2dccf');            // rim, catching the sun
+      ell(37, 38, 30, 9.5, '#c9c1b2');
+      ell(36, 37, 26, 7.5, '#3f7fae');             // water
+      ell(36, 36, 24, 6, '#4f9ad0');
+      c.fillStyle = '#9fd0f0'; for (let i = 0; i < 7; i++) c.fillRect(o + 15 + ((i * 7 + f * 3) % 42), 33 + (i % 3) * 2, 4, 1);
+      c.fillStyle = '#d7eefa'; c.fillRect(o + 22 + f * 2, 35, 2, 1); c.fillRect(o + 46 - f * 2, 38, 2, 1);
+      // centre column with the upper bowl
+      c.fillStyle = '#7d7466'; c.fillRect(o + 32, 14, 8, 23);
+      c.fillStyle = '#b8b0a2'; c.fillRect(o + 33, 14, 6, 22); c.fillStyle = '#d6cfc2'; c.fillRect(o + 33, 14, 2, 22);
+      ell(36, 16, 11, 4.5, '#7d7466'); ell(36, 15, 10, 4, '#d6cfc2'); ell(36, 15, 7, 2.2, '#4f9ad0');
       c.fillStyle = 'rgba(159, 208, 240, 0.9)';
       const h = f ? 12 : 9;
       c.fillRect(o + 35, 15 - h, 2, h);
-      c.fillRect(o + 28 - f, 17, 2, 14); c.fillRect(o + 42 + f, 17, 2, 14);
-      c.fillStyle = '#ffffff'; c.fillRect(o + 35, 15 - h, 2, 2);
+      c.fillRect(o + 27 - f, 17, 2, 14); c.fillRect(o + 43 + f, 17, 2, 14);
+      c.fillStyle = 'rgba(215, 238, 250, 0.9)'; c.fillRect(o + 26 - f, 30, 4, 1); c.fillRect(o + 42 + f, 30, 4, 1);
+      c.fillStyle = '#ffffff'; c.fillRect(o + 35, 15 - h, 2, 2); c.fillRect(o + 34 - f, 16 - h, 1, 1); c.fillRect(o + 37 + f, 16 - h, 1, 1);
     }
     t.refresh();
     t.add(0, 0, 0, 0, 72, 56); t.add(1, 0, 72, 0, 72, 56);
@@ -477,10 +663,6 @@ export function generateTextures(scene: Phaser.Scene) {
   canvas('raindrop', 2, 9, (c) => { c.fillStyle = 'rgba(190, 215, 240, 0.85)'; c.fillRect(0, 0, 2, 9); });
   canvas('puff', 6, 6, (c) => { c.fillStyle = 'rgba(214, 200, 176, 0.9)'; c.beginPath(); c.arc(3, 3, 3, 0, Math.PI * 2); c.fill(); });
 
-  // seasonal particles
-  canvas('leaf', 6, 4, (c) => { c.fillStyle = '#d9822b'; c.fillRect(0, 1, 6, 2); c.fillStyle = '#b5561e'; c.fillRect(1, 0, 3, 4); });
-  canvas('snow', 4, 4, (c) => { c.fillStyle = '#ffffff'; c.fillRect(1, 0, 2, 4); c.fillRect(0, 1, 4, 2); });
-  canvas('petal', 4, 3, (c) => { c.fillStyle = '#f4b6c8'; c.fillRect(0, 0, 4, 3); c.fillStyle = '#ffffff'; c.fillRect(1, 1, 1, 1); });
   canvas('qmark', 18, 22, (c) => {
     c.fillStyle = '#f2c14e'; c.beginPath(); c.arc(9, 9, 9, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#3a2a10'; c.font = 'bold 14px monospace'; c.textAlign = 'center'; c.fillText('?', 9, 14);

@@ -3,7 +3,7 @@ import { L, type Text } from '../i18n';
 import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, keepsakeName, capitalize, type Attributes, type CharacterData } from '../content/character';
 import { BOOKS } from '../content/quiz';
-import { currentPeriod, fmtTime, isSnackTime, isWeekend, PERIODS, periodLabel, phaseOf, SNACK_END, SNACK_START, subjectFor } from './schedule';
+import { currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, PERIODS, periodLabel, phaseOf, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_FOR_EXAM, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { missionById, reached, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday } from './weekend';
@@ -166,8 +166,8 @@ function cemiyet(ctx: GameCtx): PanelView {
             ctx.advance(15);
             ctx.gain({ xp: 20 });
             await ctx.panel.message(T('Ambar', 'Supply room'), T(
-              'Aldıkların: gömlek, lacivert kazak, kravat, pantolon/etek, kışlık mont, okul ayakkabısı, spor ayakkabısı ve eşofman. Montunu kışın unutma!',
-              'You got: shirt, navy sweater, tie, trousers/skirt, a winter coat, school shoes, sports shoes and a tracksuit. Don\'t forget your coat in winter!'));
+              'Aldıkların: gömlek, lacivert kazak, kravat, pantolon/etek, mont, okul ayakkabısı, spor ayakkabısı ve eşofman. Yağmurda montunu unutma!',
+              'You got: shirt, navy sweater, tie, trousers/skirt, a coat, school shoes, sports shoes and a tracksuit. Don\'t forget your coat when it rains!'));
           },
         }],
       },
@@ -486,9 +486,7 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
       ? T(`✓ ${mealName} "Üç Öğün" görevine sayıldı (${3 - left}/3)`, `✓ ${mealName} counted for "Three Meals" (${3 - left}/3)`)
       : T('✓ Üç öğünün hepsi tamam!', '✓ All three meals done!'), 'good');
   }
-  const flu = ctx.clock.day >= 10 && ctx.clock.day <= 20;
-  ctx.st.health = clamp(ctx.st.health + (flu && !doneToday(ctx, 'wash') ? -6 : 3));
-  if (flu && !doneToday(ctx, 'wash')) ctx.toast(T('Ellerini yıkamadan yedin… Grip mevsiminde dikkat!', "You ate without washing your hands… careful in flu season!"));
+  ctx.st.health = clamp(ctx.st.health + 3);
   ctx.advance(30);
   ctx.gain({ hunger: 100, mood: 5, xp: 10 });
   if (ctx.st.once.classDrawn && tablemates.length) {
@@ -629,9 +627,11 @@ function anthemActions(ctx: GameCtx): ActionView[] {
   const st = ctx.st;
   const a = st.anthem;
   if (a.recited) return [];
-  const etut = phaseOf(ctx.clock.minutes) === 'etut';
+  const etut = phaseOf(ctx.clock.minutes, ctx.clock.day) === 'etut';
   const belletmen = ctx.ch.gender === 'girl' ? 'Hatice Hanım' : 'Mehmet Bey';
-  const notAtStudy = etut ? undefined : T('Etüt saatinde çalışılır (18:00–20:00).', 'Done during evening study (18:00–20:00).');
+  const notAtStudy = etut ? undefined : !hasEtut(ctx.clock.day)
+    ? T('Cuma ve Cumartesi etüt yok. Pazar akşamı etütte devam edersin (18:00–20:00).', 'No evening study on Fridays and Saturdays. Carry on at Sunday evening study (18:00–20:00).')
+    : T('Etüt saatinde çalışılır (18:00–20:00, Cuma ve Cumartesi hariç).', 'Done during evening study (18:00–20:00, not on Fridays or Saturdays).');
   if (a.stanzas < ANTHEM_STANZAS) {
     return [{
       id: 'anthem', label: T(`🇹🇷 İstiklal Marşı'nı yaz ve ezberle (${a.stanzas}/${ANTHEM_STANZAS} kıta)`, `🇹🇷 Write out and memorise the İstiklal Marşı (${a.stanzas}/${ANTHEM_STANZAS} stanzas)`),
@@ -640,7 +640,7 @@ function anthemActions(ctx: GameCtx): ActionView[] {
       run: async () => {
         markToday(ctx, 'anthem');
         const hits = await ctx.panel.timing(T('Kıtayı deftere yaz', 'Copy the stanza into your notebook'), 3, 0.24, 1.1);
-        const learned = Math.min(ANTHEM_STANZAS - a.stanzas, hits >= 2 ? 2 : 1);
+        const learned = Math.min(ANTHEM_STANZAS - a.stanzas, hits >= 2 ? 4 : 3); // ten stanzas in three evenings
         a.stanzas += learned;
         ctx.advance(40);
         ctx.gain({ xp: 10 + hits * 4, energy: -4, attrs: { discipline: 1 } });
@@ -671,7 +671,7 @@ function anthemActions(ctx: GameCtx): ActionView[] {
 
 export function deskPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
-  const phase = phaseOf(ctx.clock.minutes);
+  const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
   const hw = st.school.homework[0];
   const book = BOOKS.find((b) => b.id === st.reading.book);
   return {
@@ -775,7 +775,7 @@ export function matePanel(npc: NpcDef, ctx: GameCtx): PanelView {
 export function bedPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const m = ctx.clock.minutes;
-  const phase = phaseOf(m);
+  const phase = phaseOf(m, ctx.clock.day);
   if (!st.once.luggage) {
     return {
       title: T('Yatağın', 'Your bed'), sub: dormAddress(ctx), status: status(ctx),
@@ -828,7 +828,7 @@ export function lockerPanel(ctx: GameCtx): PanelView {
 }
 
 export function tvPanel(ctx: GameCtx): PanelView {
-  const phase = phaseOf(ctx.clock.minutes);
+  const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
   return {
     title: T('Televizyon köşesi', 'TV corner'), status: status(ctx),
     rooms: [{
@@ -845,7 +845,7 @@ export function tvPanel(ctx: GameCtx): PanelView {
 /** the door out of the dorm: shut during study time and at night */
 export function exitPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
-  const phase = phaseOf(ctx.clock.minutes);
+  const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
   const bel = belletmenName(ctx);
   const canEscape = st.year >= ESCAPE_FROM_YEAR || DEV;
   const actions: ActionView[] = [];
@@ -978,7 +978,7 @@ function spor(ctx: GameCtx): PanelView {
 /** the indoor court by the dorms: a pick-up game of one of four sports, once a day */
 function kapaliSaha(ctx: GameCtx): PanelView {
   const st = ctx.st;
-  const phase = phaseOf(ctx.clock.minutes);
+  const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
   const games = [
     { id: 'futbol', name: T('⚽ Salon futbolu', '⚽ Indoor football'), mood: 8, fitness: 2 },
     { id: 'hentbol', name: T('🤾 Hentbol', '🤾 Handball'), mood: 6, fitness: 2 },
@@ -1401,7 +1401,7 @@ function carsiAction(ctx: GameCtx): ActionView {
 export function phonePanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const g = guardianName(ctx);
-  const night = phaseOf(ctx.clock.minutes) === 'night';
+  const night = phaseOf(ctx.clock.minutes, ctx.clock.day) === 'night';
   return {
     title: T('Ankesörlü telefon', 'Payphone'), sub: T(`Telefon kartın: ${st.phoneUnits} kontör`, `Phone card: ${st.phoneUnits} units`), status: status(ctx),
     rooms: [{
@@ -1507,7 +1507,7 @@ function musicRoom(ctx: GameCtx): RoomView {
       const band = m.path === 'band';
       actions.push({
         id: 'show', label: band ? T('🏆 Rock müzik yarışmasına katıl', '🏆 Enter the rock music competition') : T('🎤 Solo resital ver', '🎤 Give a solo recital'),
-        hint: T(`Yılda bir · seviye ${SHOW_SKILL}+ · ilkbaharda`, `Once a year · level ${SHOW_SKILL}+ · in spring`),
+        hint: T(`Yılda bir · seviye ${SHOW_SKILL}+`, `Once a year · level ${SHOW_SKILL}+`),
         locked: m.shows.includes(st.year) ? T('Bu yılki sahneni yaptın.', "You've had your stage moment this year.")
           : m.skill < SHOW_SKILL ? T(`Önce seviye ${SHOW_SKILL}\'a ulaş (${m.skill}).`, `Reach level ${SHOW_SKILL} first (${m.skill}).`) : undefined,
         run: async () => {
@@ -1752,7 +1752,7 @@ const COURT_NAME: Record<CourtSport, Text> = { basketball: { tr: 'Basketbol saha
 
 export function courtPanel(ctx: GameCtx, sport: CourtSport): PanelView {
   const st = ctx.st;
-  const phase = phaseOf(ctx.clock.minutes);
+  const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
   const need = COURT_PLAYERS[sport];
   return {
     title: L(COURT_NAME[sport]), sub: T(`Becerin: ${st.skills[sport]}/100`, `Your skill: ${st.skills[sport]}/100`), status: status(ctx),

@@ -216,7 +216,7 @@ export const MISSIONS: Mission[] = [
   {
     id: 'saglikli_yil', kind: 'challenge',
     title: { tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' },
-    desc: { tr: 'Yılı hiç hastalanmadan bitir. Öğünlerini atlama, uyu, yemekten önce ellerini yıka, kışın geceleri dışarıda kalma.', en: "Finish the year without getting sick. Don't skip meals, get your sleep, wash your hands before meals and don't stay out on winter nights." },
+    desc: { tr: 'Yılı hiç hastalanmadan bitir. Öğünlerini atlama, uyu, yağmurda montsuz dolaşma, geceleri dışarıda kalma.', en: "Finish the year without getting sick. Don't skip meals, get your sleep, keep your coat on in the rain and don't stay out at night." },
     requires: [],
     objectives: [{ id: 'healthy', text: { tr: 'Karne gününe kadar hastalanma', en: "Don't get sick before report card day" }, done: (c) => c.st.yearDone && !c.st.everSick }],
     failed: (c) => c.st.everSick,

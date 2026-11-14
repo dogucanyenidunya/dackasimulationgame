@@ -165,7 +165,7 @@ export function average(xs: number[]): number | null {
   return xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
 }
 
-export const YEAR1_XP = 2000;
+export const YEAR1_XP = 1000;
 export const grade = (year: number) => year + 3;
 /** sneaking out of the dorm unlocks in grade 6 (add ?dev to the URL to try it earlier) */
 export const ESCAPE_FROM_YEAR = 3;
@@ -190,12 +190,3 @@ export function dormPlace(year: number): { block: 'A1' | 'A2' | 'A3'; floor: num
 export const LESSONS_FOR_EXAM = 6;
 export const FRIEND_AT = 40;
 
-/** autumn → winter (flu season, coat matters) → spring, by day of the school year */
-export function season(day: number): 'autumn' | 'winter' | 'spring' {
-  return day < 10 ? 'autumn' : day <= 20 ? 'winter' : 'spring';
-}
-export const SEASON_NAME: Record<ReturnType<typeof season>, Text> = {
-  autumn: { tr: 'Sonbahar', en: 'Autumn' },
-  winter: { tr: 'Kış · grip mevsimi', en: 'Winter · flu season' },
-  spring: { tr: 'İlkbahar', en: 'Spring' },
-};

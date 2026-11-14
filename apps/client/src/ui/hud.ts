@@ -382,9 +382,9 @@ export class Hud {
     (this.root.querySelector('.hud-name') as HTMLElement).textContent = name;
   }
 
-  setClock(day: number, minutes: number, periodText: string, seasonText = '') {
+  setClock(day: number, minutes: number, periodText: string, weatherText = '') {
     const names = t('days').split(',');
-    this.clockDay.textContent = `${names[(day - 1) % 7]} · ${t('day_n', { n: day })}${seasonText ? ` · ${seasonText}` : ''}`;
+    this.clockDay.textContent = `${names[(day - 1) % 7]} · ${t('day_n', { n: day })}${weatherText ? ` · ${weatherText}` : ''}`;
     const h = Math.floor(minutes / 60) % 24;
     const m = Math.floor(minutes % 60);
     this.clockTime.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;

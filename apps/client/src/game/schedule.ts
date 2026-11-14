@@ -35,13 +35,16 @@ export const ETUT_START = h(18);
 export const PLAZA_START = h(20);
 export const LIGHTS_OUT = h(22);
 export const WAKE_UP = h(7);
+/** no evening study on Fridays and Saturdays: 18:00–22:00 is all free time around the dorms */
+export const hasEtut = (day: number) => ((day - 1) % 7) < 4 || ((day - 1) % 7) === 6;
 export type DayPhase = 'day' | 'etut' | 'plaza' | 'night';
-export function phaseOf(minutes: number): DayPhase {
+export function phaseOf(minutes: number, day: number): DayPhase {
   if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return 'night';
   if (minutes >= PLAZA_START) return 'plaza';
-  if (minutes >= ETUT_START) return 'etut';
+  if (minutes >= ETUT_START) return hasEtut(day) ? 'etut' : 'plaza';
   return 'day';
 }
+const NO_ETUT_EVENING: Period = { id: 'plaza', kind: 'plaza', start: ETUT_START, end: LIGHTS_OUT, name: { tr: 'Etüt yok · yurtlar çevresinde serbest', en: 'No study tonight · free time around the dorms' } };
 
 /** afternoon snack (ara öğün) at the dining hall counter; it runs alongside sports & clubs */
 export const SNACK_START = h(16);
@@ -57,6 +60,7 @@ export const isWeekend = (day: number) => ((day - 1) % 7) >= 5;
 export function currentPeriod(day: number, minutes: number): Period | null {
   const p = PERIODS.find((x) => minutes >= x.start && minutes < x.end) ?? null;
   if (p && p.kind === 'lesson' && isWeekend(day)) return null;
+  if (p && p.kind === 'etut' && !hasEtut(day)) return NO_ETUT_EVENING;
   return p;
 }
 

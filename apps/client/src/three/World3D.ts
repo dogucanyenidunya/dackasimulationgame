@@ -120,7 +120,8 @@ export class World3D {
   private lastRoom: RoomKey | 'none' = 'none';
   private mirrors = new Map<Phaser.GameObjects.GameObject, Mirror>();
   private baseTex = new Map<CanvasImageSource, THREE.Texture>();
-  private buildings: Array<{ b: Building; group: THREE.Group; box: THREE.Box3; mats: THREE.Material[]; faded: boolean; height: number }> = [];
+  /** `solid`: the walls and roof, which the occlusion ray tests (its `box` is just a quick pre-check) */
+  private buildings: Array<{ b: Building; group: THREE.Group; box: THREE.Box3; solid: THREE.Object3D[]; mats: THREE.Material[]; faded: boolean; height: number }> = [];
   private windowMats: THREE.MeshLambertMaterial[] = [];
   private glowMats: THREE.MeshBasicMaterial[] = [];
   private pools: THREE.Mesh[] = [];
@@ -304,10 +305,10 @@ export class World3D {
     this.fog = { canvas: c, g, tex, timer: 1e9, hideables: [] };
   }
 
-  /** the white façade module (plus a matching "lit windows" map): 4 windows wide and one floor high,
-   *  a glass curtain wall, or the round hall's drum (one glass slit per tile) */
+  /** the white façade module (plus a matching "lit windows" map): 8 windows wide and one floor high,
+   *  a glass curtain wall (4 tiles), or the round hall's drum (one glass slit per tile) */
   private facadeTextures(style: 'ribbon' | 'glass' | 'drum', seed: number) {
-    const W = style === 'drum' ? 32 : 128, H = 40;
+    const W = style === 'drum' ? 32 : style === 'glass' ? 128 : 256, H = 40;
     const { c, g } = canvas(W, H);
     const { c: e, g: eg } = canvas(W, H);
     eg.fillStyle = '#000'; eg.fillRect(0, 0, W, H);
@@ -326,15 +327,31 @@ export class World3D {
       g.fillStyle = '#e4e7e8'; g.fillRect(0, 0, 2, H);
       eg.fillStyle = '#fff0c4'; eg.fillRect(10, 8, 12, H - 13);
     } else {
-      for (let i = 0; i < 4; i++) {
+      // plaster with a little grain, and the floor slab with a lit top edge
+      for (let i = 0; i < 360; i++) { g.fillStyle = r() < 0.5 ? '#e7e9e6' : '#fafbf9'; g.fillRect(Math.floor(r() * W), Math.floor(r() * (H - 4)), 1, 1); }
+      g.fillStyle = '#f7f8f6'; g.fillRect(0, H - 4, W, 1);
+      const curtains = ['#e8d8b0', '#c9d6e3', '#e6c3b8', '#d8e4c8', '#f0e6d2', '#b8c9a8'];
+      for (let i = 0; i < 8; i++) {
         const x = i * 32 + 4;
-        g.fillStyle = '#4f6f8c'; g.fillRect(x, 8, 20, 24);
-        g.fillStyle = '#9cc0dd'; g.fillRect(x, 8, 20, 4); g.fillRect(x + 3, 15, 5, 2);
-        g.fillStyle = '#e8ecef'; g.fillRect(x + 9, 8, 2, 24);
-        g.fillStyle = '#c9ced2'; g.fillRect(x - 1, 32, 22, 2);
-        g.fillStyle = '#c98a4b'; g.fillRect(x + 22, 5, 4, 31);
+        g.fillStyle = '#c3c8cb'; g.fillRect(x - 1, 7, 22, 26);         // frame
+        g.fillStyle = '#4f6f8c'; g.fillRect(x, 8, 20, 24);             // glass
+        g.fillStyle = '#2f475c'; g.fillRect(x, 8, 20, 3); g.fillRect(x, 8, 2, 24); // reveal shadow (top and left)
+        g.fillStyle = '#7fa3c2'; g.fillRect(x + 11, 12, 6, 2); g.fillRect(x + 13, 14, 4, 2); // sky reflection
+        const lit = r() < 0.55;
+        if (r() < 0.5) {
+          // a curtain drawn to one side, its folds catching the light
+          const cx = r() < 0.5 ? x + 2 : x + 13, col = curtains[Math.floor(r() * curtains.length)];
+          g.fillStyle = col; g.fillRect(cx, 11, 5, 21);
+          g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(cx + 1, 11, 1, 21); g.fillRect(cx + 3, 11, 1, 21);
+          if (lit) { eg.fillStyle = '#ffb35c'; eg.fillRect(cx, 11, 5, 21); }
+        }
+        g.fillStyle = '#e8ecef'; g.fillRect(x + 9, 8, 2, 24);           // mullion
+        g.fillStyle = '#d9dde0'; g.fillRect(x - 2, 32, 24, 2);          // sill
+        g.fillStyle = '#aab0b4'; g.fillRect(x - 2, 34, 24, 1);
+        g.fillStyle = '#c98a4b'; g.fillRect(x + 22, 5, 4, 31);          // wooden fin
         g.fillStyle = '#9c6633'; g.fillRect(x + 25, 5, 1, 31);
-        if (r() < 0.7) { eg.fillStyle = r() < 0.25 ? '#fff0c4' : '#ffd57e'; eg.fillRect(x, 11, 20, 21); }
+        g.fillStyle = '#ddb07c'; g.fillRect(x + 22, 5, 1, 31);
+        if (lit) { eg.fillStyle = r() < 0.25 ? '#fff0c4' : '#ffd57e'; for (const [ex, ew] of [[x + 2, 7], [x + 11, 9]]) eg.fillRect(ex, 11, ew, 21); }
       }
     }
     return { map: pixelTex(c, true), emissive: pixelTex(e, true) };
@@ -372,10 +389,10 @@ export class World3D {
     const group = new THREE.Group();
     const mats: THREE.Material[] = [];
     const facade = b.id === 'spor' || b.id === 'kapali_saha' ? 'glass' : b.id === 'tim' ? 'drum' : 'ribbon';
-    const module = facade === 'drum' ? 1 : 4; // tiles per texture repeat along the wall
+    const module = facade === 'drum' ? 1 : facade === 'glass' ? 4 : 8; // tiles per texture repeat along the wall
     const tex = this.facadeTextures(facade, Math.round(r.x * 31 + r.y));
     tex.map.repeat.set(1, floors); tex.emissive.repeat.set(1, floors);
-    const wallMat = new THREE.MeshLambertMaterial({ map: tex.map, emissiveMap: tex.emissive, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0 });
+    const wallMat = new THREE.MeshLambertMaterial({ map: tex.map, emissiveMap: tex.emissive, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0, vertexColors: true });
     this.windowMats.push(wallMat); mats.push(wallMat);
     const roofMat = new THREE.MeshLambertMaterial({ map: this.roofTexture(b) }); mats.push(roofMat);
     const rim = new THREE.MeshLambertMaterial({ color: b.roof === 'white' ? 0xf7f8f9 : 0xe6eaed }); mats.push(rim);
@@ -389,19 +406,27 @@ export class World3D {
     };
 
     // walls: outline edges face out; courtyard edges (walked backwards) face into the yard
-    const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+    const pos: number[] = [], nor: number[] = [], uv: number[] = [], col: number[] = [], idx: number[] = [];
+    // walls are built in strips so they can darken towards the ground (cheap ambient occlusion)
+    const strips = [0, 0.35, 0.8, 1.5].filter((h) => h < H - 0.1).concat(H);
+    const ao = (h: number) => 0.68 + 0.32 * Math.min(1, h / 1.6) ** 0.7;
     const wall = (ax: number, az: number, bx: number, bz: number, u0: number) => {
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 1e-3) return;
       const nx = (bz - az) / len, nz = -(bx - ax) / len;
-      const i0 = pos.length / 3;
-      pos.push(ax, 0, az, bx, 0, bz, bx, H, bz, ax, H, az);
-      for (let i = 0; i < 4; i++) nor.push(nx, 0, nz);
       // seen from outside, A is on the right: u runs right-to-left along the outline so modules continue round corners
       const ua = u0 / module, ub = (u0 - len) / module;
-      uv.push(ua, 0, ub, 0, ub, 1, ua, 1);
-      idx.push(i0, i0 + 3, i0 + 2, i0, i0 + 2, i0 + 1);
+      for (let k = 0; k < strips.length - 1; k++) {
+        const h0 = strips[k], h1 = strips[k + 1], i0 = pos.length / 3;
+        pos.push(ax, h0, az, bx, h0, bz, bx, h1, bz, ax, h1, az);
+        for (let i = 0; i < 4; i++) nor.push(nx, 0, nz);
+        uv.push(ua, h0 / H, ub, h0 / H, ub, h1 / H, ua, h1 / H);
+        for (const h of [h0, h0, h1, h1]) { const c = ao(h); col.push(c, c, c); }
+        idx.push(i0, i0 + 3, i0 + 2, i0, i0 + 2, i0 + 1);
+      }
     };
+    const band = new THREE.MeshLambertMaterial({ color: 0xe4e6e5 }); mats.push(band);
+    const pipe = new THREE.MeshLambertMaterial({ color: 0x9aa1a6 }); mats.push(pipe);
     const ring = (pts: Pt[], inward: boolean) => {
       let s = 0;
       for (let i = 0; i < pts.length; i++) {
@@ -414,6 +439,15 @@ export class World3D {
         const mx = (a[0] + c[0]) / 2, mz = (a[1] + c[1]) / 2;
         part(rim, new THREE.BoxGeometry(len + 0.08, 0.22, 0.16), mx - nx * 0.08, H + 0.11, mz - nz * 0.08, ang);
         part(stone, new THREE.BoxGeometry(len + 0.06, 0.22, 0.08), mx + nx * 0.03, 0.11, mz + nz * 0.03, ang);
+        // floor slabs show as thin bands, with a deeper cornice under the parapet
+        for (let f = 1; f < floors; f++) part(band, new THREE.BoxGeometry(len + 0.08, 0.06, 0.08), mx + nx * 0.03, (f * H) / floors - 0.02, mz + nz * 0.03, ang);
+        part(band, new THREE.BoxGeometry(len + 0.12, 0.12, 0.14), mx + nx * 0.05, H - 0.08, mz + nz * 0.05, ang);
+        // a downpipe where the outline turns a real corner
+        if (!inward && b.id !== 'tim') {
+          const nxt = pts[(i + 2) % pts.length];
+          const turn = Math.abs(Math.atan2((c[0] - a[0]) * (nxt[1] - c[1]) - (c[1] - a[1]) * (nxt[0] - c[0]), (c[0] - a[0]) * (nxt[0] - c[0]) + (c[1] - a[1]) * (nxt[1] - c[1])));
+          if (turn > 0.5) part(pipe, new THREE.CylinderGeometry(0.045, 0.045, H - 0.1, 6), c[0] + nx * 0.07 - (c[0] - a[0]) / len * 0.18, (H - 0.1) / 2, c[1] + nz * 0.07 - (c[1] - a[1]) / len * 0.18);
+        }
       }
     };
     ring(b.shape, false);
@@ -422,6 +456,7 @@ export class World3D {
     wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     wg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     wg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    wg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     wg.setIndex(idx);
     const walls = new THREE.Mesh(wg, wallMat);
     walls.castShadow = walls.receiveShadow = true;
@@ -436,13 +471,14 @@ export class World3D {
     const roof = new THREE.Mesh(rg, roofMat);
     roof.receiveShadow = true;
     group.add(roof);
+    const solid: THREE.Object3D[] = [walls, roof];
     const cx = r.x + r.w / 2, cz = r.y + r.h / 2;
     const shell = new THREE.MeshLambertMaterial({ color: 0xeef1f3 }); mats.push(shell);
     if (style === 'dome') {
       // a shallow dome with a lantern on top
       const dome = new THREE.Mesh(new THREE.SphereGeometry(Math.min(r.w, r.h) / 2 - 0.35, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell);
       dome.scale.y = 0.38; dome.position.set(cx, H + 0.05, cz); dome.castShadow = dome.receiveShadow = true;
-      group.add(dome);
+      group.add(dome); solid.push(dome);
       part(rim, new THREE.CylinderGeometry(0.45, 0.5, 0.35, 16), cx, H + 0.05 + (Math.min(r.w, r.h) / 2 - 0.35) * 0.38 + 0.12, cz);
     } else if (style === 'vault') {
       // a barrel vault along the hall's length, closed by half-disc gables
@@ -451,7 +487,7 @@ export class World3D {
       vg.rotateX(-Math.PI / 2);
       const vault = new THREE.Mesh(vg, shell);
       vault.scale.y = 0.3; vault.position.set(cx, H + 0.05, cz + 0.3); vault.castShadow = vault.receiveShadow = true;
-      group.add(vault);
+      group.add(vault); solid.push(vault);
     } else {
       // solar panels: tilted rows
       const solarMat = new THREE.MeshLambertMaterial({ color: 0x2f4f84 }); mats.push(solarMat);
@@ -460,16 +496,48 @@ export class World3D {
         panel.rotateX(-0.35);
         part(solarMat, panel, s.x + s.w / 2, H + 0.25, z + 0.2);
       }
-      // rooftop units where there's room
+      // what sits on a flat roof: a stair housing, a water tank, an antenna and the AC units, wherever there's room
       const r2 = rng(Math.round(r.x * 7 + r.y * 3));
       const unitMat = new THREE.MeshLambertMaterial({ color: 0xc4cacf }); mats.push(unitMat);
-      const feats = [...(b.solar ?? []), ...(b.skylights ?? []), ...(b.greenPatches ?? [])];
-      for (let i = 0, placed = 0; i < 60 && placed < Math.max(2, Math.floor(r.w / 5)); i++) {
-        const ux = r.x + r2() * r.w, uz = r.y + r2() * r.h;
-        if (!inBuilding(ux, uz, b) || nearestEdge(ux, uz, b.shape).d < 0.9 || (b.courtyard && nearestEdge(ux, uz, b.courtyard).d < 0.9)) continue;
-        if (feats.some((f) => ux > f.x - 0.8 && ux < f.x + f.w + 0.8 && uz > f.y - 0.8 && uz < f.y + f.h + 0.8)) continue;
+      const darkMat = new THREE.MeshLambertMaterial({ color: 0x4a5258 }); mats.push(darkMat);
+      const taken: Array<{ x: number; z: number; r: number }> = [...(b.solar ?? []), ...(b.skylights ?? []), ...(b.greenPatches ?? [])]
+        .map((f) => ({ x: f.x + f.w / 2, z: f.y + f.h / 2, r: Math.hypot(f.w, f.h) / 2 + 0.5 }));
+      const spot = (rad: number): [number, number] | null => {
+        for (let i = 0; i < 80; i++) {
+          const ux = r.x + r2() * r.w, uz = r.y + r2() * r.h;
+          if (!inBuilding(ux, uz, b) || nearestEdge(ux, uz, b.shape).d < rad + 0.5 || (b.courtyard && nearestEdge(ux, uz, b.courtyard).d < rad + 0.5)) continue;
+          if (b.passages?.some((p) => ux > p.x - rad && ux < p.x + p.w + rad && uz > p.y - rad - 0.3 && uz < p.y + p.h + rad + 0.3)) continue;
+          if (taken.some((t) => Math.hypot(t.x - ux, t.z - uz) < t.r + rad)) continue;
+          taken.push({ x: ux, z: uz, r: rad });
+          return [ux, uz];
+        }
+        return null;
+      };
+      if (r.w * r.h > 40) {
+        const st = spot(1.0);
+        if (st) {
+          part(unitMat, new THREE.BoxGeometry(1.6, 1.0, 1.1), st[0], H + 0.5, st[1]);
+          part(rim, new THREE.BoxGeometry(1.7, 0.08, 1.2), st[0], H + 1.04, st[1]);
+          part(darkMat, new THREE.BoxGeometry(0.5, 0.75, 0.04), st[0] + 0.3, H + 0.4, st[1] + 0.56);
+        }
+        const wt = spot(0.5);
+        if (wt) {
+          part(stone, new THREE.BoxGeometry(0.7, 0.25, 0.7), wt[0], H + 0.13, wt[1]);
+          part(unitMat, new THREE.CylinderGeometry(0.34, 0.34, 0.6, 12), wt[0], H + 0.55, wt[1]);
+          part(rim, new THREE.CylinderGeometry(0.36, 0.36, 0.05, 12), wt[0], H + 0.86, wt[1]);
+        }
+        const an = spot(0.3);
+        if (an) {
+          part(darkMat, new THREE.CylinderGeometry(0.025, 0.035, 1.6, 5), an[0], H + 0.8, an[1]);
+          for (const y of [1.1, 1.4]) part(darkMat, new THREE.BoxGeometry(0.5, 0.025, 0.025), an[0], H + y, an[1]);
+        }
+      }
+      for (let i = 0, placed = 0; i < 20 && placed < Math.max(2, Math.floor(r.w / 5)); i++) {
+        const u = spot(0.5);
+        if (!u) break;
         const h = 0.35 + r2() * 0.3;
-        part(unitMat, new THREE.BoxGeometry(0.5 + r2() * 0.5, h, 0.4 + r2() * 0.3), ux, H + h / 2 + 0.05, uz);
+        part(unitMat, new THREE.BoxGeometry(0.5 + r2() * 0.5, h, 0.4 + r2() * 0.3), u[0], H + h / 2 + 0.05, u[1]);
+        part(darkMat, new THREE.CylinderGeometry(0.14, 0.14, 0.03, 10), u[0], H + h + 0.07, u[1]);
         placed++;
       }
     }
@@ -536,8 +604,10 @@ export class World3D {
     }
     group.add(this.contactShadow(b));
     this.scene.add(group);
-    const box = new THREE.Box3().setFromObject(group);
-    this.buildings.push({ b, group, box, mats, faded: false, height: H + 0.2 });
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    for (const o of solid) box.expandByObject(o);
+    this.buildings.push({ b, group, box, solid, mats, faded: false, height: H + 0.2 });
     this.fog.hideables.push({ obj: group, x: r.x + r.w / 2, y: r.y + r.h / 2 });
   }
 
@@ -1088,9 +1158,11 @@ export class World3D {
     const dir = head.clone().sub(this.camera.position);
     const len = dir.length();
     this.ray.set(this.camera.position, dir.normalize());
+    this.ray.far = len - 0.2;
     for (const b of this.buildings) {
-      const hit = this.ray.ray.intersectBox(b.box, new THREE.Vector3());
-      const fade = !!hit && hit.distanceTo(this.camera.position) < len - 0.2;
+      // slanted and round buildings leave a lot of their bounding box empty: test the real walls and roof
+      const near = this.ray.ray.intersectBox(b.box, new THREE.Vector3());
+      const fade = !!near && near.distanceTo(this.camera.position) < len - 0.2 && this.ray.intersectObjects(b.solid, false).length > 0;
       if (fade === b.faded) continue;
       b.faded = fade;
       for (const m of b.mats) { m.transparent = fade; m.opacity = fade ? 0.3 : 1; m.depthWrite = !fade; m.needsUpdate = true; }
@@ -1103,27 +1175,19 @@ export class World3D {
     if (kind !== this.weather.kind) {
       if (this.weather.points) { this.scene.remove(this.weather.points); this.weather.points.geometry.dispose(); (this.weather.points.material as THREE.Material).dispose(); }
       this.weather = { kind, points: null, vel: null };
-      if (kind === 'none') return;
-      const rain = kind === 'rain';
-      const n = rain ? 900 : kind === 'blizzard' ? 700 : 220;
-      const pos = new Float32Array(n * (rain ? 6 : 3));
+      if (kind !== 'rain') return;
+      const n = 900;
+      const pos = new Float32Array(n * 6);
       const vel = new Float32Array(n);
       const r = rng(9);
       for (let i = 0; i < n; i++) {
         const x = (r() - 0.5) * 44, y = r() * 14, z = (r() - 0.5) * 36;
-        vel[i] = rain ? 18 + r() * 6 : 0.6 + r() * (kind === 'blizzard' ? 2.5 : 0.8);
-        if (rain) pos.set([x, y, z, x - 0.08, y + 0.45, z], i * 6);
-        else pos.set([x, y, z], i * 3);
+        vel[i] = 18 + r() * 6;
+        pos.set([x, y, z, x - 0.08, y + 0.45, z], i * 6);
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      if (rain) {
-        this.weather.points = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xbfd4e6, transparent: true, opacity: 0.55 }));
-      } else {
-        const key = kind === 'winter' || kind === 'blizzard' ? 'snow' : kind === 'autumn' ? 'leaf' : 'petal';
-        const src = this.host.scene.textures.exists(key) ? this.host.scene.textures.get(key).getSourceImage() as HTMLCanvasElement : undefined;
-        this.weather.points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.22, map: src ? this.baseTexture(src) : null, transparent: true, alphaTest: 0.3, color: 0xffffff }));
-      }
+      this.weather.points = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xbfd4e6, transparent: true, opacity: 0.55 }));
       this.weather.vel = vel;
       this.weather.points.frustumCulled = false;
       this.scene.add(this.weather.points);
@@ -1132,19 +1196,11 @@ export class World3D {
     if (!p || !this.weather.vel) return;
     p.position.set(this.target.x, 0, this.target.z);
     const arr = p.geometry.attributes.position.array as Float32Array;
-    const rain = this.weather.kind === 'rain';
     const step = dt / 1000;
     for (let i = 0; i < this.weather.vel.length; i++) {
-      const v = this.weather.vel[i] * step;
-      if (rain) {
-        const k = i * 6;
-        arr[k + 1] -= v; arr[k + 4] -= v; arr[k] -= v * 0.15; arr[k + 3] -= v * 0.15;
-        if (arr[k + 1] < 0) { arr[k + 1] += 14; arr[k + 4] += 14; arr[k] += 2; arr[k + 3] += 2; }
-      } else {
-        const k = i * 3;
-        arr[k + 1] -= v; arr[k] += Math.sin((arr[k + 1] + i) * 1.3) * step * 0.6;
-        if (arr[k + 1] < 0) arr[k + 1] += 14;
-      }
+      const v = this.weather.vel[i] * step, k = i * 6;
+      arr[k + 1] -= v; arr[k + 4] -= v; arr[k] -= v * 0.15; arr[k + 3] -= v * 0.15;
+      if (arr[k + 1] < 0) { arr[k + 1] += 14; arr[k + 4] += 14; arr[k] += 2; arr[k + 3] += 2; }
     }
     p.geometry.attributes.position.needsUpdate = true;
   }

@@ -92,7 +92,7 @@ DAY (≈ 25 real minutes, shared campus clock)
   wake up → breakfast → lessons → lunch → lessons → free time / clubs / sports
   → dinner → etüt (homework) → dorm time → lights out (optional sneaking)
 
-YEAR (player-paced, ≈ 4–8 hours of play)  [TUNE]
+YEAR (player-paced; Year 1 ≈ 2 hours of play, later years longer)  [TUNE]
   get the year's missions → earn XP, grades and relationships → 2 semesters and 2 report cards
   → meet the year gate → year-end exam → summer holiday → next grade
 
@@ -382,10 +382,7 @@ Needs are intentionally gentle. They give the day a rhythm, and **neglecting the
 |---|---|
 | Sleeping too little (energy < 15 overnight) | −10 |
 | Skipping meals (hunger < 20) | −5 per game hour |
-| Outdoors in winter **without your coat** | −3 per game hour |
 | Out in the rain | −2 per game hour |
-| Sneaking out at night in winter | −5 |
-| Sitting or standing next to sick students during **flu season** (winter weeks) | −4 per game hour (sick NPCs and players show a sniffle icon) |
 
 **What raises Health:**
 | Action | Health |
@@ -423,7 +420,7 @@ Needs are intentionally gentle. They give the day a rhythm, and **neglecting the
 
 | Year | Grade | Age | XP to advance |
 |---|---|---|---|
-| 1 | 4 | 9 | 2,000 |
+| 1 | 4 | 9 | 1,000 |
 | 2 | 5 | 10 | 2,600 |
 | 3 | 6 | 11 | 3,200 |
 | 4 | 7 | 12 | 3,800 |
@@ -603,7 +600,7 @@ Every year also has a **Museum chapter** (*Müze*): a short lore quest in the Ce
 | 6 | *İlk Ders*: attend a lesson | 5 | Homework, study hall |
 | 7 | *Üç Öğün*: breakfast, lunch and dinner in the dining hall | 6 | Everything below |
 | 8 | *Beş Arkadaş* · *İlk Kitabım* · *Spora Başla* · *Abi'den Sandviç* · *Sınavları Geç* (any order) | 7 | Report Card Day |
-| 9 | *Karne Günü*: 2000 XP + the ceremony in the auditorium | all of 8 | Year 2 |
+| 9 | *Karne Günü*: 1000 XP + the ceremony in the auditorium | all of 8 | Year 2 |
 | ★ | *Sağlıklı Bir Yıl* (challenge, runs all year) | — | Medal |
 
 **Main missions (all required to pass Year 1):**
@@ -618,7 +615,7 @@ Every year also has a **Museum chapter** (*Müze*): a short lore quest in the Ce
 | 6 | ***Üç Öğün*** (Three meals) | Eat **at least one breakfast, one lunch and one dinner** in the Yemekhane | Meal windows: 07:30 / 12:30 / 18:30. Wash your hands at the sinks, take a tray and **choose a table**: sit with friends or with strangers (a good way to start mission 3) | 30 XP per meal type, *Afiyet Olsun* stamp |
 | 7 | ***İlk Kitabım*** (My first book) | **Read at least 1 book** from the library | Borrow from the age 9–10 shelf at the Kütüphane. Read it in **3 sessions** of about one game hour each (library: +25% speed; dorm or plaza bench: normal). Then have a **book chat** with the librarian: 3 questions about the story | 120 XP, +Knowledge, the **reading list** unlocks (more books, more XP) |
 | 8 | ***Spora Başla*** (Join a sport) | **Enroll in one sport** | Talk to the coach at the Spor Salonu, play a short **try-out minigame**, then pick your sport (table below). One sport in Year 1; a second can be added from Year 2 | 100 XP, team tracksuit cosmetic, the sport's skill track |
-| 9 | ***Sağlıklı Bir Yıl*** (A healthy year) | **Finish Year 1 without getting sick** | Uses the health system (§6.2.1). Eat your meals, sleep, wear your coat in winter, wash your hands, and don't sit next to a sniffling classmate during flu season. **If you get sick, this mission fails**, and the year can still be finished (see note) | *Demir Gibi* ("Iron Kid") medal, +10 Fitness, +50 Respect |
+| 9 | ***Sağlıklı Bir Yıl*** (A healthy year) | **Finish Year 1 without getting sick** | Uses the health system (§6.2.1). Eat your meals, sleep, wear your coat in the rain, and don't sit next to a sniffling classmate during flu season. **If you get sick, this mission fails**, and the year can still be finished (see note) | *Demir Gibi* ("Iron Kid") medal, +10 Fitness, +50 Respect |
 
 Mission 9 is a **challenge**: it shows in the Year 1 list with a big reward, but failing it doesn't block the Year Gate.
 
@@ -938,7 +935,7 @@ Input: keyboard and mouse (WASD or arrows, E to interact) plus click-to-move. De
 
 **Art:**
 - 32×32 px pixel art in a **3/4 top-down view** (like Stardew Valley): you see each building's roof and its front façade
-- Day/night lighting, seasonal tile swaps (autumn leaves, snow, spring)
+- Day/night lighting and rain (no seasons, see v0.10)
 
 **Taken from the aerial render** ([reference/campus-aerial.webp](reference/campus-aerial.webp)):
 | Element | In the render | In pixel art |
@@ -1199,7 +1196,7 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 
 **Cemil Emmi** (boys' dorm caretaker; outside the boys' dorm 08:00–18:00 for everyone, inside the boys' dorm for boys). Task 1 "Çişini tut" (grades 4–5): around 03:00 a "hold it!" minigame. Fail → retry every night until you hold it. Each failed night raises the chance of being mocked in the morning (−respect, −mood, and the mocker's friendship drops).
 
-**İstiklal Marşı:** an evening-study task at your desk: write out and memorise the 10 stanzas (1–2 per evening), then recite them to your belletmen (rhythm game, 7/10 to pass). Required before report card day.
+**İstiklal Marşı:** an evening-study task at your desk: write out and memorise the 10 stanzas (3–4 per evening), then recite them to your belletmen (rhythm game, 7/10 to pass). Required before report card day.
 
 **Student council:**
 1. Run for class rep on the board in the academic building; the election is 2 school days later.
@@ -1226,3 +1223,13 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 **Wednesday çarşı izni (15:30–18:00):**
 - Your family waits at the canteen.
 - From 6th grade you can go into town for 2 hours from the main gate.
+
+---
+
+## v0.10 changes (prototype)
+
+**Year 1 length:** the whole year should fit in **2 real hours**. It needs **1,000 XP** (was 2,000), the main missions and the year-end exam. The İstiklal Marşı now goes 3–4 stanzas per evening, so it takes three evenings instead of a full week.
+
+**No seasons:** the autumn / winter / spring cycle is gone. Trees stay in leaf, nothing falls from the sky except rain (about one day in four), and the flu-season and winter-coat health rules are removed. Rain without your coat still costs a little health.
+
+**Dilemmas:** Year 1 has **3** dilemma moments (planned, not built yet).

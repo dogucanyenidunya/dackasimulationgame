@@ -116,12 +116,14 @@ function generate(): NpcDef[] {
   for (let i = 0; i < 8; i++) out.push(make('classmate', i));
   for (let i = 0; i < 20; i++) out.push(make('student', i));
   for (let i = 0; i < 4; i++) out.push(make('abi', i));
-  return out;
+  // everyone is still generated (so the ones kept look and are named as in older saves), but only some show up
+  const keep: Record<string, number> = { classmate: 4, student: 6, abi: 1 };
+  return out.filter((n) => Number(n.id.split('-')[1]) < keep[n.kind]);
 }
 
 const withGender = (h: Omit<NpcDef, 'gender'>): NpcDef => ({ ...h, group: HAND_GROUPS[h.id], grade: h.kind === 'abi' ? (h.id === 'burak' ? 11 : 10) : 4, fixed: h.kind === 'abi', gender: h.look.skirt || h.look.hairStyle === 2 || h.look.hairStyle === 3 ? 'girl' : 'boy' });
 
-/** 40 students: 14 classmates, 20 from other classes, 6 older students */
+/** about 20 students: the handmade cast plus a few generated classmates, students from other classes and older students */
 export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];
 
 /** night teachers: on duty from 18:00 to 07:00 */
