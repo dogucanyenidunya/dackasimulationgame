@@ -1237,6 +1237,14 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 2. **Behind the dorm:** from day 2, on the dorm plaza between 20:20 and 21:40. You see Burak Abi and Ece Abla kissing. Choices: tell your belletmen, walk away and say nothing, tell your friends, or let them know you saw and ask for something.
 3. **The first party:** straight after the karne ceremony, in the Kapalı Saha. Choices: ask a classmate to be your partner (they may say no), wait to be asked, go with your friend group, or skip it.
 
+**Everyday actions** nudge the same axes by 1–4 points (dilemmas move them 5–10), for example:
+- *Haylaz*: whispering or daydreaming in class, playing at etüt, copying homework, sneaking out (+3), being late or caught. *Uslu*: taking notes, homework, the anthem, helping the belletmen.
+- *Hırslı*: answering in class, homework, try-outs, training, practice, running for class rep (+4). *Rahat*: films, TV, daydreaming.
+- *Gösterişli*: jokes, nicknames, shows, campaigning, speeches. *Sessiz*: eating alone, the roof terrace, drawing at your desk.
+- *Sert*: teasing and mocking (+3), gossip, nicknames. *Şefkatli*: sharing a simit, apologising, helping an abi.
+- *Devreci*: eating with others, games together, calling friends to the court. *Kendi yolunda*: gossiping about someone.
+- *Açık*: chatting, sharing a secret (+3), the counselor, the nurse, letters and calls home.
+
 The karne card shows "Who you're becoming": your two strongest leanings. New characters start with a 30-unit phone card from home, so the phone queue can happen in Year 1.
 
 **Student routine:** every student follows the timetable (`game/routine.ts`), each a few minutes early or late:

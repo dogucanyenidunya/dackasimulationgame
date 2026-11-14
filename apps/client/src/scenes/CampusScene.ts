@@ -26,7 +26,7 @@ import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CL
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, carsiNow, isFriday, isWednesday, weekday } from '../game/weekend';
 import { activityOf, teacherActivity, type Activity, type Indoors, type RoutineClock } from '../game/routine';
-import { dilemmaDone, runDilemma, temperLabel, type DilemmaId } from '../game/dilemmas';
+import { dilemmaDone, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
 import { BELLETMENS, GROUPS, NPCS, TEACHER_NPCS, ageGroup, type NpcDef } from '../content/npcs';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
@@ -2150,6 +2150,7 @@ export class CampusScene extends Phaser.Scene {
       // you walk to the dorm yourself; being 5+ minutes late costs discipline and your belletmen's goodwill
       if (c.minutes >= 18 * 60 + 5 && st.daily.lateEtut !== day) {
         st.daily.lateEtut = day;
+        shape(st, { rules: 1 });
         this.penalize(5, L({ tr: `${belletmen}: "Etüte geç kaldın!"`, en: `${belletmen}: "You're late for study time!"` }));
         this.befriend(belId, -10);
       }
@@ -2178,6 +2179,7 @@ export class CampusScene extends Phaser.Scene {
       const nightKey = c.minutes >= LIGHTS_OUT ? day : day - 1; // after midnight it's still the same night
       if (lateNight >= 5 && st.daily.lateBed !== nightKey) {
         st.daily.lateBed = nightKey;
+        shape(st, { rules: 1 });
         this.penalize(5, L({ tr: `${belletmen}: "Işıklar söndü, neredesin? Hemen yurda!"`, en: `${belletmen}: "Lights are out, where are you? Back to the dorm now!"` }));
         this.befriend(belId, -10);
       }
@@ -2336,6 +2338,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.hunt) this.endHunt();
     this.outFor = 0;
     st.escaped = false;
+    shape(st, { rules: 2 });
     this.escort = { npc, t: 0, walking: false, done: false };
     this.player.setVelocity(0, 0);
     npc.setVelocity(0, 0).setData('path', undefined);
