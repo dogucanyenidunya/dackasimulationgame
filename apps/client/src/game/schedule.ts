@@ -51,6 +51,14 @@ export const SNACK_START = h(16);
 export const SNACK_END = h(17);
 export const isSnackTime = (minutes: number) => minutes >= SNACK_START && minutes < SNACK_END;
 
+/** flag ceremony on the Merkez Meydan: Monday before the first lesson, Friday after the last; [start, end, the anthem] */
+export function ceremonyWindow(day: number): [number, number, number] | null {
+  const wd = (day - 1) % 7;
+  return wd === 0 ? [h(8, 10), h(8, 25), h(8, 15)] : wd === 4 ? [h(15, 22), h(15, 40), h(15, 30)] : null;
+}
+export const ceremonyNow = (day: number, minutes: number) => { const w = ceremonyWindow(day); return !!w && minutes >= w[0] && minutes < w[1]; };
+export const CEREMONY: Text = { tr: 'Bayrak töreni · Merkez Meydan', en: 'Flag ceremony · Merkez Meydan' };
+
 export const BREAK: Text = { tr: 'Teneffüs', en: 'Break' };
 export const NIGHT: Text = { tr: 'Gece · ışıklar kapalı', en: 'Night · lights out' };
 export const WEEKEND_FREE: Text = { tr: 'Hafta sonu', en: 'Weekend' };

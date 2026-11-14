@@ -3,10 +3,12 @@ import { L, type Text } from '../i18n';
 import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, keepsakeName, capitalize, type Attributes, type CharacterData } from '../content/character';
 import { BOOKS } from '../content/quiz';
-import { currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, PERIODS, periodLabel, phaseOf, SNACK_END, SNACK_START, subjectFor } from './schedule';
+import { ceremonyNow, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, PERIODS, periodLabel, phaseOf, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_FOR_EXAM, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { missionById, reached, type MissionCtx } from './missions';
-import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday } from './weekend';
+import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
+import { activityOf } from './routine';
+import { lineFor, type Moment } from '../content/lines';
 import { NPCS, friendLevel, type NpcDef } from '../content/npcs';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
@@ -15,6 +17,7 @@ export interface GameCtx {
   st: PlayerState;
   ch: CharacterData;
   clock: { day: number; minutes: number };
+  raining: boolean;
   panel: Panel;
   advance(minutes: number): void;
   sleep(): void;
@@ -660,7 +663,7 @@ function anthemActions(ctx: GameCtx): ActionView[] {
         a.recited = true;
         ctx.ch.respect += 10;
         ctx.gain({ xp: 80, mood: 10 });
-        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Pazartesi töreninde sen okuyacaksın!" +10 saygınlık`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at Monday's ceremony!" +10 respect`));
+        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Bayrak töreninde marşı sen başlatacaksın!" +10 saygınlık`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at the flag ceremony!" +10 respect`));
       } else {
         ctx.gain({ xp: 10 });
         ctx.toast(T(`${hits}/10 · "Birkaç yerde takıldın. Yarın etütte tekrar dinlerim."`, `${hits}/10 · "You stumbled in a few places. I'll hear it again tomorrow at study."`));
@@ -742,7 +745,7 @@ export function matePanel(npc: NpcDef, ctx: GameCtx): PanelView {
             ctx.advance(10);
             ctx.befriend(npc.id, 10);
             if (Math.random() < risk(0.1)) ctx.penalize(2, T(`${bel}: "Etütte konuşma yok!"`, `${bel}: "No talking during study time!"`));
-            else await ctx.panel.message(npc.name, `"${L(npc.lines[ctx.clock.day % npc.lines.length])}"`);
+            else await ctx.panel.message(npc.name, `"${L(lineNow(npc, ctx))}"`);
           },
         },
         {
@@ -1029,6 +1032,18 @@ function teknik(ctx: GameCtx): PanelView {
 
 const pickRandom = <X,>(a: readonly X[]) => a[Math.floor(Math.random() * a.length)];
 
+/** what this person says right now: it fits where they are and the time of day */
+function lineNow(npc: NpcDef, ctx: GameCtx): Text {
+  const { day, minutes } = ctx.clock;
+  if (npc.kind === 'belletmen') return npc.lines[day % npc.lines.length];
+  const lessonsOn = reached('derse_gir', ctx.mc());
+  const where = npc.kind === 'teacher' ? undefined : activityOf(npc, { day, minutes, lessonsOn, raining: ctx.raining }).in;
+  const weekend = isWeekend(day);
+  const moment: Moment = where === 'egitim' ? 'class' : where === 'yemekhane' ? 'meal' : where === 'dorm' ? (phaseOf(minutes, day) === 'etut' ? 'study' : 'evening')
+    : minutes >= 18 * 60 ? 'evening' : weekend ? 'weekend' : !lessonsOn ? 'first' : minutes < 8 * 60 + 30 ? 'morning' : minutes < 15 * 60 + 20 ? 'break' : 'afternoon';
+  return lineFor(npc, { moment, day, minutes, wet: ctx.raining && !where, evci: npcIsEvci(npc), ceremony: !where && !ctx.raining && ceremonyNow(day, minutes) });
+}
+
 /** the fun, risky and mean things you can do with another student (once a day each) */
 function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | undefined): ActionView[] {
   const st = ctx.st;
@@ -1193,7 +1208,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
 /** talking to a classmate or an older student */
 export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
   const f = Math.round(ctx.st.friends[npc.id] ?? 0);
-  const line = npc.lines[ctx.clock.day % npc.lines.length];
+  const line = lineNow(npc, ctx);
   const talks = Object.keys(ctx.st.daily).filter((k) => k.startsWith(`talk-${npc.id}-`) && ctx.st.daily[k] === ctx.clock.day).length;
   const actions: ActionView[] = [];
   if (npc.kind === 'belletmen') {
@@ -1204,7 +1219,12 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     actions.push({
       id: 'help', label: T('Belletmene yardım et', 'Help the belletmen'), hint: T('15 dk · +8 ilişki (günde bir)', '15 min · +8 relationship (once a day)'),
       locked: doneToday(ctx, `help-${npc.id}`) ? T('Bugün zaten yardım ettin.', 'You already helped today.') : undefined,
-      run: () => { markToday(ctx, `help-${npc.id}`); ctx.advance(15); ctx.befriend(npc.id, 8); ctx.toast(T(`${npc.name} ile koridordaki çamaşırları katladınız.`, `You helped ${npc.name} fold the laundry in the corridor.`), 'good'); },
+      run: () => { markToday(ctx, `help-${npc.id}`); ctx.advance(15); ctx.befriend(npc.id, 8); ctx.toast(T(`${npc.name} ile meydandaki küçükleri yoklamaya topladınız.`, `You helped ${npc.name} round up the little ones for roll call.`), 'good'); },
+    });
+  } else if (npc.kind === 'teacher') {
+    actions.push({
+      id: 'hello', label: T('Selam ver', 'Say hello'),
+      run: async () => { await ctx.panel.message(npc.name, `"${L(line)}"`); },
     });
   } else if (npc.kind === 'classmate' || npc.kind === 'student') {
     const lock = ctx.st.once.classDrawn ? undefined : T('Önce sınıf kuranı çek; sonra tanışırsınız.', 'Do your class draw first, then you can get to know each other.');
@@ -1218,9 +1238,11 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
         ctx.advance(10);
         ctx.befriend(npc.id, first ? 25 : 15);
         ctx.gain({ attrs: { social: 1 }, mood: 2, xp: 5 });
-        await ctx.panel.message(npc.name, first
-          ? T(`"Merhaba! Ben ${npc.name}. Sen de mi ${ctx.st.school.classLabel}'dasın? Süper!" ${L(line)}`, `"Hi! I'm ${npc.name}. You're in ${ctx.st.school.classLabel} too? Great!" ${L(line)}`)
-          : `"${L(line)}"`);
+        // (only your own classmates are in your class)
+        const hi = npc.kind === 'classmate'
+          ? T(`Merhaba! Ben ${npc.name}. Sen de mi ${ctx.st.school.classLabel}'dasın? Süper!`, `Hi! I'm ${npc.name}. You're in ${ctx.st.school.classLabel} too? Great!`)
+          : T(`Merhaba! Ben ${npc.name}. Sen yeni gelenlerdensin, değil mi?`, `Hi! I'm ${npc.name}. You're one of the new ones, aren't you?`);
+        await ctx.panel.message(npc.name, first ? `"${hi} ${L(line)}"` : `"${L(line)}"`);
       },
     });
     actions.push({
@@ -1271,7 +1293,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     title: npc.name, sub: L(npc.role), status: status(ctx),
     rooms: [{
       id: 'talk', name: npc.name,
-      note: npc.kind === 'belletmen' ? T(`Gece öğretmeni · ilişkiniz: ${f}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · your relationship: ${f}. Being late hurts it; if it's low, they watch you more closely.`) : `${L(friendLevel(f))} · ${f}/100${npc.kind === 'classmate' && f < FRIEND_AT ? T(` (arkadaşlık için ${FRIEND_AT})`, ` (${FRIEND_AT} to be friends)`) : ''}`,
+      note: npc.kind === 'teacher' ? L(npc.role) : npc.kind === 'belletmen' ? T(`Gece öğretmeni · ilişkiniz: ${f}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · your relationship: ${f}. Being late hurts it; if it's low, they watch you more closely.`) : `${L(friendLevel(f))} · ${f}/100${npc.kind === 'classmate' && f < FRIEND_AT ? T(` (arkadaşlık için ${FRIEND_AT})`, ` (${FRIEND_AT} to be friends)`) : ''}`,
       actions,
     }],
   };

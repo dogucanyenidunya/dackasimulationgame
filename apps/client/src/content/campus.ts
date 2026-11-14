@@ -284,6 +284,8 @@ export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
 };
 /** the plazas: everyone mixes here */
 export const CENTER_ZONES: Rect[] = [{ x: 41, y: 24, w: 13, h: 13 }, { x: 10, y: 21, w: 14, h: 4 }];
+/** where students wait for the bell: the school side of the Merkez Meydan */
+export const SCHOOL_FRONT: Rect = { x: 41, y: 24, w: 4, h: 8 };
 
 /** 20:00–22:00 you may be anywhere around the dorms: the Yurt Meydanı and the lawns round both dorms */
 export const PLAZA_EVENING: Rect = { x: 4, y: 4, w: 33, h: 28 };

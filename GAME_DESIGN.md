@@ -1233,3 +1233,22 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 **No seasons:** the autumn / winter / spring cycle is gone. Trees stay in leaf, nothing falls from the sky except rain (about one day in four), and the flu-season and winter-coat health rules are removed. Rain without your coat still costs a little health.
 
 **Dilemmas:** Year 1 has **3** dilemma moments (planned, not built yet).
+
+**Student routine:** every student follows the timetable (`game/routine.ts`), each a few minutes early or late:
+- 07:00–07:30 out of the dorm and to breakfast, then the square in front of the school until the bell.
+- Lessons in the Eğitim Binası (breaks are spent indoors), lunch in the Yemekhane, lessons again until 15:20.
+- 15:30–17:00: about 40% at the sports hall, the rest on their lawns, some at the snack counter.
+- Dinner from 17:00, evening study in the dorm, the plaza from 20:00, bed just before 22:00.
+- Friday: evci students walk out by the main gate after lessons and come back on Sunday at 17:40.
+- Weekends: later mornings, sports hall, library, a film at the canteen, and family visits on Sunday. Wednesday: from the 6th grade about half go into town.
+- In the rain about 70% take shelter indoors.
+- Until the player's first lesson ("the first days") there are no lessons, so students are free during lesson hours.
+
+Students walk to a building's door and go in, and come out of the same door. The dining hall, the classroom and the dorm room are filled from the same timetable. The dorm belletmens are in the dorm for study time and at night and on the plaza from 20:00 to 22:00.
+
+**Flag ceremony:** Monday 08:10–08:25 and Friday 15:22–15:40 on the Merkez Meydan (not in the rain). Students line up in three columns facing the flag, the youngest at the front, with the teachers beside the flag. If you are on the square when the anthem is sung you get a little XP and mood; if you have recited the İstiklal Marşı you lead it (+5 respect).
+
+**Teachers on campus:** the five subject teachers come in by the main gate before the bell on weekdays, two are on yard duty each day (before the bell, at lunch, after lessons), and they leave after lessons. You can say hello to them.
+
+**Talk lines fit the moment:** what a student says depends on where and when you catch them (first days, morning, in class, at a meal, break, afternoon, evening plaza, study time, weekend), mixed with their own lines; rain, the ceremony and going home for the weekend add lines of their own (`content/lines.ts`).
+

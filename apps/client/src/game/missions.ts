@@ -156,7 +156,7 @@ export const MISSIONS: Mission[] = [
       { id: 'write', text: { tr: 'On kıtayı yaz ve ezberle (etütte, masanda)', en: 'Write out and memorise the ten stanzas (at study, at your desk)' }, done: (c) => c.st.anthem.stanzas >= 10, progress: (c) => `${c.st.anthem.stanzas}/10`, targets: ownDorm },
       { id: 'recite', text: { tr: 'Belletmenine ezberden oku', en: 'Recite it to your belletmen' }, done: (c) => c.st.anthem.recited, targets: ownDorm },
     ],
-    reward: { xp: 60, text: { tr: 'Pazartesi töreninde marşı sen okursun · +10 saygınlık', en: "You lead the anthem at Monday's ceremony · +10 respect" } },
+    reward: { xp: 60, text: { tr: 'Bayrak töreninde marşı sen başlatırsın (Pazartesi sabahı, Cuma öğleden sonra) · +10 saygınlık', en: 'You lead the anthem at the flag ceremony (Monday morning, Friday afternoon) · +10 respect' } },
   },
   {
     id: 'spora_basla', kind: 'main',
@@ -172,7 +172,7 @@ export const MISSIONS: Mission[] = [
     desc: { tr: 'Yurt Meydanı\'ndaki abilerden ya da ablalardan birine yardım et; teşekkür olarak bir sandviç kazan.', en: 'Help one of the older students on the dorm plaza and earn a sandwich as thanks.' },
     requires: ['uc_ogun'],
     objectives: [
-      { id: 'meet', text: { tr: 'Yurt Meydanı\'nda bir abi ya da ablayla konuş', en: 'Talk to an older student on the dorm plaza' }, done: (c) => c.st.favor.stage !== 'none', targets: at('yurt_meydani') },
+      { id: 'meet', text: { tr: 'Yurt Meydanı\'nda bir abi ya da ablayla konuş (ders dışında)', en: 'Talk to an older student on the dorm plaza (outside lessons)' }, done: (c) => c.st.favor.stage !== 'none', targets: at('yurt_meydani') },
       { id: 'favor', text: { tr: 'Ricasını yerine getir: kitabı Kütüphane\'ye iade et', en: 'Do the favor: return the book to the library' }, done: (c) => c.st.favor.stage === 'done' || c.st.favor.stage === 'rewarded', targets: at('kutuphane') },
       { id: 'sandwich', text: { tr: 'Geri dön ve sandviçini al', en: 'Go back and get your sandwich' }, done: (c) => c.st.favor.stage === 'rewarded', targets: at('yurt_meydani') },
     ],

@@ -2,12 +2,14 @@
 import type { CharacterLook } from '../art/textures';
 import type { Text } from '../i18n';
 import { HANGOUTS, type AgeGroup } from './campus';
+import { TEACHERS } from './classroom';
+import { SUBJECTS } from '../game/state';
 
 export interface NpcDef {
   id: string;
   name: string;
   /** classmate = your 4th-grade class · student = other classes/grades · abi = older student · belletmen = night teacher */
-  kind: 'classmate' | 'student' | 'abi' | 'belletmen';
+  kind: 'classmate' | 'student' | 'abi' | 'belletmen' | 'teacher';
   gender: 'girl' | 'boy';
   /** friend group (students only) */
   group?: GroupId;
@@ -20,24 +22,27 @@ export interface NpcDef {
   home: [number, number];
   /** how far they wander from home, in tiles */
   roam: number;
-  lines: Text[];
+  lines: NpcLine[];
 }
+
+/** a line of their own; `when` keeps it to the first days of the year, to daytime, or to school days */
+export type NpcLine = Text & { when?: 'first' | 'day' | 'weekdays' };
 
 const HANDMADE: Array<Omit<NpcDef, 'gender'>> = [
   { id: 'zeynep', name: 'Zeynep', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f1c9a5', hair: '#1f1612', hairStyle: 2, skirt: true }, home: [36, 12], roam: 3,
     lines: [{ tr: 'Denize bayılırım. Keşke bir teknede yaşasam!', en: "I love the sea. I'd live on a boat if I could!" }, { tr: 'Matematik ödevini yaptın mı? Ben bölmede takıldım.', en: 'Did you do the math homework? I got stuck on division.' }] },
   { id: 'mert', name: 'Mert', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#c68e63', hair: '#2b1d14', hairStyle: 1, skirt: false }, home: [60, 13], roam: 3,
-    lines: [{ tr: 'Teneffüste kortta maç var, gelsene!', en: "There's a game on the court at break, come!" }, { tr: 'Yemekhanede bugün mercimek çorbası var bence.', en: "I bet it's lentil soup in the dining hall today." }] },
+    lines: [{ tr: 'Teneffüste kortta maç var, gelsene!', en: "There's a game on the court at break, come!", when: 'day' }, { tr: 'Yemekhanede bugün mercimek çorbası var bence.', en: "I bet it's lentil soup in the dining hall today." }] },
   { id: 'defne', name: 'Defne', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#e8b98f', hair: '#7a4a24', hairStyle: 3, skirt: true, glasses: true }, home: [44, 24], roam: 3,
     lines: [{ tr: 'Kütüphanede gizli bir raf varmış, duydun mu?', en: 'Have you heard there\'s a secret shelf in the library?' }, { tr: 'Resim yapmayı seviyorum. Sen ne seversin?', en: 'I love drawing. What do you like?' }] },
   { id: 'emre', name: 'Emre', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#a8714a', hair: '#120c09', hairStyle: 0, skirt: false }, home: [60, 33], roam: 3,
-    lines: [{ tr: 'İlk gece hiç uyuyamadım. Sen?', en: "I couldn't sleep at all the first night. You?" }, { tr: 'Eskrim çok havalı görünüyor!', en: 'Fencing looks so cool!' }] },
+    lines: [{ tr: 'İlk gece hiç uyuyamadım. Sen?', en: "I couldn't sleep at all the first night. You?", when: 'first' }, { tr: 'Eskrim çok havalı görünüyor!', en: 'Fencing looks so cool!' }] },
   { id: 'ayse', name: 'Ayşe', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#f3d2b3', hair: '#c79a4a', hairStyle: 2, skirt: true }, home: [38, 33], roam: 2,
     lines: [{ tr: 'Tenis kortunda kimse yokken top sektirmeyi seviyorum.', en: 'I like bouncing a ball on the tennis court when nobody is around.' }, { tr: 'Annem her pazar ziyarete gelecek.', en: 'My mum will visit every Sunday.' }] },
   { id: 'can', name: 'Can', kind: 'classmate', role: { tr: 'Sınıf arkadaşın', en: 'Your classmate' }, look: { skin: '#d9a77d', hair: '#3b2a20', hairStyle: 0, skirt: false }, home: [20, 18], roam: 2,
     lines: [{ tr: 'Müzede eski bir okul zili var, gördün mü?', en: "There's an old school bell in the museum, have you seen it?" }, { tr: 'Hüseyin Usta çok iyi biri ama atölyeye kimseyi almıyor.', en: "Hüseyin Usta is really nice, but he doesn't let anyone into the workshop." }] },
   { id: 'burak', name: 'Burak Abi', kind: 'abi', role: { tr: '11. sınıf · abi', en: 'Grade 11 · an older student' }, look: { skin: '#d9a77d', hair: '#2b1d14', hairStyle: 0, skirt: false, top: '#3f4a55', bottom: '#2d3238' }, home: [21, 21], roam: 1,
-    lines: [{ tr: 'Hoş geldin ufaklık! Bir şeye ihtiyacın olursa söyle.', en: 'Welcome, little one! Tell me if you need anything.' }] },
+    lines: [{ tr: 'Hoş geldin ufaklık! Bir şeye ihtiyacın olursa söyle.', en: 'Welcome, little one! Tell me if you need anything.', when: 'first' }] },
   { id: 'ece', name: 'Ece Abla', kind: 'abi', role: { tr: '10. sınıf · abla', en: 'Grade 10 · an older student' }, look: { skin: '#f1c9a5', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#3f4a55', bottom: '#2d3238' }, home: [12, 24], roam: 1,
     lines: [{ tr: 'İlk yılım aklıma geldi… Zamanla burası evin olacak.', en: 'Reminds me of my first year… this place becomes home, you\'ll see.' }] },
 ];
@@ -70,12 +75,12 @@ const GIRLS = ['Elif', 'Zehra', 'Melis', 'Nehir', 'Ecrin', 'Asel', 'Duru', 'İpe
 const BOYS = ['Arda', 'Yusuf', 'Kaan', 'Ege', 'Berk', 'Ömer', 'Alp', 'Deniz', 'Efe', 'Kuzey', 'Mirza', 'Baran', 'Eymen', 'Aras', 'Tuna', 'Doruk', 'Çınar', 'Selim'];
 const SKINS = ['#f6d7bd', '#f1c9a5', '#e8b98f', '#d9a77d', '#c68e63', '#a8714a', '#8a5a3b'];
 const HAIRS = ['#120c09', '#2b1d14', '#3b2a20', '#5e3b22', '#7a4a24', '#a8682e', '#c79a4a'];
-const GENERIC_LINES: Text[] = [
+const GENERIC_LINES: NpcLine[] = [
   { tr: 'Bugün yemekhanede ne var biliyor musun?', en: "Do you know what's for dinner today?" },
-  { tr: 'Etütte matematik ödevini birlikte yapalım mı?', en: 'Want to do the math homework together at study time?' },
+  { tr: 'Etütte matematik ödevini birlikte yapalım mı?', en: 'Want to do the math homework together at study time?', when: 'day' },
   { tr: 'Belletmen Mehmet Bey çok sert ama aslında iyi biri.', en: 'Mr. Mehmet the belletmen is strict, but he\'s actually nice.' },
-  { tr: 'Hafta sonu ziyaret günü, sabırsızlanıyorum!', en: "It's visiting day this weekend, I can't wait!" },
-  { tr: 'Kortta maç yapıyoruz, takıma bir kişi lazım.', en: "We're playing on the court and need one more." },
+  { tr: 'Hafta sonu ziyaret günü, sabırsızlanıyorum!', en: "It's visiting day this weekend, I can't wait!", when: 'weekdays' },
+  { tr: 'Kortta maç yapıyoruz, takıma bir kişi lazım.', en: "We're playing on the court and need one more.", when: 'day' },
   { tr: 'Müzedeki eski fotoğraflarda bir tanesi bize benziyor!', en: 'One of the old photos in the museum looks just like us!' },
 ];
 // day hangouts (tiles): dorm plaza, central plaza, by the courts, in front of the sports hall
@@ -135,6 +140,15 @@ export const BELLETMENS: NpcDef[] = [
   { id: 'bel-selim', name: 'Selim Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [47, 27], roam: 5,
     lines: [{ tr: 'Gece nöbetindeyim. Fenerim her yeri görür!', en: "I'm on night patrol. My torch sees everything!" }] },
 ];
+
+/** the five subject teachers, seen around the school on weekdays (their lessons are in the classroom) */
+export const TEACHER_NPCS: NpcDef[] = SUBJECTS.map((s, i) => {
+  const t = TEACHERS[s.id];
+  return {
+    id: `ogr-${s.id}`, name: t.name, kind: 'teacher', gender: t.look.skirt ? 'girl' : 'boy',
+    role: { tr: `${s.name.tr} öğretmeni`, en: `${s.name.en} teacher` }, look: t.look, home: [42 + i, 46], roam: 2, lines: [],
+  };
+});
 
 export function friendLevel(v: number): Text {
   if (v >= 90) return { tr: 'En iyi arkadaş', en: 'Best friend' };

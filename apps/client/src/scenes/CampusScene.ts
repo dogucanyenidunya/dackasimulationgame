@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  BENCHES, BLOCK_TILES, BUST, CEMIL_OUT, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -23,12 +23,13 @@ import {
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
-import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, awayForWeekend, carsiNow, isFriday, isWednesday, npcIsEvci, weekday } from '../game/weekend';
+import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, carsiNow, isFriday, isWednesday, weekday } from '../game/weekend';
+import { activityOf, teacherActivity, type Activity, type Indoors, type RoutineClock } from '../game/routine';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
-import { BELLETMENS, GROUPS, NPCS, ageGroup, type NpcDef } from '../content/npcs';
+import { BELLETMENS, GROUPS, NPCS, TEACHER_NPCS, ageGroup, type NpcDef } from '../content/npcs';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { ETUT_START, LIGHTS_OUT, WAKE_UP, phaseOf, type DayPhase } from '../game/schedule';
+import { CEREMONY, ETUT_START, LIGHTS_OUT, WAKE_UP, ceremonyNow, ceremonyWindow, phaseOf, type DayPhase } from '../game/schedule';
 import {
   MISSIONS, missionById, nextObjective, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
@@ -55,6 +56,9 @@ const SEARCH_SPEED_MAX = 230;
 /** how close (tiles) a searching belletmen has to be to see you */
 const SPOT_RANGE = 7;
 const ESCORT_SPEED = 85;
+
+/** where an NPC should be: a spot outdoors (maybe facing something), or inside a building (then `home` is its door) */
+interface NpcPlan { home: [number, number]; roam: number; inside?: string; face?: [number, number] }
 
 export class CampusScene extends Phaser.Scene {
   private save!: SaveData;
@@ -94,10 +98,19 @@ export class CampusScene extends Phaser.Scene {
   private saveTimer = 0;
   private mapTimer = 0;
   private npcs: Phaser.Physics.Arcade.Sprite[] = [];
+  private npcById = new Map<string, Phaser.Physics.Arcade.Sprite>();
+  /** game minute the NPCs were last updated at: a jump means a lesson, a night's sleep or a loaded save */
+  private npcClock = -1;
+  /** this frame's clock for the students' routine */
+  private rc: RoutineClock | null = null;
+  /** where students leave the campus and come back: just inside the main gate */
+  private gateTile: [number, number] = [GATE_IN[0], GATE_IN[1]];
   private npcNames = new Map<Phaser.Physics.Arcade.Sprite, Phaser.GameObjects.Text>();
   private nearNpc: NpcDef | null = null;
   /** per tile: 1 = an NPC can stand here (no building, fence or decor) */
   private npcGrid = new Uint8Array(MAP_W * MAP_H);
+  /** per tile: 1 = an open tile NPCs can walk to from the main gate */
+  private npcReach = new Uint8Array(MAP_W * MAP_H);
   /** per tile: 1 = in front of a door, where NPCs shouldn't hang around */
   private doorClear = new Uint8Array(MAP_W * MAP_H);
   private suitcase!: Phaser.GameObjects.Image;
@@ -445,8 +458,8 @@ export class CampusScene extends Phaser.Scene {
     tag(MY_DESK[0], MY_DESK[1], L({ tr: 'Senin masan', en: 'Your desk' }));
     tag(MY_BED[0], MY_BED[1], L({ tr: 'Yatağın', en: 'Your bed' }));
     tag(MY_LOCKER[0], MY_LOCKER[1], L({ tr: 'Dolabın', en: 'Your locker' }));
-    // classmates from your dorm sit at the other desks during study time
-    const sameDorm = NPCS.filter((n) => (n.kind === 'classmate' || n.kind === 'student') && n.gender === this.save.character.gender);
+    // your room is your year's: the classmates from your dorm sit at the other desks
+    const sameDorm = NPCS.filter((n) => n.kind === 'classmate' && n.gender === this.save.character.gender);
     const seats = DESKS.filter(([x, y]) => !(x === MY_DESK[0] && y === MY_DESK[1]));
     seats.forEach(([x, y], i) => {
       const def = sameDorm[i % sameDorm.length];
@@ -500,8 +513,8 @@ export class CampusScene extends Phaser.Scene {
     const layer = map.createLayer(0, ts, DINING_OX * TILE, 0)!;
     layer.setCollision([...ROOM_SOLID, ...DINING_SOLID] as unknown as number[]);
     this.physics.add.collider(this.player, layer);
-    // a pool of diners; who sits where is reshuffled every meal
-    for (let i = 0; i < 13; i++) {
+    // a pool of diners: whoever the routine says is eating right now takes a seat
+    for (let i = 0; i < NPCS.length; i++) {
       const sp = this.physics.add.sprite(0, 0, `npc-${NPCS[i % NPCS.length].id}`, 0).setVisible(false);
       sp.body!.setSize(16, 10).setOffset(8, 21);
       sp.setImmovable(true);
@@ -521,26 +534,32 @@ export class CampusScene extends Phaser.Scene {
     this.visitor = this.add.sprite((DINING_OX + VISITOR_SPOT[0]) * TILE, VISITOR_SPOT[1] * TILE, 'visitor', 2).setScale(1.15).setDepth(VISITOR_SPOT[1] * TILE + 16).setVisible(false);
   }
 
-  /** seats the diners for the current meal (or empties the hall) */
+  /** seats whoever is in the dining hall right now: people arrive and leave through the meal */
   private seatDiners() {
-    const m = currentMeal(this.gameCtx());
-    const key = m ? `${this.save.clock.day}-${m.meal}` : '';
+    const here = NPCS.filter((n) => this.whereIs(n) === 'yemekhane');
+    const key = here.map((n) => n.id).join(',');
     if (key === this.dinerKey) return;
     this.dinerKey = key;
-    this.diners.forEach((d) => { d.setVisible(false); d.body!.enable = false; d.setData('def', null); });
-    if (!m) return;
-    // classmates more likely, then everyone else; leave plenty of seats free
-    const away = awayForWeekend(this.save.clock.day, this.save.clock.minutes);
-    const pool = NPCS.filter((n) => !(away && npcIsEvci(n))).sort(() => Math.random() - 0.5).sort((a, b) => (a.kind === 'classmate' ? -1 : 0) - (b.kind === 'classmate' ? -1 : 0));
-    const seats = [...SEATS].sort(() => Math.random() - 0.5).slice(0, this.diners.length);
-    this.diners.forEach((sp, i) => {
-      const def = pool[i], seat = seats[i];
-      if (!def || !seat) return;
+    const ids = new Set(here.map((n) => n.id));
+    // those who have finished get up
+    for (const d of this.diners) {
+      const def = d.getData('def') as NpcDef | null;
+      if (d.visible && !(def && ids.has(def.id))) { d.setVisible(false); d.body!.enable = false; d.setData('def', null).setData('seat', null); }
+    }
+    const seated = new Set(this.diners.filter((d) => d.visible).map((d) => (d.getData('def') as NpcDef).id));
+    const taken = new Set(this.diners.filter((d) => d.visible).map((d) => d.getData('seat')));
+    // nobody sits down on top of you
+    const px = this.player.x / TILE - DINING_OX, py = this.player.y / TILE;
+    const free = SEATS.filter((s) => !taken.has(s) && !(this.room === 'dining' && Math.hypot(px - (s.x + 0.5), py - (s.y + 0.35)) < 0.8)).sort(() => Math.random() - 0.5);
+    for (const def of here) {
+      if (seated.has(def.id)) continue;
+      const sp = this.diners.find((d) => !d.visible), seat = free.pop();
+      if (!sp || !seat) break;
       sp.setTexture(`npc-${def.id}`, seat.faces * 3).setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE)
         .setDepth((seat.y + 0.4) * TILE + 16).setVisible(true);
       sp.body!.enable = true;
       sp.setData('def', def).setData('seat', seat);
-    });
+    }
   }
 
   private enterDining() {
@@ -692,8 +711,8 @@ export class CampusScene extends Phaser.Scene {
 
   private updateClass(time: number) {
     const les = this.currentLesson();
-    const inClass = !!les && !!this.save.state.once.classDrawn;
     for (const sp of this.classMates) {
+      const inClass = this.whereIs(sp.getData('def') as NpcDef) === 'egitim';
       sp.setVisible(inClass);
       sp.body!.enable = inClass;
       sp.setFrame(9 + (inClass && Math.floor(time / 650 + sp.x) % 6 === 0 ? 1 : 0));
@@ -952,14 +971,14 @@ export class CampusScene extends Phaser.Scene {
   private updateRoom(time: number) {
     const phase = phaseOf(this.save.clock.minutes, this.save.clock.day);
     const study = phase === 'etut';
-    const awayNow = awayForWeekend(this.save.clock.day, this.save.clock.minutes);
     const night = phase === 'night' || this.sleepRun !== null;
+    const early = this.save.clock.minutes < 9 * 60; // still in the dorm in the morning = not up yet
     const beds = BEDS.filter(([x, y]) => !(x === MY_BED[0] && y === MY_BED[1]));
     let bed = 0;
     this.roomMates.forEach((sp, i) => {
-      const home = !(awayNow && npcIsEvci(sp.getData('def') as NpcDef));
+      const home = this.whereIs(sp.getData('def') as NpcDef) === 'dorm';
       if (!sp.getData('desk')) sp.setData('desk', [sp.x, sp.y]);
-      if (night && home && bed < beds.length) {
+      if ((night || early) && home && bed < beds.length) {
         // asleep in the bunks next to yours
         const [bx, by] = beds[bed++];
         sp.setPosition((ROOM_OX + bx + 0.5) * TILE, (by + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((by + 1) * TILE + 4);
@@ -968,15 +987,15 @@ export class CampusScene extends Phaser.Scene {
       }
       const [dx, dy] = sp.getData('desk') as [number, number];
       if (sp.angle !== 0) sp.setAngle(0).setPosition(dx, dy).setDepth(dy + 16);
-      const here = study && home;
-      sp.setVisible(here);
-      sp.body!.enable = here;
+      sp.setVisible(home);
+      sp.body!.enable = home;
       // heads down, writing: a tiny bob now and then
       sp.setFrame(9 + (study && Math.floor(time / 700 + sp.x) % 5 === 0 ? 1 : 0));
     });
     this.updateZzz(night && this.room === 'dorm', time);
     const bel = this.roomBelletmen;
-    const onDuty = phase !== 'day';
+    // in the room for study time and through the night; from 20:00 to 22:00 they watch the plaza outside
+    const onDuty = phase === 'etut' || phase === 'night';
     bel.setVisible(onDuty);
     if (!onDuty) { bel.setVelocity(0, 0); return; }
     const leg = bel.getData('leg') as number;
@@ -1086,9 +1105,9 @@ export class CampusScene extends Phaser.Scene {
   /** nearest tile to (x, y) where an NPC can hang out (open ground, not in front of a door) */
   private walkable(x: number, y: number): [number, number] {
     let fallback: [number, number] | null = null;
-    for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    for (let r = 0; r < 9; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       const tx = Math.round(x + dx), ty = Math.round(y + dy);
-      if (tx <= 4 || ty <= 4 || tx >= MAP_W - 5 || ty >= MAP_H - 5 || !this.npcGrid[ty * MAP_W + tx]) continue;
+      if (tx <= 4 || ty <= 4 || tx >= MAP_W - 5 || ty >= MAP_H - 5 || !this.npcReach[ty * MAP_W + tx]) continue;
       if (!this.doorClear[ty * MAP_W + tx]) return [tx, ty];
       fallback ??= [tx, ty];
     }
@@ -1116,6 +1135,20 @@ export class CampusScene extends Phaser.Scene {
         for (let tx = Math.floor(b.left / TILE); tx <= Math.floor((b.right - 1) / TILE); tx++) {
           if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) this.npcGrid[ty * MAP_W + tx] = 0;
         }
+      }
+    }
+    // the open tiles you can actually walk to from the main gate (pockets closed in by walls don't count)
+    this.npcReach.fill(0);
+    let from = -1;
+    for (let y = GATE_IN[1]; y > GATE_IN[1] - 8 && from < 0; y--) if (this.npcGrid[y * MAP_W + GATE_IN[0]]) from = y * MAP_W + GATE_IN[0];
+    const queue = from < 0 ? [] : [from];
+    if (from >= 0) this.npcReach[from] = 1;
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi], x = cur % MAP_W;
+      for (const n of [x > 0 ? cur - 1 : -1, x < MAP_W - 1 ? cur + 1 : -1, cur - MAP_W, cur + MAP_W]) {
+        if (n < 0 || n >= this.npcGrid.length || !this.npcGrid[n] || this.npcReach[n]) continue;
+        this.npcReach[n] = 1;
+        queue.push(n);
       }
     }
     for (const loc of LOCATIONS) for (const d of loc.doors ?? []) {
@@ -1239,7 +1272,10 @@ export class CampusScene extends Phaser.Scene {
   private spawnNpcs(ground: Phaser.Tilemaps.TilemapLayer, trees: Phaser.Physics.Arcade.StaticGroup) {
     const plaza = PLAZA_RECT;
     this.buildNpcGrid(trees);
-    for (const def of [...NPCS, ...BELLETMENS]) {
+    this.gateTile = this.walkable(GATE_IN[0], GATE_IN[1] - 2);
+    // the line-up for the flag ceremony: three columns facing the flag, the little ones at the front, the teachers beside the flag
+    const lineUp = [...NPCS].sort((a, b) => (a.grade ?? 4) - (b.grade ?? 4));
+    for (const def of [...NPCS, ...BELLETMENS, ...TEACHER_NPCS]) {
       const key = `npc-${def.id}`;
       makeCharacterTexture(this, key, { ...DEFAULT_LOOK, ...def.look });
       const [x, y] = this.walkable(def.home[0], def.home[1]);
@@ -1252,14 +1288,20 @@ export class CampusScene extends Phaser.Scene {
       npc.setData('next', 0);
       npc.setData('dayHome', [x, y]);
       npc.setData('dayRoam', def.roam);
-      if (def.kind !== 'belletmen' && !def.fixed) this.pickDayHome(npc);
+      if (def.kind !== 'belletmen' && def.kind !== 'teacher' && !def.fixed) this.pickDayHome(npc);
+      const li = lineUp.indexOf(def), ti = TEACHER_NPCS.indexOf(def);
+      if (ti >= 0) npc.setData('ceremonyHome', this.walkable(48, 26 + ti));
+      else if (li >= 0) npc.setData('ceremonyHome', this.walkable(46 - (li % 3) * 2, 26 + Math.floor(li / 3)));
       // evening spot around the dorms (20:00–22:00)
       this.pickEveningHome(npc);
+      // where they wait for the bell
+      npc.setData('schoolHome', this.walkable(SCHOOL_FRONT.x + Math.random() * (SCHOOL_FRONT.w - 1), SCHOOL_FRONT.y + Math.random() * (SCHOOL_FRONT.h - 1)));
       void plaza;
       this.npcs.push(npc);
+      this.npcById.set(def.id, npc);
       const name = this.add.text(npc.x, npc.y - 26, def.name, {
         fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold',
-        color: def.kind === 'belletmen' ? '#ffb3a8' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff',
+        color: def.kind === 'belletmen' ? '#ffb3a8' : def.kind === 'teacher' ? '#cfe8ff' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff',
         stroke: '#1d2326', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(95_000);
       this.npcNames.set(npc, name);
@@ -1287,9 +1329,9 @@ export class CampusScene extends Phaser.Scene {
 
   /** little speech bubbles above students' heads */
   private showEmote() {
-    if (this.room) return;
+    if (this.room || ceremonyNow(this.save.clock.day, this.save.clock.minutes)) return;
     const view = this.cameras.main.worldView;
-    const visible = this.npcs.filter((n) => n.visible && view.contains(n.x, n.y) && (n.getData('def') as NpcDef).kind !== 'belletmen');
+    const visible = this.npcs.filter((n) => n.visible && view.contains(n.x, n.y) && !['belletmen', 'teacher'].includes((n.getData('def') as NpcDef).kind));
     if (!visible.length) return;
     const npc = visible[Math.floor(Math.random() * visible.length)];
     const phase = phaseOf(this.save.clock.minutes, this.save.clock.day);
@@ -1302,26 +1344,64 @@ export class CampusScene extends Phaser.Scene {
     this.tweens.add({ targets: bubble, alpha: 0, delay: 1900, duration: 300, onComplete: () => bubble.destroy() });
   }
 
-  /** where an NPC should be right now (null = indoors / asleep) */
-  private npcPlan(def: NpcDef, phase: DayPhase, lessonNow: boolean, npc: Phaser.Physics.Arcade.Sprite): { home: [number, number]; roam: number } | null {
+  private routineClock(): RoutineClock {
+    const c = this.save.clock;
+    return this.rc ?? { day: c.day, minutes: c.minutes, lessonsOn: reached('derse_gir', this.mc()), raining: this.isRaining() };
+  }
+
+  /** the building a student is inside right now (null = outdoors, or called over to a game) */
+  private whereIs(def: NpcDef): Indoors | null {
+    if (this.npcById.get(def.id)?.getData('summon')) return null;
+    return activityOf(def, this.routineClock()).in ?? null;
+  }
+
+  /** the tile an NPC walks to, and comes back out at, for a place indoors ('dorm' = their own; 'away' = the main gate) */
+  private doorTile(place: string, def: NpcDef): [number, number] {
+    const id = place === 'dorm' ? (def.gender === 'girl' ? 'kiz_yurdu' : 'erkek_yurdu') : place;
+    const doors = LOCATIONS.find((l) => l.id === id)?.doors;
+    if (!doors?.length) return this.gateTile;
+    // (a door whose step is blocked for NPCs, by a wall's edge or the caretaker, isn't used)
+    const steps = doors.map(doorStandTile);
+    const open = steps.filter((s) => this.npcReach[s.y * MAP_W + s.x]);
+    if (!open.length) return this.walkable(steps[0].x, steps[0].y);
+    let h = 0;
+    for (const ch of def.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const s = open[h % open.length];
+    return [s.x, s.y];
+  }
+
+  /** where an NPC should be right now: a spot outdoors, or inside a building (then `home` is its door) */
+  private npcPlan(def: NpcDef, phase: DayPhase, npc: Phaser.Physics.Arcade.Sprite): NpcPlan {
+    const indoors = (place: string) => ({ home: this.doorTile(place, def), roam: 0, inside: place });
     if (def.kind === 'belletmen') {
-      if (phase === 'day') return null;
-      if (def.id === 'bel-selim') return phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [47, 27], roam: 5 };
-      return { home: npc.getData('dayHome'), roam: 1 };
+      // the night patrol: in the office by day, on the central plaza in the evening, round the campus at night
+      if (def.id === 'bel-selim') return phase === 'day' ? indoors('cemiyet') : phase === 'night' ? { home: npc.getData('patrol') ?? PATROL_ROUTE[0], roam: 0 } : { home: [47, 27], roam: 5 };
+      // the dorm belletmens watch the plaza while everyone is out on it; for study time and at night they are in the dorm
+      return phase === 'plaza' ? { home: npc.getData('dayHome'), roam: 1 } : indoors('dorm');
     }
     const summon = npc.getData('summon') as [number, number] | undefined;
     if (summon) return { home: summon, roam: 0 };
-    if (npcIsEvci(def) && awayForWeekend(this.save.clock.day, this.save.clock.minutes)) return null; // home for the weekend
-    if (phase === 'etut' || phase === 'night') return null;
-    if (phase === 'plaza') return { home: npc.getData('plazaHome'), roam: 3 };
-    if (lessonNow && def.kind === 'classmate' && this.save.state.once.classDrawn) return null; // they're in class
+    const ti = def.kind === 'teacher' ? TEACHER_NPCS.indexOf(def) : -1;
+    const act: Activity = ti >= 0 ? teacherActivity(ti, this.routineClock()) : activityOf(def, this.routineClock());
+    if (act.in) return indoors(act.in);
+    // lined up at the flag, standing still and facing it
+    if (act.out === 'ceremony') return { home: npc.getData('ceremonyHome'), roam: 0, face: FLAGPOLE };
+    if (act.out === 'plaza') return { home: npc.getData('plazaHome'), roam: 3 };
+    if (act.out === 'school' && !def.fixed) return { home: npc.getData('schoolHome'), roam: 2 };
     return { home: npc.getData('dayHome'), roam: npc.getData('dayRoam') ?? def.roam };
   }
 
   private updateNpcs(time: number) {
     const c = this.save.clock;
     const phase = phaseOf(c.minutes, c.day);
-    const lessonNow = currentPeriod(c.day, c.minutes)?.kind === 'lesson';
+    this.rc = { day: c.day, minutes: c.minutes, lessonsOn: reached('derse_gir', this.mc()), raining: this.isRaining() };
+    // after a jump in time (a lesson, a night's sleep, a loaded save) nobody walks: they are simply where they should be
+    const now = c.day * 1440 + c.minutes;
+    const first = this.npcClock < 0;
+    const jumped = first || Math.abs(now - this.npcClock) > 6;
+    this.npcClock = now;
+    const view = this.cameras.main.worldView;
+    const pace = this.fast ? 3 : 1;
     // the night patrol walks a loop around the campus
     const route = PATROL_ROUTE;
     const leg = Math.floor(time / 9000) % route.length;
@@ -1330,29 +1410,45 @@ export class CampusScene extends Phaser.Scene {
       if (def.id === 'bel-selim') npc.setData('patrol', route[leg]);
       // belletmens searching for you (or walking you back) leave their usual spots
       const onDuty = !!this.hunt?.npcs.includes(npc) || this.escort?.npc === npc;
-      const plan = onDuty ? { home: [npc.x / TILE - 0.5, (npc.y + 10) / TILE - 0.5] as [number, number], roam: 0 } : this.npcPlan(def, phase, lessonNow, npc);
+      const plan: NpcPlan = onDuty ? { home: [npc.x / TILE - 0.5, (npc.y + 10) / TILE - 0.5], roam: 0 } : this.npcPlan(def, phase, npc);
       const label = this.npcNames.get(npc)!;
-      if (!plan) {
-        if (npc.visible) { npc.setVisible(false); npc.body!.enable = false; npc.setVelocity(0, 0); }
-        label.setVisible(false);
-        continue;
-      }
       const [hx, hy] = this.npcSpot(plan.home[0], plan.home[1]);
-      if (!npc.visible) {
-        // reappear at their spot instead of walking across campus
-        npc.setPosition(hx, hy).setVisible(true);
-        npc.setData('path', undefined).setData('wander', undefined).setData('lastPos', undefined);
+      const goIn = (place: string) => {
+        npc.setVisible(false).setVelocity(0, 0);
+        npc.body!.enable = false;
+        npc.setData('in', place).setData('wantMove', false).setData('wander', undefined);
+        label.setVisible(false);
+      };
+      const comeOut = (x: number, y: number) => {
+        npc.setPosition(x, y).setVisible(true);
+        npc.setData('in', undefined).setData('path', undefined).setData('wander', undefined).setData('lastPos', undefined);
         npc.body!.enable = true;
+      };
+      let inside = npc.getData('in') as string | undefined;
+      // (someone you can see keeps walking instead of vanishing)
+      const watched = !first && !this.room && inside === undefined && npc.visible && view.contains(npc.x, npc.y);
+      if (jumped && !onDuty && !watched) {
+        if (plan.inside) { goIn(plan.inside); continue; }
+        if (inside !== undefined || !npc.visible || Math.hypot(npc.x - hx, npc.y - hy) > (plan.roam + 3) * TILE) comeOut(hx, hy);
+        inside = undefined;
       }
+      if (inside !== undefined && plan.inside === inside) { label.setVisible(false); continue; } // still indoors
+      // they come out of the door they went in by
+      if (inside !== undefined) comeOut(...this.npcSpot(...this.doorTile(inside, def)));
+      else if (!npc.visible) comeOut(hx, hy);
       const talking = this.panel.isOpen && this.nearNpc?.id === def.id;
       if (onDuty) this.dutyStep(npc, time);
       else if (talking) {
         npc.setVelocity(0, 0);
         npc.setData('wantMove', false);
+      } else if (plan.inside) {
+        // on the way in: walk to the door and through it
+        npc.setData('wander', undefined);
+        if (this.steerNpc(npc, hx, hy, 85 * pace) || Math.hypot(npc.x - hx, npc.y - hy) < 0.9 * TILE) { goIn(plan.inside); continue; }
       } else if (plan.roam === 0 || Math.hypot(npc.x - hx, npc.y - hy) > (plan.roam + 3) * TILE) {
         // walk (back) to the spot, round the buildings
         npc.setData('wander', undefined);
-        this.steerNpc(npc, hx, hy, 70);
+        this.steerNpc(npc, hx, hy, 80 * pace);
       } else {
         const wander = npc.getData('wander') as [number, number] | undefined;
         // never loiter in front of a door: people need to get in and out
@@ -1360,7 +1456,7 @@ export class CampusScene extends Phaser.Scene {
         if (wander) {
           if (this.steerNpc(npc, wander[0], wander[1], 55)) npc.setData('wander', undefined);
         } else if (atDoor || time > npc.getData('next')) {
-          const idle = !atDoor && Math.random() < (def.kind === 'abi' || def.kind === 'belletmen' ? 0.7 : 0.4);
+          const idle = !atDoor && Math.random() < (def.kind === 'abi' || def.kind === 'belletmen' || def.kind === 'teacher' ? 0.7 : 0.4);
           const spot = idle ? null : this.wanderSpot(plan.home, Math.max(1, plan.roam));
           if (spot) npc.setData('wander', spot);
           else { npc.setVelocity(0, 0); npc.setData('wantMove', false); }
@@ -1371,6 +1467,7 @@ export class CampusScene extends Phaser.Scene {
       const vx = npc.body!.velocity.x, vy = npc.body!.velocity.y;
       const moving = Math.abs(vx) + Math.abs(vy) > 1;
       let dir = !moving ? npc.getData('dir') ?? 0 : Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 1 : 2) : vy < 0 ? 3 : 0;
+      if (!moving && plan.face) { const dx = (plan.face[0] + 0.5) * TILE - npc.x, dy = (plan.face[1] + 0.5) * TILE - npc.y; dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0; }
       if (talking || (this.escort?.npc === npc && !this.escort.walking)) { const dx = this.player.x - npc.x, dy = this.player.y - npc.y; dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0; }
       npc.setData('dir', dir);
       const step = moving ? [1, 0, 2, 0][Math.floor(time / 130) % 4] : 0;
@@ -1944,6 +2041,7 @@ export class CampusScene extends Phaser.Scene {
       st: this.save.state,
       ch: this.save.character,
       clock: this.save.clock,
+      raining: this.isRaining(),
       panel: this.panel,
       advance: (m) => this.advance(m),
       sleep: () => this.sleep(),
@@ -2550,6 +2648,9 @@ export class CampusScene extends Phaser.Scene {
     if (c.minutes >= 24 * 60) { c.minutes = 0; c.day += 1; }
     if (before < LIGHTS_OUT && c.minutes >= LIGHTS_OUT) this.hud.toast(t('lights_out'));
     if (before < 7 * 60 && c.minutes >= 7 * 60) this.onMorning();
+    const cer = this.isRaining() ? null : ceremonyWindow(c.day);
+    if (cer && c.minutes === cer[0] - 5) this.hud.toast(L({ tr: '🇹🇷 Bayrak töreni birazdan Merkez Meydan\'da başlıyor.', en: '🇹🇷 The flag ceremony starts soon on the Merkez Meydan.' }));
+    if (cer && c.minutes === cer[2]) this.flagCeremony();
     if (before < BUS_BOARDING && c.minutes >= BUS_BOARDING && isFriday(c.day) && (this.save.character.boarding ?? 'daimi') === 'evci' && st.school.registered) {
       this.hud.toast(L({ tr: '🚌 Hafta sonu servisi Ana Kapı\'da! 17:00\'de kalkıyor.', en: '🚌 The weekend bus is at the main gate! It leaves at 17:00.' }), 'good');
     }
@@ -2591,6 +2692,25 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
+  /** the İstiklal Marşı at the flag: being in line counts, and whoever has learnt it by heart leads it */
+  private flagCeremony() {
+    const z = CENTER_ZONES[0], tx = this.player.x / TILE, ty = this.player.y / TILE;
+    if (this.room || tx < z.x || tx >= z.x + z.w || ty < z.y || ty >= z.y + z.h) return;
+    sfx.success();
+    if (this.save.state.anthem.recited && !this.panel.isOpen) {
+      this.save.character.respect += 5;
+      this.gain({ xp: 30, mood: 10 });
+      this.hud.showModal({
+        title: L({ tr: '🇹🇷 Bayrak töreni', en: '🇹🇷 Flag ceremony' }), sub: 'Merkez Meydan',
+        body: L({ tr: 'Müdür yardımcısı seni öne çağırdı. İlk kıtayı sen başlattın, bütün okul arkandan okudu. +5 saygınlık', en: 'The deputy head called you to the front. You started the first stanza and the whole school joined in. +5 respect' }),
+        button: t('close'),
+      });
+    } else {
+      this.gain({ xp: 10, mood: 3 });
+      this.hud.toast(L({ tr: '🇹🇷 İstiklal Marşı okundu; sen de sıradaydın.', en: '🇹🇷 The İstiklal Marşı was sung, and you were in line.' }), 'good');
+    }
+  }
+
   private onMorning() {
     const c = this.save.clock;
     const st = this.save.state;
@@ -2603,8 +2723,8 @@ export class CampusScene extends Phaser.Scene {
     }
     for (const npc of this.npcs) {
       const def = npc.getData('def') as NpcDef;
-      if (def.kind !== 'belletmen' && !def.fixed) this.pickDayHome(npc);
-      if (def.kind !== 'belletmen') this.pickEveningHome(npc);
+      if (def.kind !== 'belletmen' && def.kind !== 'teacher' && !def.fixed) this.pickDayHome(npc);
+      if (def.kind !== 'belletmen' && def.kind !== 'teacher') this.pickEveningHome(npc);
     }
     // waking up sick? (the lower your health, the likelier)
     if (!st.sick && st.health < 40 && Math.random() < (40 - st.health) / 80) {
@@ -2746,7 +2866,7 @@ export class CampusScene extends Phaser.Scene {
     const c = this.save.clock;
     const p = currentPeriod(c.day, c.minutes);
     const lessonsLocked = !reached('derse_gir', this.mc());
-    const label = p?.kind === 'lesson' && lessonsLocked
+    const label = ceremonyNow(c.day, c.minutes) && !this.isRaining() ? L(CEREMONY) : p?.kind === 'lesson' && lessonsLocked
       ? L({ tr: 'Okulun ilk günleri · dersler henüz başlamadı', en: 'First days · lessons have not started yet' })
       : L(periodLabel(c.day, c.minutes));
     this.hud.setClock(c.day, c.minutes, label, this.isRaining() ? '🌧' : '');
