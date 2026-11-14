@@ -9,6 +9,7 @@ import { missionById, reached, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
 import { activityOf } from './routine';
 import { lineFor, type Moment } from '../content/lines';
+import { dilemmaDone, runDilemma } from './dilemmas';
 import { NPCS, friendLevel, type NpcDef } from '../content/npcs';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
@@ -509,7 +510,11 @@ function konferansRoom(ctx: GameCtx): RoomView {
       id: 'karne', label: T('Karne törenine katıl', 'Attend the report card ceremony'), hint: T('1. yılın sonu', 'The end of Year 1'),
       locked: needMission(ctx, 'karne') ?? (ctx.st.yearDone ? T('Karneni aldın. 🎓', 'You have your report card. 🎓')
         : ctx.st.xp < YEAR1_XP ? T(`Önce ${YEAR1_XP} XP topla (${ctx.st.xp}/${YEAR1_XP}).`, `Earn ${YEAR1_XP} XP first (${ctx.st.xp}/${YEAR1_XP}).`) : undefined),
-      run: () => { ctx.st.yearDone = true; ctx.panel.close(); ctx.yearEnd(); },
+      run: async () => {
+        // the first party comes straight after the ceremony
+        if (!(await runDilemma(ctx, 'parti'))) return;
+        ctx.st.yearDone = true; ctx.panel.close(); ctx.yearEnd();
+      },
     }],
   };
 }
@@ -1435,6 +1440,8 @@ export function phonePanel(ctx: GameCtx): PanelView {
           : st.phoneUnits < PHONE_CARD.perCall ? T('Telefon kartın yok ya da bitti. Kantinden al.', 'No phone card, or it ran out. Buy one at the canteen.')
             : doneToday(ctx, 'call') ? T('Bugün zaten aradın; sıradakilere de yer bırak.', 'You already called today; give the others a turn.') : undefined,
         run: async () => {
+          // in the evening the queue is long, and someone behind you is crying
+          if (!dilemmaDone(st, 'telefon') && ctx.clock.minutes >= 19 * 60 + 55) { await runDilemma(ctx, 'telefon'); return; }
           markToday(ctx, 'call');
           st.phoneUnits -= PHONE_CARD.perCall;
           ctx.advance(10);

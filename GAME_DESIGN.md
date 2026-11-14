@@ -1232,7 +1232,12 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 
 **No seasons:** the autumn / winter / spring cycle is gone. Trees stay in leaf, nothing falls from the sky except rain (about one day in four), and the flu-season and winter-coat health rules are removed. Rain without your coat still costs a little health.
 
-**Dilemmas:** Year 1 has **3** dilemma moments (planned, not built yet).
+**Dilemmas:** Year 1 has **3** dilemma moments (`game/dilemmas.ts`). None shows stat hints. Each choice nudges six hidden temperament axes (−100…100: *Uslu/Haylaz*, *Rahat/Hırslı*, *Sessiz/Gösterişli*, *Şefkatli/Sert*, *Kendi yolunda/Devreci*, *Kapalı/Açık*) and is saved as a memory for later years. At most one a day.
+1. **The phone queue:** the first evening you call home after 19:55, or are in your dorm between 21:00 and 21:50. The dorm classmate you know least is crying behind you. Choices: give them your turn, make your call, keep it short and share your card, or call and then sit with them (without a card: wait with them, or go to bed).
+2. **Behind the dorm:** from day 2, on the dorm plaza between 20:20 and 21:40. You see Burak Abi and Ece Abla kissing. Choices: tell your belletmen, walk away and say nothing, tell your friends, or let them know you saw and ask for something.
+3. **The first party:** straight after the karne ceremony, in the Kapalı Saha. Choices: ask a classmate to be your partner (they may say no), wait to be asked, go with your friend group, or skip it.
+
+The karne card shows "Who you're becoming": your two strongest leanings. New characters start with a 30-unit phone card from home, so the phone queue can happen in Year 1.
 
 **Student routine:** every student follows the timetable (`game/routine.ts`), each a few minutes early or late:
 - 07:00–07:30 out of the dorm and to breakfast, then the square in front of the school until the bell.

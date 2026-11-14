@@ -85,7 +85,14 @@ export interface PlayerState {
   anthem: { stanzas: number; recited: boolean };
   /** student council: class rep → grade president → (11th grade only) school president */
   council: { year: number; stage: CouncilStage; day: number; support: number; titles: string[] };
+  /** who you are becoming: six hidden axes, −100…100 (see game/dilemmas.ts) */
+  temper: Record<AxisId, number>;
+  /** the choices you made at dilemma moments, kept so later years can call back to them */
+  memories: Memory[];
 }
+
+export type AxisId = 'rules' | 'ambition' | 'presence' | 'warmth' | 'loyalty' | 'heart';
+export interface Memory { id: string; choice: string; day: number; year: number; who?: string }
 
 export type CouncilStage = 'none' | 'candidate' | 'rep' | 'lost' | 'gradePresident' | 'gradeLost' | 'schoolPresident' | 'schoolLost';
 export const ANTHEM_STANZAS = 10;
@@ -117,10 +124,13 @@ export function defaultState(): PlayerState {
     year: 1, discipline: 0, lastPenaltyDay: 0, escaped: false, escapes: 0,
     skills: { basketball: 0, football: 0 },
     music: { mandolin: 0, mandolinDone: false, instrument: null, skill: 0, path: null, shows: [] },
-    phoneUnits: 0,
+    // your family gave you a phone card before you left home
+    phoneUnits: 30,
     cemil: { pee: 'none', peeYear: 0, peeFails: 0, wetDay: -1 },
     anthem: { stanzas: 0, recited: false },
     council: { year: 0, stage: 'none', day: 0, support: 0, titles: [] },
+    temper: { rules: 0, ambition: 0, presence: 0, warmth: 0, loyalty: 0, heart: 0 },
+    memories: [],
   };
 }
 
@@ -138,6 +148,8 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     cemil: { ...d.cemil, ...s.cemil },
     anthem: { ...d.anthem, ...s.anthem },
     council: { ...d.council, ...s.council },
+    temper: { ...d.temper, ...s.temper },
+    memories: s.memories ?? [],
   };
   // older saves stored homework as plain subject ids
   merged.school.homework = (merged.school.homework as unknown[]).map((h) => (typeof h === 'string' ? { s: h as SubjectId, day: 1 } : h as { s: SubjectId; day: number }));

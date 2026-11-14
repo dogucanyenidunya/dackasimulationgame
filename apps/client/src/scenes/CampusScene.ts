@@ -26,6 +26,7 @@ import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CL
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, carsiNow, isFriday, isWednesday, weekday } from '../game/weekend';
 import { activityOf, teacherActivity, type Activity, type Indoors, type RoutineClock } from '../game/routine';
+import { dilemmaDone, runDilemma, temperLabel, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
 import { BELLETMENS, GROUPS, NPCS, TEACHER_NPCS, ageGroup, type NpcDef } from '../content/npcs';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
@@ -102,6 +103,8 @@ export class CampusScene extends Phaser.Scene {
   private npcById = new Map<string, Phaser.Physics.Arcade.Sprite>();
   /** game minute the NPCs were last updated at: a jump means a lesson, a night's sleep or a loaded save */
   private npcClock = -1;
+  /** game minute (since day 1) before which no dilemma moment starts (one set aside comes back later) */
+  private dilemmaWait = 0;
   /** this frame's clock for the students' routine */
   private rc: RoutineClock | null = null;
   /** where students leave the campus and come back: just inside the main gate */
@@ -2527,6 +2530,29 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
+  /** the evening dilemma moments: the payphone queue in the dorm, and what you see behind the dorm */
+  private checkDilemmas() {
+    const st = this.save.state, c = this.save.clock;
+    if (this.blocked() || this.sleeping || !st.once.luggage || !st.missionsDone.includes('kayit')) return;
+    const now = c.day * 1440 + c.minutes;
+    if (now < this.dilemmaWait || st.memories.some((m) => m.day === c.day)) return; // one a day
+    const m = c.minutes;
+    if (this.room === 'dorm' && !dilemmaDone(st, 'telefon') && st.daily.call !== c.day && m >= 21 * 60 && m < 21 * 60 + 50) this.openDilemma('telefon');
+    else if (!this.room && c.day >= 2 && !dilemmaDone(st, 'arka') && phaseOf(m, c.day) === 'plaza' && m >= 20 * 60 + 20 && m < 21 * 60 + 40) {
+      const tx = this.player.x / TILE, ty = this.player.y / TILE, r = PLAZA_EVENING;
+      if (tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) this.openDilemma('arka');
+    }
+  }
+
+  private openDilemma(id: DilemmaId) {
+    const c = this.save.clock;
+    this.dilemmaWait = c.day * 1440 + c.minutes + 20;
+    this.player.setVelocity(0, 0);
+    const where = id === 'telefon' ? L({ tr: 'Yurt koridoru', en: 'Dorm corridor' }) : L({ tr: 'Yurdun arkası', en: 'Behind the dorm' });
+    this.panel.open(() => ({ title: where, rooms: [{ id: 'dilemma', name: where, actions: [] }] }));
+    void runDilemma(this.gameCtx(), id).then(() => { if (this.panel.isOpen) this.panel.close(); this.persist(); });
+  }
+
   private showNextAnnouncement() {
     if (!this.announceQueue.length || this.blocked()) return;
     const ids = this.announceQueue.splice(0);
@@ -2594,6 +2620,7 @@ export class CampusScene extends Phaser.Scene {
       <div style="margin-top:12px">${avgs.map(({ s, a }) => `<div class="sum-row"><span>${L(s.name)}</span><b>${a}</b></div>`).join('')}
       <div class="sum-row"><span><b>${L({ tr: 'Ortalama', en: 'Average' })}</b></span><b>${gpa}</b></div></div>
       ${cert ? `<div class="cert">${cert}</div>` : ''}
+      <div class="sum-row"><span>${L({ tr: 'Kim oluyorsun', en: "Who you're becoming" })}</span><b>${temperLabel(st) ?? L({ tr: 'Henüz belli değil', en: 'Not clear yet' })}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Arkadaşların', en: 'Your friends' })}</span><b>${friends.join(', ') || '—'}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' })}</span><b>${st.everSick ? L({ tr: '✕ Hastalandın', en: '✕ You got sick' }) : L({ tr: '✓ Demir Gibi madalyası!', en: '✓ Iron Kid medal!' })}</b></div>
       <p style="line-height:1.5">${L({ tr: 'Yaz tatili başlıyor. 2. yıl (5. sınıf) bir sonraki güncellemede geliyor!', en: 'Summer break begins. Year 2 (Grade 5) arrives in a future update!' })}</p>
@@ -2940,6 +2967,7 @@ export class CampusScene extends Phaser.Scene {
     this.suitcase.setVisible(carrying);
     if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.player.y + (this.dir === 3 ? 15 : 17));
     this.showNextAnnouncement();
+    this.checkDilemmas();
     this.enforceCurfew();
     this.updateHunt(delta);
     this.updateCountdown();
