@@ -122,16 +122,14 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
   [T.COURT_RED]: (c, o) => speckle(c, o, PAL.courtRed, '#9a4038', 10, 81),
   [T.COURT_BLUE]: (c, o) => speckle(c, o, PAL.courtBlue, '#386f92', 10, 91),
   [T.FENCE]: (c, o) => {
-    TILE_PAINTERS[T.GROUND](c, o);
-    c.fillStyle = 'rgba(0,0,0,0.15)'; c.fillRect(o, 22, 32, 3);
-    c.fillStyle = '#3d4246'; for (let x = 2; x < 32; x += 5) { c.fillRect(o + x, 4, 2, 18); c.fillRect(o + x, 2, 2, 2); }
-    c.fillRect(o, 7, 32, 2); c.fillRect(o, 17, 32, 2);
-    c.fillStyle = '#6b7176'; c.fillRect(o, 7, 32, 1);
+    // the foot of the perimeter wall (the wall itself stands on it as sprites, see art/gateway.ts)
+    c.fillStyle = '#8f8778'; c.fillRect(o, 0, 32, 32);
+    c.fillStyle = '#7a7366'; for (let y = 4; y < 32; y += 8) c.fillRect(o, y, 32, 1);
   },
   [T.GATE]: (c, o) => {
-    // the open gateway in the south fence (its brick pillars are drawn as separate sprites)
+    // the open gateway in the south wall (its pillars are drawn as separate sprites)
     TILE_PAINTERS[T.PATH](c, o);
-    c.fillStyle = 'rgba(138,45,45,0.35)'; c.fillRect(o, 13, 32, 6);
+    c.fillStyle = 'rgba(122,112,96,0.45)'; c.fillRect(o, 13, 32, 6);
   },
   // ----- interior tiles (dorm study room / sleeping room) -----
   17: (c, o) => { // wooden floor
@@ -542,13 +540,14 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillStyle = '#1f1f22'; c.fillRect(10, 2, 3, 12); c.fillRect(11, 14, 1, 8);
     c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(2, 22, 13, 2);
   });
-  // stone pillar of the big green main gate (32x80): coursed stone, a green cap and a lantern on top
-  canvas('gatepost', 32, 80, (c) => {
-    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 74, 28, 5);
-    c.fillStyle = '#dcb27d'; c.fillRect(4, 20, 24, 56);
-    c.fillStyle = '#b8925e'; for (let y = 26; y < 76; y += 7) { c.fillRect(4, y, 24, 1); c.fillRect(y % 14 ? 11 : 20, y - 6, 1, 6); }
-    c.fillStyle = '#ecd2a4'; c.fillRect(4, 20, 2, 56); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(24, 20, 4, 56);
-    c.fillStyle = '#c49a66'; c.fillRect(2, 68, 28, 8);
+  // stone pillar of the big green main gate (32x100), taller than the campus wall: coursed stone, a green cap
+  // and a lantern on top
+  canvas('gatepost', 32, 100, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(4, 94, 28, 5);
+    c.fillStyle = '#dcb27d'; c.fillRect(4, 20, 24, 76);
+    c.fillStyle = '#b8925e'; for (let y = 26; y < 96; y += 7) { c.fillRect(4, y, 24, 1); c.fillRect(y % 14 ? 11 : 20, y - 6, 1, 6); }
+    c.fillStyle = '#ecd2a4'; c.fillRect(4, 20, 2, 76); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(24, 20, 4, 76);
+    c.fillStyle = '#c49a66'; c.fillRect(2, 88, 28, 8);
     c.fillStyle = '#2f6b3a'; c.fillRect(1, 13, 30, 8); c.fillStyle = '#4d9459'; c.fillRect(1, 13, 30, 2);
     c.fillStyle = '#1f2326'; c.fillRect(10, 4, 12, 9); c.fillRect(13, 0, 6, 4);
     c.fillStyle = '#fff3c4'; c.fillRect(12, 6, 8, 5);

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -10,7 +10,7 @@ import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildings3d';
-import { CABIN_SIZE, makeGatewayTextures } from '../art/gateway';
+import { CABIN_SIZE, GATE_LEAF_SIZE, WALL_FACE, makeGatewayTextures } from '../art/gateway';
 import { World3D, type Host3D } from '../three/World3D';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
@@ -236,19 +236,28 @@ export class CampusScene extends Phaser.Scene {
       ? [[GATE.x + 0.5, GATE.y - 0.5], [GATE.x + 0.5, GATE.y + GATE.h + 0.5]]
       : [[GATE.x - 0.5, GATE.y + 0.5], [GATE.x + GATE.w + 0.5, GATE.y + 0.5]];
     for (const [gx, gy] of posts) {
-      const post = trees.create(gx * TILE, gy * TILE - 24, 'gatepost') as Phaser.Physics.Arcade.Sprite;
+      const post = trees.create(gx * TILE, gy * TILE - 34, 'gatepost') as Phaser.Physics.Arcade.Sprite;
       post.setDepth(gy * TILE + 16);
-      post.body!.setSize(24, 12).setOffset(4, 66);
+      post.body!.setSize(24, 12).setOffset(4, 86);
     }
     if (!vertical) {
       const gy = GATE.y + 0.5;
-      this.add.image((GATE.x + GATE.w / 2) * TILE, gy * TILE - 50, 'gatearch').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
-      for (const lx of [GATE.x - 1.35, GATE.x + GATE.w + 1.35]) this.add.image(lx * TILE, gy * TILE + 12, 'gateleaf').setOrigin(0.5, 1).setDepth(gy * TILE + 14);
+      this.add.image((GATE.x + GATE.w / 2) * TILE, gy * TILE - 70, 'gatearch').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
+      // the two leaves stand swung open into the campus, hinged on the pillars
+      const hinge = (GATE.y + 0.3) * TILE, ox = 1 / GATE_LEAF_SIZE.w;
+      this.add.image(GATE.x * TILE, hinge, 'gateleaf').setOrigin(ox, 1).setDepth(hinge);
+      this.add.image((GATE.x + GATE.w) * TILE, hinge, 'gateleaf').setOrigin(1 - ox, 1).setFlipX(true).setDepth(hinge);
     }
     const cabin = trees.create(CABIN.x * TILE, (CABIN.y + CABIN.h) * TILE, 'cabin') as Phaser.Physics.Arcade.Sprite;
     cabin.setOrigin(0, 1).setDepth((CABIN.y + CABIN.h) * TILE).refreshBody();
-    cabin.body!.setSize(CABIN_SIZE.w - 4, 18).setOffset(2, CABIN_SIZE.h - 20);
-    this.lightSpots.push({ x: (CABIN.x + 0.6) * TILE, y: (CABIN.y + CABIN.h) * TILE - 10, r: 1.4 });
+    cabin.body!.setSize(CABIN_SIZE.w, CABIN.h * TILE).setOffset(0, CABIN_SIZE.h - CABIN.h * TILE);
+    this.lightSpots.push({ x: (CABIN.x + CABIN.w / 2) * TILE, y: (CABIN.y + CABIN.h) * TILE - 20, r: 1.4 });
+    // the tall perimeter wall, a block per fence tile; its stone face shows wherever nothing walls it in to the south
+    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+      if (!wallAt(this.map, x, y)) continue;
+      const face = !wallAt(this.map, x, y + 1);
+      this.add.image(x * TILE, (y + 1) * TILE - (face ? 0 : WALL_FACE), face ? 'wallblock' : 'walltop').setOrigin(0, 1).setDepth((y + 1) * TILE);
+    }
     // the aqueduct over the main street: walk through its big arch; its two piers stand against the walls
     const aqFront = (AQUEDUCT.y + AQUEDUCT.h) * TILE;
     this.add.image(AQUEDUCT.x * TILE, aqFront, 'aqueduct').setOrigin(0, 1).setDepth(aqFront + 1);

@@ -241,8 +241,15 @@ export const GATE_IN: Pt = [40, 51];
 
 /** player spawn (tile coords, can be fractional) */
 export const SPAWN = { x: 40.5, y: 50.5 };
-/** the guards' cabin just inside the gate, east of the street */
-export const CABIN: Rect = { x: 42.7, y: 49.6, w: 2, h: 1.6 };
+/** the guards' gatehouse, built into the wall right against the gate's east pillar (its window looks out on the road) */
+export const CABIN: Rect = { x: 42.9, y: 51, w: 2.4, h: 2 };
+/** the campus is walled in: every fence tile carries a tall stretch of wall, except where the gate's pillars
+ *  and the gatehouse stand */
+export function wallAt(m: number[][], x: number, y: number): boolean {
+  if (m[y]?.[x] !== T.FENCE) return false;
+  if (y === GATE.y && (x === GATE.x - 1 || x === GATE.x + GATE.w)) return false;
+  return !(x + 0.5 > CABIN.x && x + 0.5 < CABIN.x + CABIN.w && y + 0.5 > CABIN.y && y + 0.5 < CABIN.y + CABIN.h);
+}
 
 /** a Roman-style aqueduct joining Eğitim and the Cemiyet over the main street: you walk through its big arch */
 export const AQUEDUCT: Rect = { x: 39, y: 41.8, w: 3, h: 0.8 };

@@ -14,14 +14,14 @@ import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BUILDINGS, BUST, CABIN, COURTS, EXTRA_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, LAMPS, STAIRS, LOCATIONS, MAP_H, MAP_W, T, TILE, TREES,
-  inBuilding, nearestEdge, type Building, type Pt, type Rect,
+  inBuilding, wallAt, nearestEdge, type Building, type Pt, type Rect,
 } from '../content/campus';
 import { ROOM_OX, ROOM_W, ROOM_H, ROOM_SOLID, RT, buildRoom } from '../content/dormroom';
 import { CLASS_OX, CLASS_W, CLASS_H, buildClassroom } from '../content/classroom';
 import { DINING_OX, DINING_W, DINING_H, DINING_SOLID, DT, buildDining } from '../content/dining';
 import { TILESET_KEY, TILESET_MARGIN, TILESET_SPACING } from '../art/textures';
 import { shade, wallColor } from '../art/buildings3d';
-import { AQ, BRIDGE_STONE, GATE_GREEN } from '../art/gateway';
+import { AQ, BRIDGE_STONE, GATE_GREEN, WALL_HEIGHT_3D, WALL_STONE } from '../art/gateway';
 import { bushSpots, entrances, sideX } from '../art/buildings3d';
 
 export type RoomKey = 'dorm' | 'class' | 'dining' | null;
@@ -80,7 +80,7 @@ const TiltShiftShader = {
 };
 
 const BUILDING_TILES = new Set<number>([T.ROOF, T.SKYLIGHT, T.SOLAR, T.GREEN_ROOF, T.WALL, T.WALL_BASE, T.DOOR, T.DOOR_REVIR]);
-const SKIP_KEYS = new Set(['bust', 'gatepost', 'gatearch', 'gateleaf', 'cabin', 'aqueduct', 'stairs', 'tree', 'lamp', 'bench', 'flowers', 'bush', 'fountain', 'flag', 'warm', 'glow', '__DEFAULT', '__MISSING', '__WHITE']);
+const SKIP_KEYS = new Set(['bust', 'gatepost', 'gatearch', 'gateleaf', 'cabin', 'aqueduct', 'stairs', 'wallblock', 'walltop', 'tree', 'lamp', 'bench', 'flowers', 'bush', 'fountain', 'flag', 'warm', 'glow', '__DEFAULT', '__MISSING', '__WHITE']);
 
 function rng(seed: number) {
   return () => {
@@ -757,15 +757,19 @@ export class World3D {
       this.scene.add(p, cap, lamp);
     }
     if (!vertical) {
-      for (const lx of [GATE.x - 1.35, GATE.x + GATE.w + 1.35]) {
+      // the leaves stand swung 60° open into the campus, hinged on the pillars
+      const half = GATE.w / 2;
+      for (const [hx, angle] of [[GATE.x, Math.PI / 3], [GATE.x + GATE.w, (Math.PI * 2) / 3]]) {
         const leaf = new THREE.Group();
-        for (const y of [0.15, 0.8, 1.45]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.06), brick); rail.position.y = y; leaf.add(rail); }
-        for (let x = -0.7; x <= 0.71; x += 0.155) {
+        for (const y of [0.15, 0.8, 1.45]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(half, 0.07, 0.06), brick); rail.position.set(half / 2, y, 0); leaf.add(rail); }
+        for (let i = 0; i <= 9; i++) {
+          const x = 0.04 + (i / 9) * (half - 0.08);
           const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.45, 0.04), brick); bar.position.set(x, 0.8, 0); bar.castShadow = true;
           const tip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.07), gold); tip.position.set(x, 1.58, 0);
           leaf.add(bar, tip);
         }
-        leaf.position.set(lx, 0, GATE.y + 0.5);
+        leaf.position.set(hx, 0, GATE.y + 0.3);
+        leaf.rotation.y = angle;
         this.scene.add(leaf);
       }
     }
@@ -863,22 +867,17 @@ export class World3D {
     wallBody.castShadow = coping.castShadow = wallBody.receiveShadow = true;
     this.scene.add(wallBody, coping);
     q.identity();
-    // iron fence: posts and two rails per tile
-    const iron = new THREE.MeshLambertMaterial({ color: 0x2b3033 });
-    const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.9, 0.07), iron, fence.length * 2);
-    const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.05, 0.05), iron, fence.length * 2);
-    const isFence = (x: number, y: number) => m[y]?.[x] === T.FENCE;
-    let n = 0;
-    fence.forEach(([x, y], i) => {
-      const horizontal = isFence(x - 1, y) || isFence(x + 1, y);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), horizontal ? 0 : Math.PI / 2);
-      s.set(1, 1, 1);
-      for (const h of [0.35, 0.75]) { p.set(x + 0.5, h, y + 0.5); rails.setMatrixAt(n++, mtx.compose(p, q, s)); }
-      p.set(x + 0.5, 0.45, y + 0.5); posts.setMatrixAt(i * 2, mtx.compose(p, new THREE.Quaternion(), s));
-      p.set(horizontal ? x : x + 0.5, 0.45, horizontal ? y + 0.5 : y); posts.setMatrixAt(i * 2 + 1, mtx.compose(p, new THREE.Quaternion(), s));
+    // the tall perimeter wall: a stone block per fence tile (not under the gate posts or the gatehouse), with
+    // a lighter coping on top
+    const wallTiles = fence.filter(([x, y]) => wallAt(m, x, y));
+    const stoneWall = new THREE.InstancedMesh(new THREE.BoxGeometry(1, WALL_HEIGHT_3D, 1).translate(0, WALL_HEIGHT_3D / 2, 0), new THREE.MeshLambertMaterial({ color: new THREE.Color(WALL_STONE) }), wallTiles.length);
+    const wallCap = new THREE.InstancedMesh(new THREE.BoxGeometry(1.06, 0.14, 1.06).translate(0, WALL_HEIGHT_3D + 0.07, 0), new THREE.MeshLambertMaterial({ color: new THREE.Color(shade(WALL_STONE, 1.25)) }), wallTiles.length);
+    wallTiles.forEach(([x, y], i) => {
+      p.set(x + 0.5, 0, y + 0.5); s.set(1, 1, 1);
+      stoneWall.setMatrixAt(i, mtx.compose(p, q, s)); wallCap.setMatrixAt(i, mtx.compose(p, q, s));
     });
-    posts.castShadow = rails.castShadow = true;
-    this.scene.add(posts, rails);
+    stoneWall.castShadow = stoneWall.receiveShadow = wallCap.castShadow = true;
+    this.scene.add(stoneWall, wallCap);
   }
 
   /** an interior from its tile map: floor, walls (the back wall shows its painted face), furniture as blocks */
@@ -983,14 +982,16 @@ export class World3D {
     const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, shadow = true) => {
       const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; this.scene.add(o); return o;
     };
-    // cabin: white box, green roof slab, a wide window and a door at the front, a window on the street side (west)
-    const cx = CABIN.x + CABIN.w / 2, cz = CABIN.y + CABIN.h / 2, front = CABIN.y + CABIN.h;
-    box(CABIN.w, 1.4, CABIN.h, white, cx, 0.7, cz);
-    box(CABIN.w + 0.3, 0.15, CABIN.h + 0.3, green, cx, 1.47, cz);
-    box(1.0, 0.55, 0.04, glass, CABIN.x + 0.65, 0.85, front + 0.02, false);
-    box(0.45, 1.0, 0.04, dark, CABIN.x + 1.55, 0.5, front + 0.02, false);
-    box(0.04, 0.5, 0.9, glass, CABIN.x - 0.02, 0.85, cz, false);
-    box(1.0, 0.14, 0.05, green, CABIN.x + 0.65, 1.22, front + 0.03, false);
+    // the gatehouse in the wall line, against the east pillar: white box with a green roof slab and trim, the
+    // guard's window and sign facing the road, a window onto the gateway and the door on the campus side
+    const cx = CABIN.x + CABIN.w / 2, cz = CABIN.y + CABIN.h / 2, front = CABIN.y + CABIN.h, back = CABIN.y;
+    box(CABIN.w, 1.9, CABIN.h, white, cx, 0.95, cz);
+    box(CABIN.w + 0.2, 0.16, CABIN.h + 0.2, green, cx, 1.98, cz);
+    box(CABIN.w + 0.02, 0.12, CABIN.h + 0.02, green, cx, 1.84, cz, false);
+    box(CABIN.w - 0.55, 0.62, 0.04, glass, cx, 1.0, front + 0.02, false);
+    box(CABIN.w - 0.7, 0.2, 0.05, green, cx, 1.5, front + 0.03, false);
+    box(0.04, 0.6, 1.0, glass, CABIN.x - 0.02, 1.0, cz, false);
+    box(0.5, 1.15, 0.04, dark, CABIN.x + CABIN.w - 0.55, 0.58, back - 0.02, false);
     // the steps' cheek walls
     for (const x of [STAIRS.x + 0.07, STAIRS.x + STAIRS.w - 0.07]) box(0.14, 0.3, STAIRS.h, stone, x, 0.15, STAIRS.y + STAIRS.h / 2);
     // the aqueduct: one wall extruded north–south, its outline running up the piers and round the big arch,
