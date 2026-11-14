@@ -983,13 +983,13 @@ export class World3D {
     const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, shadow = true) => {
       const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; this.scene.add(o); return o;
     };
-    // cabin: white box, green roof slab, a wide window and a door at the front, a window on the street side
+    // cabin: white box, green roof slab, a wide window and a door at the front, a window on the street side (west)
     const cx = CABIN.x + CABIN.w / 2, cz = CABIN.y + CABIN.h / 2, front = CABIN.y + CABIN.h;
     box(CABIN.w, 1.4, CABIN.h, white, cx, 0.7, cz);
     box(CABIN.w + 0.3, 0.15, CABIN.h + 0.3, green, cx, 1.47, cz);
     box(1.0, 0.55, 0.04, glass, CABIN.x + 0.65, 0.85, front + 0.02, false);
     box(0.45, 1.0, 0.04, dark, CABIN.x + 1.55, 0.5, front + 0.02, false);
-    box(0.04, 0.5, 0.9, glass, CABIN.x + CABIN.w + 0.02, 0.85, cz, false);
+    box(0.04, 0.5, 0.9, glass, CABIN.x - 0.02, 0.85, cz, false);
     box(1.0, 0.14, 0.05, green, CABIN.x + 0.65, 1.22, front + 0.03, false);
     // the steps' cheek walls
     for (const x of [STAIRS.x + 0.07, STAIRS.x + STAIRS.w - 0.07]) box(0.14, 0.3, STAIRS.h, stone, x, 0.15, STAIRS.y + STAIRS.h / 2);

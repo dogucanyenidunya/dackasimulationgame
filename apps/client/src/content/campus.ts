@@ -241,15 +241,15 @@ export const GATE_IN: Pt = [40, 51];
 
 /** player spawn (tile coords, can be fractional) */
 export const SPAWN = { x: 40.5, y: 50.5 };
-/** the guards' cabin just inside the gate, west of the street */
-export const CABIN: Rect = { x: 36.6, y: 49.6, w: 2, h: 1.6 };
+/** the guards' cabin just inside the gate, east of the street */
+export const CABIN: Rect = { x: 42.7, y: 49.6, w: 2, h: 1.6 };
 
 /** a Roman-style aqueduct joining Eğitim and the Cemiyet over the main street: you walk through its big arch */
 export const AQUEDUCT: Rect = { x: 39, y: 41.8, w: 3, h: 0.8 };
 /** how wide each of the aqueduct's two piers is, against the building walls (tiles) */
 export const AQUEDUCT_PIER = 0.55;
-/** the steps up from Ana Kapı to the landing in front of the Cemiyet door */
-export const STAIRS: Rect = { x: 39, y: 46, w: 3, h: 2.5 };
+/** the steps up from the Cemiyet door to the aqueduct's arch */
+export const STAIRS: Rect = { x: 39, y: 43.2, w: 3, h: 2.5 };
 
 export const TREES: Array<[number, number]> = [
   [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
@@ -263,7 +263,7 @@ export const BENCHES: Array<[number, number]> = [
 
 /** street lamps: they light up at night */
 export const LAMPS: Array<[number, number]> = [
-  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [43, 51], [33, 33], [72, 40], [54, 30], [86, 40],
+  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [37.4, 50.6], [33, 33], [72, 40], [54, 30], [86, 40],
 ];
 
 export const FLOWERS: Array<[number, number]> = [
@@ -329,7 +329,7 @@ export const LOCATIONS: Location[] = [
       tr: 'İlk durağın: kayıt burada yapılır. Müdür, rehber öğretmen ve ziyaretçi odası buradadır. Ambar (−1. kat) üniforma, ayakkabı ve eşofman dağıtır.',
       en: 'Your first stop: registration happens here. The principal, the guidance counselor and the visitors\' room are here. The Ambar (floor −1) hands out uniforms, shoes and tracksuits.',
     },
-    rect: { x: 42, y: 40, w: 14, h: 9 }, label: { x: 46.5, y: 44.5 }, doors: [{ x: 42, y: 44, side: 'w' }, { x: 42, y: 45, side: 'w' }], minimapColor: '#b9c0c6',
+    rect: { x: 42, y: 40, w: 14, h: 9 }, label: { x: 46.5, y: 44.5 }, doors: [{ x: 42, y: 46, side: 'w' }, { x: 42, y: 47, side: 'w' }], minimapColor: '#b9c0c6',
   },
   {
     id: 'muze', kind: 'building',
