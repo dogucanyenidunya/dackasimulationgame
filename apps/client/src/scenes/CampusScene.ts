@@ -19,6 +19,7 @@ import { yetimPanel } from '../game/yetimCat';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
+import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
 import { askConfirm } from '../ui/confirm';
@@ -2577,8 +2578,26 @@ export class CampusScene extends Phaser.Scene {
       toClass: () => this.backToClass(),
       log: (e) => this.log(e),
       watchMatch: () => void this.watchMatch(),
+      playYetimball: (opponent, skill) => this.playYetimball(opponent, skill),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** Yetimball against a classmate: you hit first; the game screen holds you still until you close it */
+  private playYetimball(opponent: string, skill: number): Promise<YbResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    return new Promise((resolve) => {
+      const view = new YetimballView(document.body, {
+        me: this.save.character.first, them: opponent, host: true,
+        send: () => {}, quit: () => {},
+        bot: (tension) => botHit(skill, tension),
+        onEnd: resolve,
+      });
+      const close = view.close.bind(view);
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); };
+    });
   }
 
   /** you changed clothes: repaint the player's sprite sheet (and the walk cycles cut from it) */

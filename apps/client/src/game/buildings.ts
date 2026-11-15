@@ -17,6 +17,7 @@ import type { AxisId } from './state';
 import { DEPUTY, NPCS, ablativeTr, dativeTr, friendLevel, genitiveTr, type NpcDef } from '../content/npcs';
 import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
+import type { YbResult } from '../ui/yetimball';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -60,6 +61,8 @@ export interface GameCtx {
   log(e: DiaryEvent): void;
   /** take your seat in the stand for the match */
   watchMatch(): void;
+  /** a game of Yetimball against a classmate of this skill (0–1); resolves with how it ended */
+  playYetimball(opponent: string, skill: number): Promise<YbResult>;
 }
 
 /** reason text when a feature is still locked behind a mission */
@@ -1376,6 +1379,33 @@ function lineNow(npc: NpcDef, ctx: GameCtx): Text {
 }
 
 /** the fun, risky and mean things you can do with another student (once a day each) */
+/** how good a classmate is at Yetimball (0–1): the court crowd and the older ones are good at it, the bookworms less so */
+export function yetimballSkill(npc: NpcDef): number {
+  const base = npc.kind === 'abi' ? 0.76 : npc.group === 'kortcular' ? 0.72 : npc.group === 'haylaz' ? 0.64 : npc.group === 'sanat' ? 0.55 : npc.group === 'kitap' ? 0.48 : 0.58;
+  let h = 0;
+  for (const ch of npc.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return Math.max(0.4, Math.min(0.85, base + 0.015 * ((npc.grade ?? 4) - 4) + ((h % 11) - 5) / 100));
+}
+
+/** a game of Yetimball with a classmate, out on the campus */
+async function yetimballWith(npc: NpcDef, ctx: GameCtx) {
+  const say = (tr: string, en: string) => ctx.panel.message(npc.name, T(tr, en));
+  ctx.panel.close();
+  const r = await ctx.playYetimball(npc.name, yetimballSkill(npc));
+  if (r === 'win') {
+    ctx.befriend(npc.id, 8);
+    ctx.gain({ mood: 8, xp: 15, energy: -6, attrs: { fitness: 1 } });
+    ctx.toast(T(`🪢 ${npc.name}'ı Yetimball'da yendin! "Rövanş yarın, hazır ol!"`, `🪢 You beat ${npc.name} at Yetimball! "Rematch tomorrow, be ready!"`), 'good');
+  } else if (r === 'lose') {
+    ctx.befriend(npc.id, 10);
+    ctx.gain({ mood: 2, xp: 8, energy: -6, attrs: { fitness: 1 } });
+    ctx.toast(T(`🪢 ${npc.name} kazandı ve çok sevindi. "İyi oynadın ama!"`, `🪢 ${npc.name} won and is delighted. "You played well, though!"`));
+  } else {
+    ctx.befriend(npc.id, -2);
+    await say(`Oyunu yarıda bıraktın. ${npc.name}: "Hıh, tam da kazanıyordum…"`, `You walked off mid-game. ${npc.name}: "Hmph, I was just about to win…"`);
+  }
+}
+
 function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | undefined): ActionView[] {
   const st = ctx.st;
   const once = (key: string) => (doneToday(ctx, `${key}-${npc.id}`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
@@ -1432,6 +1462,12 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
           else { ctx.gain({ mood: 6 }); await say('Ranzanın altında gizlendin; kimse bulamadı!', 'You hid under a bunk bed; nobody found you!'); }
         }
       },
+    },
+    {
+      id: 'yetimball', label: T('🪢 Yetimball oyna', '🪢 Play Yetimball'),
+      hint: T(`Karşılıklı ip sarma · doğru açı + doğru güç kazandırır · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'iyi oyuncu' : yetimballSkill(npc) >= 0.56 ? 'fena değil' : 'pek iyi değil'}`, `A rope-winding duel · the right angle and strength win · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'a strong player' : yetimballSkill(npc) >= 0.56 ? 'not bad' : 'not much good'}`),
+      locked: lock ?? (indoors ? T(`Yetimball dışarıda, direğin başında oynanır (${where} olmaz).`, `Yetimball is played outside at the pole (not ${where}).`) : once('yetimball')),
+      run: async () => { nudge(ctx, { heart: 1 }); mark('yetimball'); await yetimballWith(npc, ctx); },
     },
     {
       id: 'joke', label: T('😂 Şaka yap', '😂 Tell a joke'), hint: T('Güldürürsen +10 · tutmazsa −3', 'If they laugh +10 · if it flops −3'),

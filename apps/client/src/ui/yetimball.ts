@@ -37,6 +37,13 @@ export function hitQuality(angle: number, power: number): number {
 
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
+/** a computer opponent's hit: around its skill (0–1), now and then a miss (a little more often as the rope gets short) */
+export function botHit(skill: number, tension: number): number {
+  if (Math.random() < 0.04 + 0.005 * tension) return -1;
+  const q = skill + (Math.random() - 0.5) * 0.4;
+  return Math.round(Math.max(0, Math.min(1, q)) * 1000) / 1000;
+}
+
 interface Opts {
   me: string;
   them: string;
@@ -48,6 +55,8 @@ interface Opts {
   quit: () => void;
   /** the game is over (called once) */
   onEnd: (r: YbResult) => void;
+  /** playing a classmate, not a real player: their hit, worked out here when it's their turn */
+  bot?: (tension: number) => number;
 }
 
 export class YetimballView {
@@ -124,6 +133,11 @@ export class YetimballView {
     this.turnAt = now;
     this.phaseAt = now;
     this.phase = this.myTurn() ? 'aim' : 'waiting';
+    if (this.phase === 'waiting' && this.o.bot) {
+      // a classmate takes a moment to line up the hit
+      const n = this.n, bot = this.o.bot;
+      window.setTimeout(() => this.receive(n, bot(this.tension())), 900 + Math.random() * 1100);
+    }
     if (this.phase === 'waiting') this.flushQueued();
   }
 
