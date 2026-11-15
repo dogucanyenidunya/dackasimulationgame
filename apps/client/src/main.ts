@@ -6,9 +6,10 @@ import { runCreator } from './ui/creator';
 import { sfx } from './audio';
 import { askConfirm } from './ui/confirm';
 import { GUARDIANS, type CharacterData } from './content/character';
-import { L } from './i18n';
+import { L, type Text } from './i18n';
 import { currentSession, online, sendSignInLink, signOut, takeLinkError, verifySignInCode } from './net/supabase';
 import { loadCloudSave } from './net/cloudSave';
+import { clearPendingInvite, inviteInfo, pendingInvite, redeemInvite } from './net/friends';
 import { withDefaults } from './game/state';
 
 /** who is playing online (null = offline / signed out) */
@@ -47,6 +48,8 @@ async function titleScreen() {
   document.body.appendChild(el);
   let linkSentTo = '';
   let signInError = '';
+  // (before the sign-in error check below, which tidies the whole address)
+  const invite = await handleInvite(net);
   // a link that was already used (often by a mail scanner) or expired lands back here with an error
   const linkError = online && !net ? takeLinkError() : null;
   if (linkError) signInError = L({ tr: 'Bu giriş bağlantısı geçersiz ya da süresi dolmuş (bazı e-posta servisleri bağlantıyı önceden açıp kullanır). Yeni bir bağlantı iste ve e-postadaki kodu gir.', en: 'That sign-in link is invalid or expired (some mail services open links before you do, which uses them up). Ask for a new one and enter the code from the email.' });
@@ -71,6 +74,7 @@ async function titleScreen() {
       <div class="card title-card">
         <h1>Daçka</h1>
         <div class="sub">${t('title_sub')}</div>
+        ${invite ? `<div class="account invite ${invite.kind}"></div>` : ''}
         ${account}
         <div class="stack">
           ${existing ? `<button class="primary" data-act="continue">${t('continue')}</button>` : ''}
@@ -85,6 +89,8 @@ async function titleScreen() {
       </div>`;
     const b = el.querySelector('.account b');
     if (b) b.textContent = net ? net.email : linkSentTo;
+    const inv = el.querySelector('.account.invite');
+    if (inv && invite) inv.textContent = L(invite.text);
     const err = el.querySelector('.signin .nav-error');
     if (err) err.textContent = signInError;
   };
@@ -134,6 +140,36 @@ async function titleScreen() {
       runCreator(el).then((character) => showArrival(el, character, net));
     }
   });
+}
+
+/**
+ * A friend's invite link (?invite=CODE). Signed in: you become friends right away. Signed out: says who invited you
+ * and keeps the code until you sign in (the page reloads after signing in, and this runs again).
+ */
+async function handleInvite(net: NetUser | null): Promise<{ kind: 'good' | 'sent'; text: Text } | null> {
+  if (!online) return null;
+  const code = pendingInvite();
+  if (!code) return null;
+  const who = (name: string | undefined) => ({ tr: name || 'Bir arkadaşın', en: name || 'A friend' });
+  if (!net) {
+    const name = await inviteInfo(code);
+    if (name === undefined) return null; // couldn't check (or friends aren't set up yet): try again after signing in
+    if (name === null) { clearPendingInvite(); return { kind: 'sent', text: { tr: 'Bu davet bağlantısı artık geçerli değil. Arkadaşından yenisini iste.', en: "This invite link doesn't work any more. Ask your friend for a new one." } }; }
+    return { kind: 'good', text: {
+      tr: `🎟 ${who(name).tr} seni Daçka'ya davet etti. Arkadaş olmak ve birlikte oynamak için e-postanla giriş yap.`,
+      en: `🎟 ${who(name).en} invited you to Daçka. Sign in with your email to become friends and play together.`,
+    } };
+  }
+  const r = await redeemInvite(code);
+  if (!r) return null; // a network hiccup: the code stays for next time
+  clearPendingInvite();
+  const name = { tr: r.name || 'Davet eden arkadaşın', en: r.name || 'your friend' };
+  switch (r.status) {
+    case 'friends': return { kind: 'good', text: { tr: `🤝 ${name.tr} ile artık arkadaşsınız! Kampüste birbirinizi göreceksiniz.`, en: `🤝 You and ${name.en} are friends now! You'll see each other on campus.` } };
+    case 'already': return { kind: 'good', text: { tr: `🤝 ${name.tr} ile zaten arkadaşsınız.`, en: `🤝 You and ${name.en} are already friends.` } };
+    case 'self': return { kind: 'sent', text: { tr: 'Bu senin kendi davet bağlantın. Arkadaşlarına gönder!', en: 'This is your own invite link. Send it to your friends!' } };
+    default: return { kind: 'sent', text: { tr: 'Bu davet bağlantısı artık geçerli değil. Arkadaşından yenisini iste.', en: "This invite link doesn't work any more. Ask your friend for a new one." } };
+  }
 }
 
 function showArrival(el: HTMLElement, character: CharacterData, net: NetUser | null) {

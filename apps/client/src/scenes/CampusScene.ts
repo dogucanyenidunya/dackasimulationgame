@@ -15,11 +15,14 @@ import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, TRIBUNE_LIFT, WALL_FACE, make
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
 import { ClassLife } from './classLife';
-import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
+import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
+import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
+import { friendName, friendsCard } from '../ui/friends';
+import { askConfirm } from '../ui/confirm';
 import { saveToCloud } from '../net/cloudSave';
 import { MS_PER_MIN_DAY, MS_PER_MIN_NIGHT, absMinutes, alignOffset, worldNow } from '../game/worldClock';
 import type { NetUser } from '../main';
-import { Panel } from '../ui/panel';
+import { Panel, type ActionView } from '../ui/panel';
 import { attendLesson, lessonNow, pePanel, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
   BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
@@ -177,6 +180,12 @@ export class CampusScene extends Phaser.Scene {
   /** online: campus day number minus your own (null until this session has lined your clock up with the campus) */
   private worldOffset: number | null = null;
   private mp: Multiplayer | null = null;
+  /** online: your real-player friends and friend requests, by user id (friendsReady = the list has loaded) */
+  private friends = new Map<string, Friend>();
+  private friendsReady = false;
+  /** the friends panel while it's open, so it can update live */
+  private friendsUi: { render: () => void } | null = null;
+  private friendsTimer: number | null = null;
   private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; room: string; seen: boolean }>();
   /** which walkable interior you're in, if any */
   private room: 'dorm' | 'class' | 'dining' | null = null;
@@ -413,6 +422,7 @@ export class CampusScene extends Phaser.Scene {
     kb.on('keydown-C', () => { if (!this.blocked()) this.hud.showProfile(this.save.character, this.save.state); });
     kb.on('keydown-J', () => { if (!this.blocked()) this.showMissions(); });
     kb.on('keydown-R', () => { if (!this.blocked()) this.showRelationships(); });
+    kb.on('keydown-F', () => { if (!this.blocked()) this.showFriends(); });
     kb.on('keydown-ESC', () => this.hud.toggleMap(false));
     kb.on('keydown-T', () => {
       if (this.synced()) { this.fast = false; this.hud.toast(L({ tr: 'Çevrimiçiyken kampüs saati herkes için aynı; hızlandırılamaz.', en: "Online, the campus clock is the same for everyone, so it can't be sped up." })); return; }
@@ -427,6 +437,7 @@ export class CampusScene extends Phaser.Scene {
     void ATTRS; void CAUSES;
     this.hud.onMissions = () => { if (!this.blocked()) this.showMissions(); };
     this.hud.onRelationships = () => { if (!this.blocked()) this.showRelationships(); };
+    this.hud.onFriends = () => { if (!this.blocked()) this.showFriends(); };
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
     this.panel.onAction = (title, a) => this.logAction(title, a);
@@ -467,7 +478,12 @@ export class CampusScene extends Phaser.Scene {
           fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(95_000).setVisible(false);
         this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, room: '', seen: false });
-        this.hud.toast(L({ tr: `🟢 ${p.name} oyuna katıldı`, en: `🟢 ${p.name} joined` }));
+        this.labelPeer(p.id);
+        const friend = this.friends.get(p.id)?.status === 'accepted';
+        this.hud.toast(friend ? L({ tr: `⭐ Arkadaşın ${p.name} oyuna katıldı`, en: `⭐ Your friend ${p.name} joined` }) : L({ tr: `🟢 ${p.name} oyuna katıldı`, en: `🟢 ${p.name} joined` }), friend ? 'good' : 'info');
+        // someone new may have just become your friend through your invite link
+        if (this.friendsReady && !this.friends.has(p.id)) this.refreshFriendsSoon();
+        this.friendsUi?.render();
       },
       onLeave: (id) => {
         const peer = this.peers.get(id);
@@ -475,6 +491,7 @@ export class CampusScene extends Phaser.Scene {
         this.hud.toast(L({ tr: `${peer.profile.name} oyundan çıktı`, en: `${peer.profile.name} left` }));
         peer.sprite.destroy(); peer.label.destroy();
         this.peers.delete(id);
+        this.friendsUi?.render();
       },
       onPos: (p: PeerPos) => {
         const peer = this.peers.get(p.id);
@@ -484,6 +501,7 @@ export class CampusScene extends Phaser.Scene {
       },
       onChat: (id, name, text) => { this.hud.addChatLine(name, text); this.bubbleAbove(this.peers.get(id)?.sprite, text); },
       onEmote: (id, e) => this.bubbleAbove(this.peers.get(id)?.sprite, e),
+      onFriend: (from, kind) => void this.onFriendNudge(from, kind),
     });
     const ok = await this.mp.connect();
     if (!ok) { this.hud.toast(L({ tr: 'Çevrimiçi bağlantı kurulamadı; tek başına oynuyorsun.', en: "Couldn't connect online; you're playing solo." })); this.mp = null; return; }
@@ -491,6 +509,112 @@ export class CampusScene extends Phaser.Scene {
     this.hud.onChatSend = (text) => { this.mp?.chat(text); this.hud.addChatLine(ch.first, text, true); this.bubbleAbove(this.player, text); };
     this.input.keyboard!.on('keydown-ENTER', () => { if (!this.blocked()) { this.player.setVelocity(0, 0); this.hud.openChat(); } });
     this.hud.toast(L({ tr: '🟢 Çevrimiçisin. Enter ile sohbet et.', en: "🟢 You're online. Press Enter to chat." }), 'good');
+    void this.startFriends();
+  }
+
+  // ---------- online: friends (real players) ----------
+
+  private async startFriends() {
+    await setMyName(this.save.character.first).catch(() => undefined);
+    await this.refreshFriends();
+    if (!this.friendsReady) return; // friends aren't set up in the database yet: the rest of online play still works
+    const waiting = [...this.friends.values()].filter((f) => f.status === 'pending' && f.incoming).length;
+    if (waiting) this.hud.toast(L({ tr: `🤝 ${waiting} arkadaşlık isteğin var. F ile bak.`, en: `🤝 You have ${waiting} friend request${waiting > 1 ? 's' : ''}. Press F to see.` }), 'good');
+  }
+
+  /** reloads your friends list; returns what it was before (null if it couldn't load) */
+  private async refreshFriends(): Promise<Map<string, Friend> | null> {
+    const list = await listFriends();
+    if (!list) return null;
+    const before = this.friends;
+    this.friends = new Map(list.map((f) => [f.id, f]));
+    if (!this.friendsReady) { this.friendsReady = true; this.hud.enableFriends(); }
+    this.hud.setFriendRequests(list.filter((f) => f.status === 'pending' && f.incoming).length);
+    for (const id of this.peers.keys()) this.labelPeer(id);
+    this.friendsUi?.render();
+    this.panel.refresh();
+    return before;
+  }
+
+  private refreshFriendsSoon() {
+    if (this.friendsTimer !== null) return;
+    this.friendsTimer = window.setTimeout(() => { this.friendsTimer = null; void this.refreshFriends(); }, 1500);
+  }
+
+  /** another player says they sent you a request or answered yours; the database has the real answer */
+  private async onFriendNudge(from: string, kind: FriendNudge) {
+    const before = await this.refreshFriends();
+    if (!before) return;
+    const f = this.friends.get(from);
+    const was = before.get(from);
+    if (kind === 'request' && f?.status === 'pending' && f.incoming && !was) {
+      this.hud.toast(L({ tr: `🤝 ${friendName(f)} seninle arkadaş olmak istiyor. F ile cevap ver.`, en: `🤝 ${friendName(f)} wants to be your friend. Press F to answer.` }), 'good');
+    } else if (kind === 'accepted' && f?.status === 'accepted' && was?.status !== 'accepted') {
+      this.hud.toast(L({ tr: `⭐ ${friendName(f)} ile artık arkadaşsınız!`, en: `⭐ You and ${friendName(f)} are friends now!` }), 'good');
+    }
+  }
+
+  /** friends get a gold star over their head; everyone else a green dot */
+  private labelPeer(id: string) {
+    const peer = this.peers.get(id);
+    if (!peer) return;
+    const friend = this.friends.get(id)?.status === 'accepted';
+    peer.label.setText(`${friend ? '★' : '●'} ${peer.profile.name}`).setColor(friend ? '#ffe08a' : '#a8e6b0');
+  }
+
+  /** the friend button in a real player's panel: add, accept, or already friends */
+  private friendAction(peer: { profile: PeerProfile }): ActionView | null {
+    if (!this.friendsReady) return null;
+    const id = peer.profile.id;
+    const name = peer.profile.name;
+    const f = this.friends.get(id);
+    if (f?.status === 'accepted') return { id: 'friend', label: L({ tr: '⭐ Arkadaşsınız', en: '⭐ Friends' }), locked: L({ tr: 'Arkadaş listende (F)', en: 'In your friends list (F)' }), run: () => {} };
+    if (f && !f.incoming) return { id: 'friend', label: L({ tr: '➕ Arkadaş ekle', en: '➕ Add friend' }), locked: L({ tr: 'İstek gönderildi, cevap bekleniyor', en: 'Request sent, waiting for an answer' }), run: () => {} };
+    if (f) return { id: 'friend', label: L({ tr: '🤝 Arkadaşlık isteğini kabul et', en: '🤝 Accept friend request' }), hint: L({ tr: `${name} seni eklemek istedi`, en: `${name} asked to add you` }), run: () => this.acceptFriend(f) };
+    return {
+      id: 'friend', label: L({ tr: '➕ Arkadaş ekle', en: '➕ Add friend' }), hint: L({ tr: 'Kabul ederse arkadaş listene girer', en: 'If they accept, they join your friends list' }),
+      run: async () => {
+        const r = await requestFriend(id);
+        if (r === 'requested') { this.mp?.nudgeFriend(id, 'request'); this.hud.toast(L({ tr: `${name} kişisine arkadaşlık isteği gönderildi`, en: `Friend request sent to ${name}` }), 'good'); }
+        else if (r === 'accepted') { this.mp?.nudgeFriend(id, 'accepted'); this.hud.toast(L({ tr: `⭐ ${name} ile artık arkadaşsınız!`, en: `⭐ You and ${name} are friends now!` }), 'good'); }
+        else if (r === 'limit') this.hud.toast(L({ tr: 'Çok fazla bekleyen isteğin var. Önce cevap gelsin.', en: 'You have too many requests waiting. Wait for some answers first.' }));
+        else if (r === 'error') this.hud.toast(L({ tr: 'İstek gönderilemedi. Biraz sonra tekrar dene.', en: "Couldn't send the request. Try again in a bit." }));
+        await this.refreshFriends();
+      },
+    };
+  }
+
+  private async acceptFriend(f: Friend) {
+    if (!(await respondFriend(f.id, true))) { this.hud.toast(L({ tr: 'Olmadı. Biraz sonra tekrar dene.', en: "That didn't work. Try again in a bit." })); return; }
+    this.mp?.nudgeFriend(f.id, 'accepted');
+    this.hud.toast(L({ tr: `⭐ ${friendName(f)} ile artık arkadaşsınız!`, en: `⭐ You and ${friendName(f)} are friends now!` }), 'good');
+    await this.refreshFriends();
+  }
+
+  private showFriends() {
+    if (!this.net) { this.hud.toast(L({ tr: 'Gerçek arkadaşlarla oynamak için ana ekranda e-postanla giriş yap.', en: 'Sign in with your email on the title screen to play with real friends.' })); return; }
+    if (!this.mp || !this.friendsReady) { this.hud.toast(L({ tr: 'Arkadaş listesi şu an açılamıyor.', en: "Your friends list isn't available right now." })); return; }
+    this.player.setVelocity(0, 0);
+    const ui = friendsCard({
+      friends: () => (this.friendsReady ? [...this.friends.values()] : null),
+      whereIs: (id) => this.peers.get(id)?.room,
+      inviteCode: (reset) => myInviteCode(reset),
+      accept: (f) => this.acceptFriend(f),
+      decline: async (f) => { await respondFriend(f.id, false); await this.refreshFriends(); },
+      remove: async (f) => {
+        const mine = f.status === 'pending';
+        const ok = await askConfirm(
+          mine ? L({ tr: `${friendName(f)} kişisine gönderdiğin isteği geri al?`, en: `Take back your request to ${friendName(f)}?` })
+            : L({ tr: `${friendName(f)} arkadaş listenden çıkarılsın mı?`, en: `Remove ${friendName(f)} from your friends?` }),
+          mine ? L({ tr: 'Geri al', en: 'Take back' }) : L({ tr: 'Çıkar', en: 'Remove' }), L({ tr: 'Vazgeç', en: 'Cancel' }));
+        if (!ok) return;
+        if (await removeFriend(f.id)) this.mp?.nudgeFriend(f.id, 'removed');
+        await this.refreshFriends();
+      },
+    });
+    this.friendsUi = ui;
+    this.hud.openCard(ui.el, ['Escape', 'f', 'F'], () => { this.friendsUi = null; });
+    void this.refreshFriends();
   }
 
   private updatePeers(time: number) {
@@ -2281,11 +2405,18 @@ export class CampusScene extends Phaser.Scene {
     if (peer) {
       this.player.setVelocity(0, 0);
       const pick = ['👋', '😂', '❤️', '⚽', '🤝'];
-      this.panel.open(() => ({
-        title: peer.profile.name, sub: L({ tr: `Gerçek oyuncu · ${peer.profile.grade}. sınıf`, en: `Real player · grade ${peer.profile.grade}` }),
-        rooms: [{ id: 'peer', name: peer.profile.name, note: L({ tr: 'Bir tepki gönder ya da Enter ile sohbet et.', en: 'Send a reaction, or press Enter to chat.' }),
-          actions: pick.map((e) => ({ id: e, label: e, run: () => { this.mp?.emote(e); this.bubbleAbove(this.player, e); this.panel.close(); } })) }],
-      }));
+      this.panel.open(() => {
+        const add = this.friendAction(peer);
+        const friend = this.friends.get(peer.profile.id)?.status === 'accepted';
+        return {
+          title: peer.profile.name, sub: friend ? L({ tr: `⭐ Arkadaşın · ${peer.profile.grade}. sınıf`, en: `⭐ Your friend · grade ${peer.profile.grade}` }) : L({ tr: `Gerçek oyuncu · ${peer.profile.grade}. sınıf`, en: `Real player · grade ${peer.profile.grade}` }),
+          rooms: [{ id: 'peer', name: peer.profile.name, note: L({ tr: 'Bir tepki gönder ya da Enter ile sohbet et.', en: 'Send a reaction, or press Enter to chat.' }),
+            actions: [
+              ...pick.map((e) => ({ id: e, label: e, run: () => { this.mp?.emote(e); this.bubbleAbove(this.player, e); this.panel.close(); } })),
+              ...(add ? [add] : []),
+            ] }],
+        };
+      });
       return;
     }
     if (this.room === 'dining') { this.interactDining(); return; }

@@ -503,3 +503,19 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .diary-card .diary-body p { margin: 0 0 12px; font-size: 16.5px; line-height: 28px; color: #2f2418; font-style: italic; font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", Georgia, serif; }
 .diary-card .diary-body .diary-dear { font-weight: 700; margin-bottom: 4px; }
 .diary-card .diary-body .diary-sign { text-align: right; font-weight: 700; }
+
+/* friends (online) */
+.hud-buttons .friends-btn { position: relative; }
+.hud-buttons .friends-btn .badge { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #b03a2e; color: #fff; font-style: normal; font-size: 11px; line-height: 16px; text-align: center; }
+.account.invite.good { background: #e6f0fb; color: #24466b; }
+.friends-card .invite-row { display: flex; gap: 6px; margin-top: 8px; }
+.friends-card .invite-row input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+.friends-card .invite-row button, .friend-btns .secondary { font: inherit; font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; white-space: nowrap; }
+.friends-card button:disabled { opacity: 0.5; cursor: default; }
+.friends-card .linkish { font: inherit; font-size: 13px; border: none; background: none; text-decoration: underline; cursor: pointer; color: #4b5459; padding: 0; margin-top: 8px; }
+.friend-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.friend-row.on .rel-name span { color: var(--good); font-weight: 600; }
+.friend-btns { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.friend-btns .linkish { margin-top: 0; }
+.friends-card .nav-error { color: #b03a2e; font-size: 14px; }
+@media (max-width: 560px) { .friend-row { flex-direction: column; align-items: flex-start; gap: 4px; } .friends-card .invite-row { flex-wrap: wrap; } }

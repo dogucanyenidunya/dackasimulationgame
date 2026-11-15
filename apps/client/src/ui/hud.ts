@@ -218,6 +218,20 @@ export class Hud {
     setTimeout(() => line.classList.add('old'), 15_000);
   }
   onRelationships: () => void = () => {};
+  onFriends: () => void = () => {};
+  private friendRequests = 0;
+
+  /** shows the friends button (online only) */
+  enableFriends() { this.root.querySelector('.friends-btn')!.classList.remove('hidden'); }
+
+  /** the red number on the friends button: friend requests waiting for you */
+  setFriendRequests(n: number) {
+    this.friendRequests = n;
+    const b = this.root.querySelector('.friends-btn') as HTMLElement;
+    b.textContent = '🤝';
+    if (n > 0) { const i = document.createElement('i'); i.className = 'badge'; i.textContent = String(Math.min(n, 9)); b.appendChild(i); }
+    b.title = L({ tr: 'Arkadaşlar (F)', en: 'Friends (F)' }) + (n > 0 ? ` · ${L({ tr: `${n} istek`, en: `${n} request${n > 1 ? 's' : ''}` })}` : '');
+  }
 
   /** the small "current mission" card under the minimap */
   setTracker(html: string | null) {
@@ -239,6 +253,7 @@ export class Hud {
         <div class="hud-buttons">
           <button class="missions-btn" type="button"></button>
           <button class="rel-btn" type="button"></button>
+          <button class="friends-btn hidden" type="button"></button>
           <button class="profile-btn" type="button"></button>
           <button class="lang-btn" type="button"></button>
           <button class="mute-btn" type="button"></button>
@@ -317,6 +332,7 @@ export class Hud {
     setCollapsed((() => { try { return localStorage.getItem('dacka.hudCollapsed') === '1'; } catch { return false; } })());
     q('.missions-btn').addEventListener('click', () => this.onMissions());
     q('.rel-btn').addEventListener('click', () => this.onRelationships());
+    q('.friends-btn').addEventListener('click', () => this.onFriends());
     const mute = q<HTMLButtonElement>('.mute-btn');
     const setMute = () => { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; };
     mute.addEventListener('click', () => { sfx.toggle(); setMute(); });
@@ -380,6 +396,7 @@ export class Hud {
     icon('.missions-btn', '📋', L({ tr: 'Görevler (J)', en: 'Missions (J)' }));
     icon('.rel-btn', '👥', L({ tr: 'İlişkiler (R)', en: 'People (R)' }));
     icon('.profile-btn', '👤', L({ tr: 'Profil (C)', en: 'Profile (C)' }));
+    this.setFriendRequests(this.friendRequests);
     (this.root.querySelector('.collapse-btn') as HTMLElement).title = L({ tr: 'Küçült / büyüt', en: 'Collapse / expand' });
   }
 

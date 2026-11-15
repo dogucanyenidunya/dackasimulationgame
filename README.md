@@ -17,6 +17,7 @@ The full design is in [GAME_DESIGN.md](GAME_DESIGN.md).
 | WASD / arrows | Walk (Shift to run) |
 | E | Talk / interact / enter |
 | M | Big map |
+| F | Friends and your invite link (when online) |
 | Enter | Chat (when online) |
 | Esc | Close a panel |
 
@@ -50,4 +51,6 @@ For online play locally, copy `apps/client/.env.example` to `apps/client/.env.lo
   - Nothing skips time online: sleep, lessons, meals and other actions last as long as they take on the campus clock (a night is about 4 minutes), with a Stop button. Menus don't pause it and fast time (T) is off.
   - Coming back after a break, your clock jumps forward to the campus time, with no penalties for the time you missed.
   - Solo play and the registration weekend keep their own clock, as before.
+- **Friends and invite links.** Press F (or 🤝) to get your personal invite link. A friend who opens it and signs in becomes your friend straight away. You can also walk up to any player on campus, press E and choose **Add friend**; they accept from their own friends list. Friends show with a gold ★ over their head, and the list shows which friends are online and where. Making a new link switches the old one off.
+  - Stored in the `profiles`, `invites` and `friendships` tables. Players can't write them directly: everything goes through database functions that check who is asking. If you set up Supabase before this was added, run [supabase/schema.sql](supabase/schema.sql) again (it's safe to re-run).
 - Saves are stored per account in the `saves` table, protected by row-level security.
