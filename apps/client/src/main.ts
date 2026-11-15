@@ -7,7 +7,7 @@ import { sfx } from './audio';
 import { askConfirm } from './ui/confirm';
 import { GUARDIANS, type CharacterData } from './content/character';
 import { L } from './i18n';
-import { currentSession, online, sendSignInLink, signOut } from './net/supabase';
+import { currentSession, online, sendSignInLink, signOut, takeLinkError, verifySignInCode } from './net/supabase';
 import { loadCloudSave } from './net/cloudSave';
 import { withDefaults } from './game/state';
 
@@ -47,12 +47,21 @@ async function titleScreen() {
   document.body.appendChild(el);
   let linkSentTo = '';
   let signInError = '';
+  // a link that was already used (often by a mail scanner) or expired lands back here with an error
+  const linkError = online && !net ? takeLinkError() : null;
+  if (linkError) signInError = L({ tr: 'Bu giriş bağlantısı geçersiz ya da süresi dolmuş (bazı e-posta servisleri bağlantıyı önceden açıp kullanır). Yeni bir bağlantı iste ve e-postadaki kodu gir.', en: 'That sign-in link is invalid or expired (some mail services open links before you do, which uses them up). Ask for a new one and enter the code from the email.' });
 
   const render = () => {
     const account = !online ? '' : net
       ? `<div class="account">✓ ${L({ tr: 'Çevrimiçi', en: 'Online' })} · <b></b> · <button type="button" data-act="signout">${L({ tr: 'Çıkış', en: 'Sign out' })}</button></div>`
       : linkSentTo
-        ? `<div class="account sent">📬 ${L({ tr: 'Giriş bağlantısı gönderildi:', en: 'Sign-in link sent to' })} <b></b>. ${L({ tr: 'E-postandaki bağlantıya tıkla.', en: 'Click the link in your email.' })}</div>`
+        ? `<div class="account sent">📬 ${L({ tr: 'Giriş bağlantısı gönderildi:', en: 'Sign-in link sent to' })} <b></b>. ${L({ tr: 'E-postandaki bağlantıya tıkla ya da kodu buraya gir.', en: 'Click the link in your email, or enter its code here.' })}</div>
+           <form class="signin" data-code-form>
+             <label for="otp">${L({ tr: 'E-postadaki kod', en: 'Code from the email' })}</label>
+             <div class="signin-row"><input id="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" maxlength="10" required placeholder="123456"><button type="submit" class="primary">${L({ tr: 'Giriş yap', en: 'Sign in' })}</button></div>
+             ${signInError ? `<div class="nav-error"></div>` : ''}
+             <button type="button" class="linkish" data-act="resend">${L({ tr: 'Başka bir e-posta kullan', en: 'Use a different email' })}</button>
+           </form>`
         : `<form class="signin" data-form>
              <label for="email">${L({ tr: 'Arkadaşlarınla oynamak için e-postanla giriş yap', en: 'Sign in with your email to play with friends' })}</label>
              <div class="signin-row"><input id="email" type="email" required autocomplete="email" placeholder="ornek@mail.com"><button type="submit" class="primary">${L({ tr: 'Bağlantı gönder', en: 'Send link' })}</button></div>
@@ -84,6 +93,17 @@ async function titleScreen() {
 
   el.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if ((e.target as HTMLElement).hasAttribute('data-code-form')) {
+      const code = (el.querySelector('#otp') as HTMLInputElement).value.replace(/\D/g, '');
+      if (!code) return;
+      const btn = el.querySelector('[data-code-form] button[type=submit]') as HTMLButtonElement;
+      btn.disabled = true;
+      const error = await verifySignInCode(linkSentTo, code);
+      if (!error) { window.location.reload(); return; }
+      signInError = error; btn.disabled = false;
+      render();
+      return;
+    }
     const input = el.querySelector('#email') as HTMLInputElement;
     const email = input.value.trim();
     if (!email) return;
@@ -100,6 +120,7 @@ async function titleScreen() {
     if (lang) { setLang(lang); return; }
     const act = target.dataset.act;
     if (act === 'signout') { await signOut(); window.location.reload(); return; }
+    if (act === 'resend') { linkSentTo = ''; signInError = ''; render(); return; }
     if (act === 'continue' && existing) {
       el.remove();
       existing.lang = getLang();

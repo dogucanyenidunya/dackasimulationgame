@@ -30,6 +30,24 @@ export async function sendSignInLink(email: string): Promise<string | null> {
   return error ? error.message : null;
 }
 
+/** signs in with the one-time code from the same email. Works in any browser, and survives mail scanners
+ *  (e.g. Outlook Safe Links) that open the link first and use it up. */
+export async function verifySignInCode(email: string, code: string): Promise<string | null> {
+  const c = sb();
+  if (!c) return 'offline';
+  const { error } = await c.auth.verifyOtp({ email, token: code, type: 'email' });
+  return error ? error.message : null;
+}
+
+/** if we arrived from an email link that failed (expired / already used), returns its error code and tidies the URL */
+export function takeLinkError(): string | null {
+  const params = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const code = params.get('error_code') ?? hash.get('error_code') ?? params.get('error') ?? hash.get('error');
+  if (code) history.replaceState(null, '', location.pathname);
+  return code;
+}
+
 export async function signOut() {
   await sb()?.auth.signOut();
 }
