@@ -9,11 +9,14 @@ import { GUARDIANS, type CharacterData } from './content/character';
 import { L } from './i18n';
 import { currentSession, online, sendSignInLink, signOut } from './net/supabase';
 import { loadCloudSave } from './net/cloudSave';
+import { withDefaults } from './game/state';
 
 /** who is playing online (null = offline / signed out) */
 export interface NetUser { id: string; email: string }
 
 async function startGame(save: SaveData, net: NetUser | null = null) {
+  // (whatever the save's origin, bring it up to date before the scene reads it)
+  save.state = withDefaults(save.state);
   // in-world labels use the pixel font; wait (briefly) so the first labels don't render in a fallback font
   try { await Promise.race([document.fonts.load('700 16px "Pixelify Sans"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
   const game = new Phaser.Game({
