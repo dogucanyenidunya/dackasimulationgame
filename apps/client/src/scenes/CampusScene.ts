@@ -555,7 +555,13 @@ export class CampusScene extends Phaser.Scene {
     if (!ok) { this.hud.toast(L({ tr: 'Çevrimiçi bağlantı kurulamadı; tek başına oynuyorsun.', en: "Couldn't connect online; you're playing solo." })); this.mp = null; return; }
     this.hud.enableChat();
     this.hud.onChatSend = (text) => { this.mp?.chat(text); this.hud.addChatLine(ch.first, text, true); this.bubbleAbove(this.player, text); };
-    this.input.keyboard!.on('keydown-ENTER', () => { if (!this.blocked()) { this.player.setVelocity(0, 0); this.hud.openChat(); } });
+    this.input.keyboard!.on('keydown-ENTER', (e: KeyboardEvent) => {
+      if (this.blocked()) return;
+      // the chat box takes focus during this key press: without this the same Enter would "send" the empty box and close it again
+      e.preventDefault();
+      this.player.setVelocity(0, 0);
+      this.hud.openChat();
+    });
     this.hud.toast(L({ tr: '🟢 Çevrimiçisin. Enter ile sohbet et.', en: "🟢 You're online. Press Enter to chat." }), 'good');
     void this.startFriends();
   }
