@@ -179,6 +179,8 @@ export class CampusScene extends Phaser.Scene {
   private net: NetUser | null = null;
   /** online: campus day number minus your own (null until this session has lined your clock up with the campus) */
   private worldOffset: number | null = null;
+  /** the "paused" screen while the tab was in the background (null = playing) */
+  private pauseScreen: HTMLElement | null = null;
   private mp: Multiplayer | null = null;
   /** online: your real-player friends and friend requests, by user id (friendsReady = the list has loaded) */
   private friends = new Map<string, Friend>();
@@ -458,6 +460,52 @@ export class CampusScene extends Phaser.Scene {
     this.updateMaps();
     if (this.net) void this.goOnline();
     try { localStorage.removeItem('dacka.view'); } catch { /* private mode */ }
+    // switching to another tab or app pauses the game; you pick it up again with Continue
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.pauseAway(); });
+  }
+
+  // ---------- paused while you're away ----------
+
+  /** the tab went to the background: everything stops, and a Continue screen waits for you */
+  private pauseAway() {
+    if (this.pauseScreen) return;
+    this.player.setVelocity(0, 0);
+    this.persist();
+    this.scene.pause();
+    sfx.pauseMusic();
+    const wrap = document.createElement('div');
+    wrap.className = 'overlay pause-overlay';
+    wrap.innerHTML = `<div class="card modal-card pause-card"><h2></h2><p class="modal-body"></p><button type="button" class="primary"></button></div>`;
+    wrap.querySelector('h2')!.textContent = L({ tr: '⏸ Oyun duraklatıldı', en: '⏸ Game paused' });
+    wrap.querySelector('.modal-body')!.textContent = this.synced()
+      ? L({ tr: 'Sen yokken kampüs saati işlemeye devam etti. Devam edince saatin ona yetişir; kaçırdığın zaman için ceza yok.', en: "The campus clock kept going while you were away. When you continue, yours catches up with it, with no penalties for the time you missed." })
+      : L({ tr: 'Hazır olduğunda kaldığın yerden devam et.', en: 'Pick up where you left off when you are ready.' });
+    wrap.querySelector('button')!.textContent = L({ tr: 'Devam et', en: 'Continue' });
+    const onKey = (e: KeyboardEvent) => {
+      e.stopPropagation(); // nothing reaches the game behind it
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.resumeFromAway(); }
+    };
+    wrap.querySelector('button')!.addEventListener('click', () => this.resumeFromAway());
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    (wrap as HTMLElement & { cleanup?: () => void }).cleanup = () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true); };
+    document.body.appendChild(wrap);
+    this.pauseScreen = wrap;
+  }
+
+  private resumeFromAway() {
+    const wrap = this.pauseScreen as (HTMLElement & { cleanup?: () => void }) | null;
+    if (!wrap || document.visibilityState === 'hidden') return;
+    wrap.cleanup?.();
+    wrap.remove();
+    this.pauseScreen = null;
+    // keys held when you left would otherwise still count as held
+    this.input.keyboard?.resetKeys();
+    this.scene.resume();
+    sfx.music();
+    // online: straight to the campus time, like coming back to the game, with nothing played through
+    if (this.synced() && this.worldOffset !== null) this.jumpToWorld(false);
+    this.minuteAcc = 0;
   }
 
   // ---------- online: other real players ----------
@@ -3685,9 +3733,12 @@ export class CampusScene extends Phaser.Scene {
     if (gap <= 0) { this.refreshClockAndNeeds(); return; }
     c.day = Math.floor(to / (24 * 60));
     c.minutes = to - c.day * 24 * 60;
-    // whatever you were doing is over
+    // whatever you were doing (sleep, a meal, the weekend at home…) has had that much time; night events you slept through are skipped
     const s = this.sleepRun;
-    if (s && !s.busy) s.left = 0;
+    if (s && !s.busy) {
+      s.left = Math.max(0, s.left - gap);
+      for (const e of s.events) if (s.total - s.left >= e.at) e.done = true;
+    }
     // after lessons it's dorm time: you're back in your dorm
     if (!s && phaseOf(c.minutes, c.day) !== 'day' && this.room !== 'dorm' && !this.escort) this.placeInDorm();
     this.npcClock = -1;

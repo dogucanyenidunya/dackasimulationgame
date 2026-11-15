@@ -496,6 +496,9 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 560px) { .announce-card .announce-list { grid-template-columns: 1fr; } }
 /* cards sit above the countdown strip */
 .overlay.modal { z-index: 6; }
+.pause-overlay { position: fixed; z-index: 50; }
+.pause-card { text-align: center; }
+.pause-card button.primary { margin-top: 14px; min-width: 160px; }
 .announce-card:not(.many) { overflow: auto; }
 .modal-card { max-height: calc(100vh - 32px); overflow: auto; }
 

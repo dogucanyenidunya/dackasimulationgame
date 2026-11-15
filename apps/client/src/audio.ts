@@ -43,6 +43,8 @@ function stopMusic() { music?.pause(); }
 export const sfx = {
   /** starts the background music (call from a click/keypress so the browser allows it) */
   music: startMusic,
+  /** silences the music while the game is paused */
+  pauseMusic: stopMusic,
   /** school bell: ding-dong, twice */
   bell() { [0, 0.5].forEach((s) => { tone(988, s, 0.9, 0.12, 'triangle'); tone(784, s + 0.25, 1.0, 0.12, 'triangle'); }); },
   click() { tone(1200, 0, 0.05, 0.05, 'square'); },
