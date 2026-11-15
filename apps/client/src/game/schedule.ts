@@ -73,6 +73,10 @@ export const isSnackTime = (minutes: number) => minutes >= SNACK_START && minute
 export const diningOpen = (minutes: number) => isSnackTime(minutes) || PERIODS.some((p) => p.kind === 'meal' && minutes >= p.start && minutes < p.end);
 /** a lesson you walk into this many minutes after the bell needs a late slip from the deputy head */
 export const LATE_AFTER = 5;
+/** PE is out on the pitch, a long walk from the classrooms */
+export const LATE_AFTER_PE = 15;
+/** the register mark for "was in class (or out on the pitch for PE) when the lesson began": no late slip needed */
+export const presentKey = (periodId: string) => `inclass-${periodId}`;
 
 /** flag ceremony on the Merkez Meydan: Monday before the first lesson, Friday after the last; [start, end, the anthem] */
 export function ceremonyWindow(day: number): [number, number, number] | null {

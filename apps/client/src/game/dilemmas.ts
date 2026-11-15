@@ -43,7 +43,7 @@ interface Choice {
 }
 interface Dilemma { title: Text; intro: Text; question: Text; who?: NpcDef; choices: Choice[] }
 
-const belletmenOf = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? { id: 'bel-hatice', name: 'Hatice Hanım' } : { id: 'bel-mehmet', name: 'Mehmet Bey' });
+const belletmenOf = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? { id: 'bel-hatice', name: 'Ayşe Hanım' } : { id: 'bel-mehmet', name: 'Ercan Bey' });
 const friendOf = (ctx: GameCtx, id: string) => ctx.st.friends[id] ?? 0;
 const byId = (id: string) => NPCS.find((n) => n.id === id)!;
 const markCall = (ctx: GameCtx) => { ctx.st.daily.call = ctx.clock.day; };
@@ -227,6 +227,7 @@ export async function runDilemma(ctx: GameCtx, id: DilemmaId): Promise<boolean> 
   const before = snapshot(ctx);
   const outcome = c.run();
   ctx.st.memories.push({ id, choice: c.id, day: ctx.clock.day, year: ctx.st.year, who: d.who?.id });
+  ctx.log(`✦ ${L(d.title).replace(/^\S+\s/, '')}: ${L(c.label)}`);
   const after = snapshot(ctx);
   const shifts = AXES.map((a) => ({ a, d: after.temper[a.id] - before.temper[a.id] })).filter((x) => x.d !== 0)
     .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))

@@ -92,7 +92,7 @@ const HAIRS = ['#120c09', '#2b1d14', '#3b2a20', '#5e3b22', '#7a4a24', '#a8682e',
 const GENERIC_LINES: NpcLine[] = [
   { tr: 'Bugün yemekhanede ne var biliyor musun?', en: "Do you know what's for dinner today?" },
   { tr: 'Etütte matematik ödevini birlikte yapalım mı?', en: 'Want to do the math homework together at study time?', when: 'day' },
-  { tr: 'Belletmen Mehmet Bey çok sert ama aslında iyi biri.', en: 'Mr. Mehmet the belletmen is strict, but he\'s actually nice.' },
+  { tr: 'Belletmen Ercan Bey çok sert ama aslında iyi biri.', en: 'Mr. Ercan the belletmen is strict, but he\'s actually nice.' },
   { tr: 'Hafta sonu ziyaret günü, sabırsızlanıyorum!', en: "It's visiting day this weekend, I can't wait!", when: 'weekdays' },
   { tr: 'Kortta maç yapıyoruz, takıma bir kişi lazım.', en: "We're playing on the court and need one more.", when: 'day' },
   { tr: 'Müzedeki eski fotoğraflarda bir tanesi bize benziyor!', en: 'One of the old photos in the museum looks just like us!' },
@@ -135,9 +135,28 @@ function generate(): NpcDef[] {
   for (let i = 0; i < 8; i++) out.push(make('classmate', i));
   for (let i = 0; i < 20; i++) out.push(make('student', i));
   for (let i = 0; i < 4; i++) out.push(make('abi', i));
-  // everyone is still generated (so the ones kept look and are named as in older saves), but only some show up
+  // everyone is still generated (so the ones kept look as in older saves), but only some show up
   const keep: Record<string, number> = { classmate: 6, student: 12, abi: 3 };
-  return out.filter((n) => Number(n.id.split('-')[1]) < keep[n.kind]);
+  const shown = out.filter((n) => Number(n.id.split('-')[1]) < keep[n.kind]);
+  // these names go to the classmates first, then the other students (girls' names to girls, boys' to boys)
+  const NEW = { girl: ['Kardelen', 'Aylin', 'Gizem', 'Merve'], boy: ['Nezir', 'Onur', 'Yiğithan', 'İzay', 'Gökmen', 'Şahan', 'Murad', 'Ömer'] };
+  const taken = new Set([...HANDMADE.map((h) => h.name), ...NEW.girl, ...NEW.boy]);
+  const kids = shown.filter((n) => n.kind !== 'abi');
+  const renamed = new Set<NpcDef>();
+  for (const n of kids) {
+    const next = NEW[n.gender].shift();
+    if (next) { n.name = next; renamed.add(n); }
+  }
+  // (anyone left whose generated name now clashes with a new one gets a free name from the pools)
+  for (const n of shown) {
+    const base = n.name.replace(/ (Abi|Abla)$/, '');
+    if (!renamed.has(n) && taken.has(base)) {
+      const free = (n.gender === 'girl' ? GIRLS : BOYS).find((x) => !taken.has(x) && !shown.some((o) => o.name.replace(/ (Abi|Abla)$/, '') === x));
+      if (free) n.name = n.kind === 'abi' ? `${free} ${n.gender === 'girl' ? 'Abla' : 'Abi'}` : free;
+    }
+    if (!renamed.has(n)) taken.add(n.name.replace(/ (Abi|Abla)$/, ''));
+  }
+  return shown;
 }
 
 const withGender = (h: Omit<NpcDef, 'gender'>): NpcDef => ({ ...h, group: HAND_GROUPS[h.id], grade: h.kind === 'abi' ? (h.id === 'burak' ? 11 : 10) : 4, fixed: h.kind === 'abi', gender: h.look.skirt || h.look.hairStyle === 2 || h.look.hairStyle === 3 ? 'girl' : 'boy' });
@@ -147,9 +166,9 @@ export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];
 
 /** night teachers: on duty from 18:00 to 07:00 */
 export const BELLETMENS: NpcDef[] = [
-  { id: 'bel-hatice', name: 'Hatice Hanım', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [11, 25], roam: 0,
+  { id: 'bel-hatice', name: 'Ayşe Hanım', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [11, 25], roam: 0,
     lines: [{ tr: 'Etüt saatinde herkes yurtta! Ödevler bitmeden oyun yok.', en: 'Everyone in the dorm at study time! No games until homework is done.' }, { tr: 'Saat 22:00\'de ışıklar sönüyor, unutma.', en: 'Lights out at 22:00, remember.' }] },
-  { id: 'bel-mehmet', name: 'Mehmet Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [23, 20], roam: 0,
+  { id: 'bel-mehmet', name: 'Ercan Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [23, 20], roam: 0,
     lines: [{ tr: 'Meydandan ayrılmak yok. Sizi buradan görebiliyorum!', en: 'Nobody leaves the plaza. I can see you all from here!' }, { tr: 'Yarın sabah erken kalkacaksınız, haydi bakalım.', en: 'Early start tomorrow, off you go.' }] },
   { id: 'bel-selim', name: 'Selim Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [47, 27], roam: 5,
     lines: [{ tr: 'Gece nöbetindeyim. Fenerim her yeri görür!', en: "I'm on night patrol. My torch sees everything!" }] },
@@ -166,8 +185,8 @@ export const TEACHER_NPCS: NpcDef[] = SUBJECTS.map((s, i) => {
 
 /** the deputy head: hands out late slips in his office, and comes looking for anyone who skips a lesson */
 export const DEPUTY: NpcDef = {
-  id: 'mdr-yrd', name: 'Kenan Bey', kind: 'teacher', gender: 'boy', role: { tr: 'Müdür yardımcısı', en: 'Deputy head' },
-  look: { skin: '#d9a77d', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#2d3238', bottom: '#2d3238', glasses: true }, home: [40, 30], roam: 1, lines: [],
+  id: 'mdr-yrd', name: 'Emel Hanım', kind: 'teacher', gender: 'girl', role: { tr: 'Müdür yardımcısı', en: 'Deputy head' },
+  look: { skin: '#e8b98f', hair: '#2b1d14', hairStyle: 3, skirt: true, top: '#2d3238', bottom: '#2d3238', glasses: true }, home: [40, 30], roam: 1, lines: [],
 };
 
 export function friendLevel(v: number): Text {

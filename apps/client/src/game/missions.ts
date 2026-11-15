@@ -69,7 +69,7 @@ export const MISSIONS: Mission[] = [
   {
     id: 'derse_gir', kind: 'main',
     title: { tr: 'İlk Ders', en: 'First Lesson' },
-    desc: { tr: 'Ders saatinde Eğitim Binası\'ndaki sınıfına git ve derse katıl. Zil çaldıktan sonra beş dakikadan fazla gecikirsen müdür yardımcısından geç kâğıdı alman gerekir; derse hiç girmezsen seni bulup sınıfa götürür.', en: "Go to your classroom in the Eğitim building during a lesson and take part. More than five minutes after the bell you need a late slip from the deputy head; skip the lesson altogether and he comes to find you and takes you to class." },
+    desc: { tr: 'Ders saatinde Eğitim Binası\'ndaki sınıfına git ve derse katıl. Zil çaldıktan sonra beş dakikadan fazla gecikirsen müdür yardımcısından geç kâğıdı alman gerekir; derse hiç girmezsen seni bulup sınıfa götürür.', en: "Go to your classroom in the Eğitim building during a lesson and take part. More than five minutes after the bell you need a late slip from the deputy head; skip the lesson altogether and she comes to find you and takes you to class." },
     requires: ['kayit'],
     unlocks: { tr: 'Ödevler ve etüt', en: 'Homework and study hall' },
     objectives: [{ id: 'attend', text: { tr: 'Bir derse gir (hafta içi 08:30–15:20)', en: 'Attend a lesson (weekdays 08:30–15:20)' }, done: (c) => c.st.school.attended.length >= 1, targets: at('egitim') }],

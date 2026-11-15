@@ -105,6 +105,8 @@ export interface PlayerState {
   wardrobe: { wearing: string; borrowed: { from: string; name: string; top: string; bottom: string; day: number } | null };
   /** snacks: in your pockets, and put away in your locker */
   food: { bag: string[]; locker: string[] };
+  /** today's diary: what you did, written as it happens (minute of the game since day 1, and the line); shown when you go to bed */
+  journal: Array<{ at: number; text: string }>;
 }
 
 export type AxisId = 'rules' | 'ambition' | 'presence' | 'warmth' | 'loyalty' | 'heart';
@@ -149,6 +151,7 @@ export function defaultState(): PlayerState {
     memories: [],
     wardrobe: { wearing: 'sivil', borrowed: null },
     food: { bag: [], locker: [] },
+    journal: [],
   };
 }
 
@@ -170,6 +173,7 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     memories: s.memories ?? [],
     wardrobe: { ...d.wardrobe, ...s.wardrobe },
     food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
+    journal: [...(s.journal ?? [])],
   };
   // saves from before the registration weekend: whoever had registered is past it, and already in uniform
   if (!s.wardrobe && merged.school.kit) merged.wardrobe.wearing = 'uniforma';

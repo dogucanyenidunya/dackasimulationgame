@@ -2,13 +2,13 @@
 // It is a pure function of the clock, so the campus, the dining hall, the classroom and the dorm room
 // all agree about who is where. Each student runs a few minutes early or late, so nobody moves in step.
 import type { NpcDef } from '../content/npcs';
-import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, hasEtut } from './schedule';
+import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, currentPeriod, hasEtut, subjectFor } from './schedule';
 import { BACK_ON_SUNDAY, BUS_BOARDING, CARSI_START, VISIT_START, npcIsEvci, weekday } from './weekend';
 
 /** inside a building (`dorm` = their own dorm) or off campus (`away`: they leave by the main gate) */
 export type Indoors = 'dorm' | 'yemekhane' | 'egitim' | 'spor' | 'kutuphane' | 'cemiyet' | 'revir' | 'away';
 /** outdoors: their age group's lawn, the square in front of the school, their evening spot around the dorms, or lined up at the flag */
-export type Outdoors = 'lawn' | 'school' | 'plaza' | 'ceremony';
+export type Outdoors = 'lawn' | 'school' | 'plaza' | 'ceremony' | 'pe';
 export interface Activity { in?: Indoors; out?: Outdoors }
 
 export interface RoutineClock {
@@ -51,7 +51,7 @@ export function bedTime(def: NpcDef): number {
 export function activityOf(def: NpcDef, c: RoutineClock): Activity {
   const a = planned(def, c);
   // in the rain most of them take shelter
-  if (a.out && a.out !== 'ceremony' && c.raining && roll(`${def.id}rain${c.day}`) < 0.7) {
+  if (a.out && a.out !== 'ceremony' && a.out !== 'pe' && c.raining && roll(`${def.id}rain${c.day}`) < 0.7) {
     if (a.out === 'school') return { in: 'egitim' };
     if (a.out === 'plaza') return { in: 'dorm' };
     return { in: roll(`${def.id}shelter`) < 0.5 ? 'dorm' : 'spor' };
@@ -88,6 +88,11 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   if (m < Math.min(wake + 38 + u('eat') * 14, weekend ? H(8, 30) : H(8, 15))) return { in: 'yemekhane' };
 
   if (!weekend && c.lessonsOn) {
+    // your own class does Beden Eğitimi out on the pitch and the court
+    if (def.kind === 'classmate') {
+      const p = currentPeriod(c.day, m);
+      if (p?.kind === 'lesson' && subjectFor(c.day, p.id) === 'beden' && m >= p.start + 3 + u('bell') * 6 && m < p.end - 4) return { out: 'pe' };
+    }
     // four lessons, lunch, two lessons; the ten-minute breaks are spent in the corridors
     const out1 = H(12, 20) + u('out') * 6;
     if (m < H(8, 18) + u('bell') * 8) return { out: 'school' };

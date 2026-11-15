@@ -426,3 +426,45 @@ button.action .act-look { width: 48px; height: 48px; image-rendering: pixelated;
 .draw-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0; }
 
 button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* the diary page at bedtime */
+.diary-card { width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 22px 24px; background: #fbf6e9; border: 1px solid #e0d3b4; box-shadow: 0 12px 34px rgba(0,0,0,0.35); background-image: repeating-linear-gradient(transparent 0 27px, rgba(70, 110, 160, 0.13) 27px 28px); }
+.diary-head h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 10px; color: #3a2a18; }
+.diary-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9a5b2c; }
+.diary-body { overflow: auto; padding-right: 4px; font-family: Georgia, "Times New Roman", serif; }
+.diary-part { font-family: system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9a5b2c; margin: 12px 0 4px; }
+.diary-part:first-child { margin-top: 0; }
+.diary-line { display: grid; grid-template-columns: 46px 1fr; gap: 8px; align-items: baseline; padding: 3px 0; }
+.diary-line span { font-family: system-ui, sans-serif; font-size: 12px; color: #8a7a62; font-variant-numeric: tabular-nums; }
+.diary-line p { margin: 0; font-size: 15px; line-height: 1.4; color: #2f2418; }
+.diary-end { font-family: Georgia, "Times New Roman", serif; font-style: italic; color: #5a4630; margin: 14px 0 12px; border-top: 1px dashed #d8c8a4; padding-top: 10px; }
+
+/* missions as a tree */
+.tree-card { width: min(1120px, 100%); }
+.tree-legend { display: flex; gap: 14px; font-size: 12px; font-weight: 700; margin: 10px 0 6px; color: #5b6266; }
+.tree-legend .done { color: var(--good); } .tree-legend .active { color: var(--accent-dark); }
+.tree-wrap { position: relative; overflow: auto; padding: 6px 4px 10px; background: linear-gradient(180deg, #f3eee4, #ece5d6); border-radius: 12px; border: 1px solid var(--line); background-image: radial-gradient(rgba(122, 78, 42, 0.12) 1px, transparent 1px); background-size: 18px 18px; }
+.tree-lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.tree-lines path { fill: none; stroke-width: 3; stroke-linecap: round; }
+.tree-lines path.done { stroke: #6fb26a; }
+.tree-lines path.open { stroke: var(--accent); }
+.tree-lines path.locked { stroke: #b9b2a4; stroke-dasharray: 6 6; }
+.tree-lines path.hi { stroke-width: 5; filter: drop-shadow(0 0 3px rgba(242, 193, 78, 0.9)); }
+.tree-cols { position: relative; display: flex; gap: 46px; min-width: max-content; padding: 0 10px; }
+.tree-col { display: flex; flex-direction: column; width: 178px; }
+.tree-col-name { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #8a7a62; text-align: center; padding: 6px 0 10px; }
+.tree-col-nodes { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.tnode { font: inherit; text-align: left; display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 2px solid #cfc6b4; background: #fff; cursor: pointer; position: relative; box-shadow: 0 2px 0 rgba(0,0,0,0.08); transition: transform 0.12s, box-shadow 0.12s; }
+.tnode:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
+.tnode .tn-icon { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: #ece6da; color: #6b7377; }
+.tnode .tn-text { display: flex; flex-direction: column; min-width: 0; }
+.tnode .tn-text b { font-size: 13.5px; line-height: 1.2; }
+.tnode .tn-text span { font-size: 11px; color: #6b7377; margin-top: 2px; }
+.tnode.done { border-color: #8cc487; background: #f1f8ee; } .tnode.done .tn-icon { background: var(--good); color: #fff; }
+.tnode.active { border-color: var(--accent-dark); background: #fffaf2; box-shadow: 0 0 0 3px rgba(201, 138, 75, 0.25); } .tnode.active .tn-icon { background: var(--accent-dark); color: #fff; }
+.tnode.locked { background: #f4f1ea; color: #7d8487; } .tnode.locked .tn-icon { font-size: 11px; }
+.tnode.failed { border-color: #d98a7e; background: #f9ece9; } .tnode.failed .tn-icon { background: #c0392b; color: #fff; }
+.tnode.challenge { border-style: dashed; }
+.tnode.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
+.tree-detail { margin-top: 12px; }
+.tree-detail .mission { margin-bottom: 0; }

@@ -233,6 +233,9 @@ export const COURTS = {
 export const DORM_COURT: Rect = { x: 30, y: 10, w: 6, h: 4 };
 /** courts drawn besides the main two: the small one on the south lawn (just for show) and the dorm court */
 export const EXTRA_COURTS: Rect[] = [{ x: 64, y: 42, w: 6, h: 4 }, DORM_COURT];
+/** Beden Eğitimi is out on the football pitch and the basketball court beside it */
+export const PE_AREA: Rect = { x: 73, y: 14, w: 19, h: 34 };
+export const inPeArea = (x: number, y: number) => x >= PE_AREA.x && x < PE_AREA.x + PE_AREA.w && y >= PE_AREA.y && y < PE_AREA.y + PE_AREA.h;
 /** where you can call friends over for a pick-up game */
 export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }> = [
   { sport: 'basketball', rect: COURTS.basketball }, { sport: 'basketball', rect: DORM_COURT }, { sport: 'football', rect: COURTS.football },

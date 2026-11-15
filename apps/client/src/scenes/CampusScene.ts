@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
-  MEYDAN_STAIRS, PYRAMID, TRIBUNE,
+  MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -19,7 +19,7 @@ import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer'
 import { saveToCloud } from '../net/cloudSave';
 import type { NetUser } from '../main';
 import { Panel } from '../ui/panel';
-import { attendLesson, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
+import { attendLesson, lessonNow, pePanel, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
   BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
@@ -33,7 +33,7 @@ import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, t
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { CEREMONY, ETUT_START, LATE_AFTER, LIGHTS_OUT, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
+import { CEREMONY, ETUT_START, LIGHTS_OUT, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
 import {
   MISSIONS, missionById, nextObjective, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
@@ -65,6 +65,8 @@ const TRUANT_AFTER = 8;
 const FOLLOWERS = 3;
 
 const DIRS = { down: 0, left: 1, right: 2, up: 3 } as const;
+/** the PE lesson's menu title (its activities write their own diary line) */
+const T_PE = () => L({ tr: 'Beden Eğitimi', en: 'Physical Education' });
 const PLAZA_RECT = PLAZA_EVENING;
 /** belletmens on the search: they walk at first, then speed up until they can outpace you */
 const SEARCH_SPEED = 80;
@@ -414,6 +416,8 @@ export class CampusScene extends Phaser.Scene {
     this.hud.onRelationships = () => { if (!this.blocked()) this.showRelationships(); };
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
+    this.panel.onAction = (title, a) => this.logAction(title, a);
+    this.panel.onActionStart = () => { this.actionStamp = this.stamp(); };
     this.groupId = myGroup(this.save.state);
     this.panel.onRoomChange = (roomId) => {
       const room = LOCATIONS.find((l) => l.id === roomId && l.kind === 'room');
@@ -789,6 +793,28 @@ export class CampusScene extends Phaser.Scene {
     this.classLife = new ClassLife(this, this.classMates.map((sp, i) => ({ sp, desk: seats[i % seats.length] })), this.teacher, (sp, text) => this.bubbleAbove(sp, text));
   }
 
+  /** your class has Beden Eğitimi right now */
+  private peNow(): boolean {
+    return this.lessonsOn() && this.currentLesson()?.subject === 'beden';
+  }
+
+  /** out on the football pitch or the basketball court beside it */
+  private onPeGround(): boolean {
+    return !this.room && inPeArea(this.player.x / TILE, this.player.y / TILE);
+  }
+
+  /** after PE: back inside the Eğitim Binası, in your classroom */
+  private backToClass() {
+    this.screenFade(() => {
+      // (in by the door facing the Merkez Meydan, the nearer one to the pitch)
+      const egitim = LOCATIONS.find((l) => l.id === 'egitim')!;
+      const stands = egitim.doors!.map(doorStandTile);
+      this.lastDoor = stands.reduce((a, b) => (b.x > a.x ? b : a));
+      this.room = null;
+      this.enterClass();
+    });
+  }
+
   private currentLesson() {
     const c = this.save.clock;
     const p = currentPeriod(c.day, c.minutes);
@@ -809,10 +835,11 @@ export class CampusScene extends Phaser.Scene {
     if (les && this.lessonsOn()) {
       const sname = L(SUBJECTS.find((x) => x.id === les.subject)!.name);
       const late = this.save.clock.minutes - les.p.start;
-      const slip = this.save.state.daily[`slip-${les.p.id}`] === this.save.clock.day;
+      const now = lessonNow(this.gameCtx());
       if (this.save.state.school.attended.includes(`${this.save.clock.day}-${les.p.id}`)) { /* you've had this lesson */ }
+      else if (les.subject === 'beden') this.hud.toast(L({ tr: `Bugün Beden Eğitimi var: sınıf sahada! ${les.teacher.name} futbol sahasında bekliyor.`, en: `It's PE today: the class is outside! ${les.teacher.name} is waiting on the football pitch.` }));
       else if (this.save.state.sick) this.hud.toast(L({ tr: `${les.teacher.name}: "Hastasın sen! Seni derse alamam, doğru Revir'e git."`, en: `${les.teacher.name}: "You're ill! I can't have you in class. Go straight to the infirmary."` }));
-      else if (late > LATE_AFTER && !slip) this.hud.toast(L({ tr: `${les.teacher.name}: "${late} dakika geç kaldın! Önce müdür yardımcısından geç kâğıdı al." (kapıdan koridora çık)`, en: `${les.teacher.name}: "You're ${late} minutes late! Get a late slip from the deputy head first." (go out to the corridor)` }));
+      else if (now?.late && !now.slip) this.hud.toast(L({ tr: `${les.teacher.name}: "${late} dakika geç kaldın! Önce müdür yardımcısından geç kâğıdı al." (kapıdan koridora çık)`, en: `${les.teacher.name}: "You're ${late} minutes late! Get a late slip from the deputy head first." (go out to the corridor)` }));
       else this.hud.toast(L({ tr: `${sname} dersi · ${les.teacher.name}. Sırana otur!`, en: `${sname} with ${les.teacher.name}. Take your seat!` }));
     }
     this.persist();
@@ -933,12 +960,12 @@ export class CampusScene extends Phaser.Scene {
     else if (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night') {
       const mm = this.save.clock.minutes;
       const late = mm >= 22 * 60 ? mm - 22 * 60 : mm + 120;
-      const bel = this.save.character.gender === 'girl' ? 'Hatice Hanım' : 'Mehmet Bey';
+      const bel = this.save.character.gender === 'girl' ? 'Ayşe Hanım' : 'Ercan Bey';
       if (late >= 5) this.hud.toast(L({ tr: `${bel} kapıda bekliyordu: "${late} dakika geç! Hemen yatağına."`, en: `${bel} was waiting at the door: "${late} minutes late! Straight to bed."` }));
     }
     else if (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'etut') {
       const late = this.save.clock.minutes - 18 * 60;
-      const bel = this.save.character.gender === 'girl' ? 'Hatice Hanım' : 'Mehmet Bey';
+      const bel = this.save.character.gender === 'girl' ? 'Ayşe Hanım' : 'Ercan Bey';
       this.hud.toast(late >= 5
         ? L({ tr: `${bel} saatine bakıyor: "${late} dakika geç kaldın. Otur yerine."`, en: `${bel} checks the time: "You're ${late} minutes late. Sit down."` })
         : L({ tr: 'Etüt saati: masana otur ya da sınıf arkadaşlarınla (dikkatli) konuş.', en: 'Study time: sit at your desk, or (carefully) talk to your classmates.' }));
@@ -1040,6 +1067,12 @@ export class CampusScene extends Phaser.Scene {
     const ctx = () => this.gameCtx();
     if (this.cemilOut.visible && Phaser.Math.Distance.Between(this.cemilOut.x, this.cemilOut.y, this.player.x, this.player.y) < 1.6 * TILE) {
       return { label: 'Cemil Emmi', open: () => { const g = ctx(); this.panel.open(() => cemilPanel(g)); } };
+    }
+    // in a PE lesson the pitch and the court are the classroom
+    const pe = this.npcById.get('ogr-beden');
+    const nearPe = pe?.visible && Phaser.Math.Distance.Between(pe.x, pe.y, this.player.x, this.player.y) < 1.8 * TILE;
+    if (this.peNow() && (nearPe || this.onPeGround())) {
+      return { label: L({ tr: `Beden Eğitimi dersi · ${TEACHERS.beden.name}`, en: `PE lesson · ${TEACHERS.beden.name}` }), open: () => { const g = ctx(); this.panel.open(() => pePanel(g)); } };
     }
     if (this.match) return null;
     const px = this.player.x / TILE, py = this.player.y / TILE;
@@ -1486,6 +1519,9 @@ export class CampusScene extends Phaser.Scene {
       this.pickEveningHome(npc);
       // where they wait for the bell
       npc.setData('schoolHome', this.walkable(SCHOOL_FRONT.x + Math.random() * (SCHOOL_FRONT.w - 1), SCHOOL_FRONT.y + Math.random() * (SCHOOL_FRONT.h - 1)));
+      // at PE: most of the class on the pitch, a few on the basketball court beside it
+      const court = Math.random() < 0.3 ? COURTS.basketball : COURTS.football;
+      npc.setData('peHome', this.walkable(court.x + 1 + Math.random() * (court.w - 2), court.y + 1 + Math.random() * (court.h - 2)));
       void plaza;
       this.npcs.push(npc);
       this.npcById.set(def.id, npc);
@@ -1586,6 +1622,8 @@ export class CampusScene extends Phaser.Scene {
       if (cer && c.minutes >= cer[0] - 6 && c.minutes < cer[1]) return { home: npc.getData('ceremonyHome'), roam: 0, face: FLAGPOLE };
       return (rc.rush || weekdayOf(c.day) < 5) && c.minutes >= 7 * 60 + 40 && c.minutes < 17 * 60 ? indoors('egitim') : indoors('away');
     }
+    // the PE teacher takes the class out on the pitch, whistle in hand
+    if (def.id === 'ogr-beden' && this.peNow()) return { home: this.walkable(76, 26), roam: 0, face: [83, 26] };
     const ti = def.kind === 'teacher' ? TEACHER_NPCS.indexOf(def) : -1;
     const act: Activity = ti >= 0 ? teacherActivity(ti, this.routineClock()) : activityOf(def, this.routineClock());
     if (act.in) return indoors(act.in);
@@ -1596,6 +1634,7 @@ export class CampusScene extends Phaser.Scene {
     }
     // lined up at the flag, standing still and facing it
     if (act.out === 'ceremony') return { home: npc.getData('ceremonyHome'), roam: 0, face: FLAGPOLE };
+    if (act.out === 'pe') return { home: npc.getData('peHome'), roam: 2 };
     if (act.out === 'plaza') return { home: npc.getData('plazaHome'), roam: 3 };
     if (act.out === 'school' && !def.fixed) return { home: npc.getData('schoolHome'), roam: 2 };
     return { home: npc.getData('dayHome'), roam: npc.getData('dayRoam') ?? def.roam };
@@ -2077,7 +2116,7 @@ export class CampusScene extends Phaser.Scene {
     }
     this.hud.setDiscovery(this.discovered.size, LOCATIONS.length);
     this.updatePrompt(true);
-    if (!silent) { this.hud.toast(t('discovered_toast', { name: L(loc.name) }), 'good'); sfx.discover(); }
+    if (!silent) { this.hud.toast(t('discovered_toast', { name: L(loc.name) }), 'good'); sfx.discover(); this.log(L({ tr: `🧭 ${L(loc.name)} yerini keşfettin`, en: `🧭 You found ${L(loc.name)}` })); }
     if (!silent) this.save.state.xp += 20;
     // nobody makes you explore, but finding every corner of the campus is worth something
     if (LOCATIONS.every((l) => this.discovered.has(l.id)) && !this.save.state.once.exploredAll) {
@@ -2130,6 +2169,9 @@ export class CampusScene extends Phaser.Scene {
       this.hud.setPrompt(th ? `E — ${th.label}` : null);
       return;
     }
+    // in a PE lesson, the teacher and the pitch mean the lesson itself
+    const peSpot = this.peNow() ? this.outdoorSpot() : null;
+    if (peSpot) { this.nearDoor = null; this.hud.setPrompt(`E — ${peSpot.label}`); return; }
     const npc = this.findNearNpc();
     if (npc) {
       this.nearDoor = null;
@@ -2208,6 +2250,8 @@ export class CampusScene extends Phaser.Scene {
     if (this.room === 'dining') { this.interactDining(); return; }
     if (this.room === 'class') { this.interactClass(); return; }
     if (this.room === 'dorm') { this.interactRoom(); return; }
+    const peSpot = this.peNow() ? this.outdoorSpot() : null;
+    if (peSpot) { this.player.setVelocity(0, 0); peSpot.open(); return; }
     const npc = this.findNearNpc();
     if (npc) {
       this.nearNpc = npc;
@@ -2278,6 +2322,8 @@ export class CampusScene extends Phaser.Scene {
       rush: () => this.rushOn(),
       dress: () => this.dress(),
       killTime: (until) => this.killTime(until),
+      toClass: () => this.backToClass(),
+      log: (text) => this.log(text),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
   }
@@ -2302,11 +2348,66 @@ export class CampusScene extends Phaser.Scene {
     this.sleepRun = { kind: 'idle', msPerMin: Math.min(90, 8000 / left), acc: 0, left, total: left, busy: false, events: [] };
   }
 
+  /** a line in today's diary (the same thing twice in a row is written once) */
+  private log(text: string) {
+    const j = this.save.state.journal;
+    const c = this.save.clock;
+    if (j.length && j[j.length - 1].text === text) return;
+    j.push({ at: c.day * 1440 + c.minutes, text });
+    if (j.length > 80) j.splice(0, j.length - 80);
+  }
+
+  /** actions in the menus the diary notes on its own (the ones with a richer line of their own, and comings and goings, are left out) */
+  private logAction(title: string, a: { id: string; label: string }) {
+    if (/^(out|leave|lesson|luggage|wait|idle|sleep|hello|eat-|stash|slip)/.test(a.id) || title === T_PE()) return;
+    if (this.actionStamp === this.stamp()) return; // (cancelled: nothing happened)
+    const label = a.label.replace(/\s*\(\d+\/\d+[^)]*\)\s*$/, '').replace(/\s*·\s*\d+\s*₺$/, '').replace(/^✓\s*/, '');
+    this.log(`${title} · ${label}`);
+  }
+
+  private actionStamp = '';
+  /** a fingerprint of the things an action changes: if it's the same afterwards, the action was called off */
+  private stamp(): string {
+    const st = this.save.state, c = this.save.clock;
+    return `${c.day * 1440 + c.minutes}|${st.money}|${st.xp}|${st.mood}|${st.wardrobe.wearing}|${st.food.bag.length}|${st.phoneUnits}|${Object.values(st.friends).reduce((a, b) => a + b, 0)}`;
+  }
+
+  /** the diary page for the day, at bedtime; then you go to sleep */
+  private showDiary(then: () => void) {
+    const st = this.save.state, c = this.save.clock;
+    const entries = st.journal.splice(0);
+    if (!entries.length) { then(); return; }
+    const day = c.minutes < WAKE_UP ? c.day - 1 : c.day;
+    const names = t('days').split(',');
+    const mood = st.mood >= 70 ? L({ tr: 'Bugün güzel bir gündü. İçim kıpır kıpır.', en: 'Today was a good day. I feel all fizzy inside.' })
+      : st.mood >= 45 ? L({ tr: 'Fena bir gün değildi. Yarın daha iyi olacak.', en: "Not a bad day. Tomorrow will be better." })
+        : L({ tr: 'Zor bir gündü. Evi biraz özledim.', en: 'A hard day. I missed home a bit.' });
+    const esc = (x: string) => x.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
+    const part = (m: number) => (m < 12 * 60 && m >= WAKE_UP ? 0 : m < 18 * 60 && m >= WAKE_UP ? 1 : 2);
+    const parts = [L({ tr: 'Sabah', en: 'Morning' }), L({ tr: 'Öğleden sonra', en: 'Afternoon' }), L({ tr: 'Akşam', en: 'Evening' })];
+    let html = '', last = -1;
+    for (const e of entries) {
+      const m = e.at % 1440, p = part(m);
+      if (p !== last) { html += `<div class="diary-part">${parts[p]}</div>`; last = p; }
+      html += `<div class="diary-line"><span>${fmtTime(m)}</span><p>${esc(e.text)}</p></div>`;
+    }
+    const el = document.createElement('div');
+    el.className = 'card diary-card';
+    el.innerHTML = `
+      <div class="diary-head"><div class="diary-tag">📖 ${L({ tr: 'Günlüğüm', en: 'My diary' })}</div><h2>${names[weekdayOf(day)]} · ${t('day_n', { n: day })}</h2></div>
+      <div class="diary-body">${html}</div>
+      <p class="diary-end">${mood}</p>
+      <div style="text-align:right"><button type="button" class="primary">${L({ tr: 'Günlüğü kapat, uyu 😴', en: 'Close the diary and sleep 😴' })}</button></div>`;
+    this.player.setVelocity(0, 0);
+    this.hud.openCard(el, ['Escape', 'Enter'], then);
+  }
+
   private penalize(points: number, why: string) {
     const st = this.save.state;
     st.discipline = Math.min(100, st.discipline + points);
     st.lastPenaltyDay = this.save.clock.day;
     sfx.warn();
+    this.log(`⚠ ${why}`);
     this.hud.toast(`⚠ ${why} (+${points} ${L({ tr: 'disiplin puanı', en: 'discipline points' })})`);
     this.refreshClockAndNeeds();
   }
@@ -2354,7 +2455,7 @@ export class CampusScene extends Phaser.Scene {
     }
     if (this.room === 'dorm') return; // from the classroom you still have to go back to the dorm in the evening
     const phase = phaseOf(c.minutes, c.day);
-    const belletmen = this.save.character.gender === 'girl' ? 'Hatice Hanım' : 'Mehmet Bey';
+    const belletmen = this.save.character.gender === 'girl' ? 'Ayşe Hanım' : 'Ercan Bey';
     if (st.escaped) {
       if (phase !== 'night') { st.escaped = false; this.penalize(10, L({ tr: 'Sabah yoklamasında yatağında değildin!', en: "You weren't in bed at the morning roll call!" })); return; }
       const patrol = this.npcs.find((n) => (n.getData('def') as NpcDef).id === 'bel-selim');
@@ -2419,7 +2520,9 @@ export class CampusScene extends Phaser.Scene {
     if (!this.settled() || st.escaped || this.sleeping) return null;
     const phase = phaseOf(this.save.clock.minutes, this.save.clock.day);
     if (phase === 'etut' || phase === 'night') return this.room === 'dorm' ? null : 'curfew';
-    return this.skipping() && this.room !== 'class' ? 'truant' : null;
+    const les = this.skipping();
+    if (!les || this.room === 'class') return null;
+    return les.subject === 'beden' && this.onPeGround() ? null : 'truant';
   }
 
   /** a lesson is on that you should be in and haven't been to (the sick are excused: they belong in the infirmary) */
@@ -2504,7 +2607,8 @@ export class CampusScene extends Phaser.Scene {
     if (e?.npc === npc) {
       if (!e.walking) { stop(); return; }
       // back to your dorm, or (caught skipping a lesson) to the nearest door of the Eğitim Binası
-      const stands = (e.kind === 'truant' ? LOCATIONS.find((l) => l.id === 'egitim')! : this.ownDormLoc()).doors!.map(doorStandTile).filter((d) => this.npcReach[d.y * MAP_W + d.x]);
+      const stands = e.kind === 'truant' && this.peNow() ? [{ x: 74, y: 26 }]
+        : (e.kind === 'truant' ? LOCATIONS.find((l) => l.id === 'egitim')! : this.ownDormLoc()).doors!.map(doorStandTile).filter((d) => this.npcReach[d.y * MAP_W + d.x]);
       const door = stands.reduce((a, b) => (Math.hypot((a.x + 0.5) * TILE - npc.x, (a.y + 0.5) * TILE - npc.y) <= Math.hypot((b.x + 0.5) * TILE - npc.x, (b.y + 0.5) * TILE - npc.y) ? a : b));
       const there = this.steerNpc(npc, ...this.npcSpot(door.x, door.y), ESCORT_SPEED);
       // a long walk ends in a fade; so does getting wedged apart
@@ -2598,7 +2702,7 @@ export class CampusScene extends Phaser.Scene {
       this.hud.showModal({
         title: L({ tr: '🔎 Yakalandın!', en: '🔎 Caught!' }), sub: `${def.name} · ${L(def.role)}`,
         body: L(lines[Math.floor(Math.random() * lines.length)]),
-        note: L({ tr: 'Seni sınıfına kadar götürüyor. Derse girmemek disiplin puanı getirir ve karakterine işler: "Haylaz" yönüne kayıyorsun.', en: 'He is walking you to your classroom. Skipping lessons costs discipline points and it shapes who you are: you lean towards "Mischievous".' }),
+        note: L({ tr: 'Seni sınıfına kadar götürüyor. Derse girmemek disiplin puanı getirir ve karakterine işler: "Haylaz" yönüne kayıyorsun.', en: 'She is walking you to your classroom. Skipping lessons costs discipline points and it shapes who you are: you lean towards "Mischievous".' }),
         button: L({ tr: 'Sınıfa', en: 'To class' }),
         onClose: () => {
           if (!this.escort) return;
@@ -2658,6 +2762,21 @@ export class CampusScene extends Phaser.Scene {
   /** the deputy head sits you down in class: the lesson counts, with a poor performance mark and nothing learnt */
   private marchedToClass(name: string) {
     const les = this.currentLesson();
+    if (les?.subject === 'beden') {
+      // handed over to the PE teacher: laps on the touchline for the rest of the lesson, then back in with everyone
+      const ctx = this.gameCtx();
+      attendLesson(ctx, `${this.save.clock.day}-${les.p.id}`, 'beden', 30);
+      this.gain({ energy: -15, attrs: { fitness: 1 } });
+      this.advance(Math.max(0, les.p.end - this.save.clock.minutes));
+      this.backToClass();
+      this.hud.showModal({
+        title: L({ tr: 'Beden Eğitimi', en: 'Physical Education' }), sub: les.teacher.name,
+        body: L({ tr: `${name} seni sahaya getirdi: "Bu öğrenci dersi asıyordu." ${les.teacher.name} düdüğünü öttürdü: "Ders bitene kadar saha kenarında tur atacaksın!"`, en: `${name} brought you out to the pitch: "This one was skipping your lesson." ${les.teacher.name} blew his whistle: "Laps of the touchline until the bell!"` }),
+        note: L({ tr: 'Performans notu: 30/100 · zil çalınca herkesle Eğitim Binası\'na döndün.', en: 'Performance mark: 30/100 · at the bell you went back to the Eğitim Binası with everyone.' }),
+        button: L({ tr: 'Tamam', en: 'OK' }),
+      });
+      return;
+    }
     this.lastDoor = doorStandTile(LOCATIONS.find((l) => l.id === 'egitim')!.doors![0]);
     this.enterClass();
     this.player.setPosition((CLASS_OX + MY_CLASS_DESK[0] + 0.5) * TILE, (MY_CLASS_DESK[1] + 1.35) * TILE);
@@ -2858,6 +2977,7 @@ export class CampusScene extends Phaser.Scene {
       if (delay < 420) { setTimeout(spin, delay); return; }
       box.textContent = pick; box.classList.add('landed');
       st.school.classLabel = pick;
+      this.log(L({ tr: `🎲 Sınıf kurası çekildi: ${pick} sınıfındasın`, en: `🎲 The class draw: you're in ${pick}` }));
       st.once.classDrawn = true;
       this.gain({ xp: 10, mood: 5 });
       sfx.success();
@@ -2904,6 +3024,8 @@ export class CampusScene extends Phaser.Scene {
       }
       void prev;
     }
+    if (def && before > -15 && st.friends[id] <= -15) this.log(L({ tr: `😠 ${def.name} ile aranız bozuldu`, en: `😠 You fell out with ${def.name}` }));
+    if (def && before < FRIEND_AT && st.friends[id] >= FRIEND_AT) this.log(L({ tr: `🤝 ${def.name} ile arkadaş oldunuz`, en: `🤝 You and ${def.name} became friends` }));
     if (def && before > -15 && st.friends[id] <= -15) this.hud.toast(L({ tr: `😠 ${def.name} artık seninle anlaşamıyor.`, en: `😠 ${def.name} doesn't get along with you anymore.` }));
     if (def?.kind === 'classmate' && before < FRIEND_AT && st.friends[id] >= FRIEND_AT) {
       this.hud.toast(L({ tr: `🤝 ${def.name} artık arkadaşın!`, en: `🤝 ${def.name} is now your friend!` }), 'good');
@@ -2927,6 +3049,7 @@ export class CampusScene extends Phaser.Scene {
         for (const m of MISSIONS) {
           if (statusOf(m, c) !== 'active' || !m.objectives.every((o) => o.done(c))) continue;
           st.missionsDone.push(m.id);
+          this.log(L({ tr: `✓ Görev tamamlandı: ${m.title.tr}`, en: `✓ Mission complete: ${m.title.en}` }));
           st.xp += m.reward.xp;
           if (m.id === 'saglikli_yil') {
             this.save.character.attributes.fitness = Math.min(100, this.save.character.attributes.fitness + 10);
@@ -3121,6 +3244,9 @@ export class CampusScene extends Phaser.Scene {
     const before = c.minutes;
     c.minutes += 1;
     if (c.minutes >= 24 * 60) { c.minutes = 0; c.day += 1; }
+    // in class when a lesson begins (out on the pitch for PE): you can sit down any time in it without a late slip
+    const lp = currentPeriod(c.day, c.minutes);
+    if (lp?.kind === 'lesson' && c.minutes <= lp.start + 5 && (this.room === 'class' || (subjectFor(c.day, lp.id) === 'beden' && this.onPeGround()))) st.daily[presentKey(lp.id)] = c.day;
     if (before < LIGHTS_OUT && c.minutes >= LIGHTS_OUT) this.hud.toast(t('lights_out'));
     if (before < 7 * 60 && c.minutes >= 7 * 60) this.onMorning();
     const cer = this.isRaining() ? null : ceremonyWindow(c.day);
@@ -3229,7 +3355,7 @@ export class CampusScene extends Phaser.Scene {
     if (late.length) {
       st.school.homework = st.school.homework.filter((h) => h.day >= c.day);
       late.forEach((h) => st.school.scores[h.s].push(0));
-      this.penalize(late.length * 3, L({ tr: `Ahmet Bey: "Ödevin nerede?" (${late.length} yapılmamış ödev → 0 puan)`, en: `Mr. Ahmet: "Where's your homework?" (${late.length} missing → 0 points)` }));
+      this.penalize(late.length * 3, L({ tr: `Murat Bey: "Ödevin nerede?" (${late.length} yapılmamış ödev → 0 puan)`, en: `Mr. Murat: "Where's your homework?" (${late.length} missing → 0 points)` }));
       this.changeMood(-4);
     } else if (st.discipline > 0 && st.lastPenaltyDay < c.day - 1) {
       st.discipline = Math.max(0, st.discipline - 2); // a clean day helps your record
@@ -3255,6 +3381,11 @@ export class CampusScene extends Phaser.Scene {
 
   /** into bed: the night fast-forwards in about 40 seconds (your roommates are asleep around you) */
   private sleep() {
+    if (this.sleepRun || this.hud.modalOpen) return;
+    this.showDiary(() => this.fallAsleep());
+  }
+
+  private fallAsleep() {
     if (this.sleepRun) return;
     const c = this.save.clock;
     const toMorning = c.minutes >= 7 * 60 ? 24 * 60 - c.minutes + 7 * 60 : 7 * 60 - c.minutes;

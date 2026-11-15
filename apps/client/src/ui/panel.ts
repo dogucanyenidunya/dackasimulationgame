@@ -141,13 +141,17 @@ export class Panel {
       if (a.locked || this.busy) return;
       sfx.click();
       this.busy = true;
-      try { await a.run(); } finally { this.busy = false; }
+      this.onActionStart?.();
+      try { await a.run(); this.onAction?.(v.title, a); } finally { this.busy = false; }
       if (this.isOpen) this.render();
     }));
     this.onRoomChange?.(room.id);
   }
 
   onRoomChange: ((roomId: string) => void) | null = null;
+  /** an action was carried out (the diary keeps a note of it) */
+  onAction: ((title: string, a: ActionView) => void) | null = null;
+  onActionStart: (() => void) | null = null;
 
   // ---------- minigames (render inside the panel card) ----------
 
