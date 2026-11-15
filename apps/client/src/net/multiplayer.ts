@@ -15,9 +15,24 @@ type Handlers = {
   onEmote?: (from: string, emoji: string) => void;
   /** someone sent you a friend request or accepted yours (only a nudge: check the database for what's true) */
   onFriend?: (from: string, kind: FriendNudge) => void;
+  /** a message meant only for you from another player (a treat, an invitation to play, a move in a game…) */
+  onPeer?: (from: string, msg: PeerMsg) => void;
 };
 
 export type FriendNudge = 'request' | 'accepted' | 'removed';
+
+/** two-player games played over the channel */
+export type PeerGame = 'yetimball' | 'rps';
+
+/** one player to another (everyone receives it, only `to` acts on it; it's play, not anything that must stay secret) */
+export type PeerMsg =
+  | { kind: 'invite'; gid: string; game: PeerGame; name: string }
+  | { kind: 'reply'; gid: string; ok: boolean; busy?: boolean }
+  | { kind: 'cancel'; gid: string }
+  | { kind: 'move'; gid: string; n: number; v: number | string }
+  | { kind: 'social'; act: 'treat' | 'joke' | 'nick'; name: string; text?: string }
+  | { kind: 'borrow'; name: string }
+  | { kind: 'lend'; ok: boolean; name: string };
 
 export class Multiplayer {
   private channel: RealtimeChannel | null = null;
@@ -47,6 +62,10 @@ export class Multiplayer {
       this.h.onChat?.(p.id, p.name, String(p.text).slice(0, 140));
     });
     ch.on('broadcast', { event: 'emote' }, ({ payload }) => this.h.onEmote?.((payload as { id: string }).id, (payload as { e: string }).e));
+    ch.on('broadcast', { event: 'peer' }, ({ payload }) => {
+      const p = payload as { to: string; from: string; msg: PeerMsg };
+      if (p.to === this.me.id && typeof p.from === 'string' && p.msg && typeof p.msg.kind === 'string') this.h.onPeer?.(p.from, p.msg);
+    });
     ch.on('broadcast', { event: 'friend' }, ({ payload }) => {
       const p = payload as { to: string; from: string; kind: FriendNudge };
       if (p.to === this.me.id && typeof p.from === 'string') this.h.onFriend?.(p.from, p.kind);
@@ -78,6 +97,11 @@ export class Multiplayer {
 
   emote(e: string) {
     void this.channel?.send({ type: 'broadcast', event: 'emote', payload: { id: this.me.id, e } });
+  }
+
+  /** a message for one other player */
+  toPeer(to: string, msg: PeerMsg) {
+    void this.channel?.send({ type: 'broadcast', event: 'peer', payload: { to, from: this.me.id, msg } });
   }
 
   /** tells another player (if they're online) to look at their friends list again */

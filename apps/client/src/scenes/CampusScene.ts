@@ -16,6 +16,7 @@ import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
+import { PeerPlay } from '../game/peerPlay';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
 import { askConfirm } from '../ui/confirm';
@@ -182,6 +183,8 @@ export class CampusScene extends Phaser.Scene {
   /** the "paused" screen while the tab was in the background (null = playing) */
   private pauseScreen: HTMLElement | null = null;
   private mp: Multiplayer | null = null;
+  /** things to do with other players: treats, jokes, Yetimball and other two-player games */
+  private peerPlay: PeerPlay | null = null;
   /** online: your real-player friends and friend requests, by user id (friendsReady = the list has loaded) */
   private friends = new Map<string, Friend>();
   private friendsReady = false;
@@ -534,6 +537,7 @@ export class CampusScene extends Phaser.Scene {
         this.friendsUi?.render();
       },
       onLeave: (id) => {
+        this.peerPlay?.peerLeft(id);
         const peer = this.peers.get(id);
         if (!peer) return;
         this.hud.toast(L({ tr: `${peer.profile.name} oyundan çıktı`, en: `${peer.profile.name} left` }));
@@ -550,11 +554,25 @@ export class CampusScene extends Phaser.Scene {
       onChat: (id, name, text) => { this.hud.addChatLine(name, text); this.bubbleAbove(this.peers.get(id)?.sprite, text); },
       onEmote: (id, e) => this.bubbleAbove(this.peers.get(id)?.sprite, e),
       onFriend: (from, kind) => void this.onFriendNudge(from, kind),
+      onPeer: (from, msg) => void this.peerPlay?.onMessage(from, msg),
     });
     const ok = await this.mp.connect();
     if (!ok) { this.hud.toast(L({ tr: 'Çevrimiçi bağlantı kurulamadı; tek başına oynuyorsun.', en: "Couldn't connect online; you're playing solo." })); this.mp = null; return; }
     this.hud.enableChat();
     this.hud.onChatSend = (text) => { this.mp?.chat(text); this.hud.addChatLine(ch.first, text, true); this.bubbleAbove(this.player, text); };
+    this.peerPlay = new PeerPlay({
+      me: () => ({ id: me.id, name: ch.first }),
+      send: (to, msg) => this.mp?.toPeer(to, msg),
+      ctx: () => this.gameCtx(),
+      name: (id) => this.peers.get(id)?.profile.name,
+      bubble: (id, text) => this.bubbleAbove(id === 'me' ? this.player : this.peers.get(id)?.sprite, text),
+      busy: () => this.blocked() || this.sleeping,
+      // a game screen holds you still (like the match screen); online, your clock catches up afterwards
+      setPlaying: (on) => { this.watching = on; this.player.setVelocity(0, 0); if (!on) this.refreshClockAndNeeds(); },
+      openChat: () => { this.player.setVelocity(0, 0); this.hud.openChat(); },
+      uiHost: document.body,
+    });
+    this.peerPlay.emote = (e) => { this.mp?.emote(e); this.bubbleAbove(this.player, e); };
     this.input.keyboard!.on('keydown-ENTER', (e: KeyboardEvent) => {
       if (this.blocked()) return;
       // the chat box takes focus during this key press: without this the same Enter would "send" the empty box and close it again
@@ -2458,15 +2476,14 @@ export class CampusScene extends Phaser.Scene {
     const peer = this.nearPeer();
     if (peer) {
       this.player.setVelocity(0, 0);
-      const pick = ['👋', '😂', '❤️', '⚽', '🤝'];
       this.panel.open(() => {
         const add = this.friendAction(peer);
         const friend = this.friends.get(peer.profile.id)?.status === 'accepted';
         return {
           title: peer.profile.name, sub: friend ? L({ tr: `⭐ Arkadaşın · ${peer.profile.grade}. sınıf`, en: `⭐ Your friend · grade ${peer.profile.grade}` }) : L({ tr: `Gerçek oyuncu · ${peer.profile.grade}. sınıf`, en: `Real player · grade ${peer.profile.grade}` }),
-          rooms: [{ id: 'peer', name: peer.profile.name, note: L({ tr: 'Bir tepki gönder ya da Enter ile sohbet et.', en: 'Send a reaction, or press Enter to chat.' }),
+          rooms: [{ id: 'peer', name: peer.profile.name, note: L({ tr: 'Gerçek bir oyuncu: ne yaparsan kendisi cevap verir.', en: 'A real player: they answer for themselves.' }),
             actions: [
-              ...pick.map((e) => ({ id: e, label: e, run: () => { this.mp?.emote(e); this.bubbleAbove(this.player, e); this.panel.close(); } })),
+              ...(this.peerPlay?.actions(peer.profile.id) ?? []),
               ...(add ? [add] : []),
             ] }],
         };
