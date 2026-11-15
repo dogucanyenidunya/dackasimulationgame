@@ -1,5 +1,6 @@
 // Player progress for the prototype (needs, money, school). Lives inside SaveData.
 import type { Text } from '../i18n';
+import { defaultCare, type CareState } from './care';
 
 export type SubjectId = 'turkce' | 'matematik' | 'fen' | 'sosyal' | 'ingilizce' | 'muzik' | 'beden' | 'din' | 'teknoloji';
 export type SportId = 'basketball' | 'volleyball' | 'football' | 'tennis' | 'swimming' | 'fencing' | 'athletics' | 'tabletennis' | 'chess';
@@ -107,6 +108,8 @@ export interface PlayerState {
   food: { bag: string[]; locker: string[] };
   /** today's diary: what you did, written as it happens (minute of the game since day 1, and the line); shown when you go to bed */
   journal: Array<{ at: number; kind?: string; a?: string; b?: string; c?: string; n?: number; m?: number; text?: string }>;
+  /** daily care while you're away in real life (see game/care.ts) */
+  care: CareState;
 }
 
 export type AxisId = 'rules' | 'ambition' | 'presence' | 'warmth' | 'loyalty' | 'heart';
@@ -152,6 +155,7 @@ export function defaultState(): PlayerState {
     wardrobe: { wearing: 'sivil', borrowed: null },
     food: { bag: [], locker: [] },
     journal: [],
+    care: defaultCare(),
   };
 }
 
@@ -174,6 +178,8 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     wardrobe: { ...d.wardrobe, ...s.wardrobe },
     food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
     journal: [...(s.journal ?? [])],
+    // older saves start their care clock now, so nobody comes back to a drift they never knew about
+    care: { ...d.care, ...s.care, today: { ...d.care.today, ...s.care?.today, acts: [...(s.care?.today?.acts ?? [])] } },
   };
   // saves from before the registration weekend: whoever had registered is past it, and already in uniform
   if (!s.wardrobe && merged.school.kit) merged.wardrobe.wearing = 'uniforma';

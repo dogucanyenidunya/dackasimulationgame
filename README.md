@@ -43,6 +43,23 @@ Opens on http://localhost:5173. Without Supabase settings it runs single-player.
 
 For online play locally, copy `apps/client/.env.example` to `apps/client/.env.local` and fill in the same two values.
 
+### Sign-in emails
+
+Work mail scanners (such as Outlook Safe Links) open links before the player does, so a link that signs in on opening gets used up. Sign-in therefore uses a code, and the link only opens the game, where the player presses **Sign in**.
+
+1. **SMTP.** Authentication → Emails → SMTP Settings: turn on custom SMTP (for example Gmail with an app password: host `smtp.gmail.com`, port `465`). Supabase's built-in sender is limited to 2 emails an hour and doesn't let you edit templates. After saving, raise the limit under Authentication → Rate Limits.
+2. **Templates.** In both **Magic Link** and **Confirm signup**, show `{{ .Token }}` (the code) and link to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`. Don't use `{{ .ConfirmationURL }}`.
+
+### Note emails ("a friend left you a note")
+
+Sent by the Edge Function [supabase/functions/note-email](supabase/functions/note-email/index.ts): who left a note, never what it says, at most one email a day per player, with a "stop these emails" link. The Auth SMTP settings above can't send these, so the function sends through Gmail itself.
+
+1. **Deploy the function** with JWT verification **off** (players can unsubscribe without signing in). Either Edge Functions → Deploy a new function → Via editor, name it `note-email`, paste the file and switch off "Verify JWT"; or with the Supabase CLI: `supabase functions deploy note-email --no-verify-jwt --project-ref <project-ref>`.
+2. **Secrets** (Edge Functions → Secrets): `SMTP_USER` (the Gmail address), `SMTP_PASS` (its 16-letter app password, no spaces), `WEBHOOK_SECRET` (any long random text) and `SITE_URL` (the game's address).
+3. **Webhook.** Database → Webhooks → Create: table `notes`, event **Insert**, type **Supabase Edge Functions**, function `note-email`, method POST, and add an HTTP header `x-webhook-secret` with the same value as `WEBHOOK_SECRET`.
+
+Without these steps notes still work in the game; only the emails are missing.
+
 ## How multiplayer works (stage 1)
 
 - Everyone online is in one shared campus channel (Supabase Realtime). Presence shows who is here, and broadcasts carry positions, chat and emotes.
@@ -54,4 +71,6 @@ For online play locally, copy `apps/client/.env.example` to `apps/client/.env.lo
   - Solo play and the registration weekend keep their own clock, as before.
 - **Friends and invite links.** Press F (or 🤝) to get your personal invite link. A friend who opens it and signs in becomes your friend straight away. You can also walk up to any player on campus, press E and choose **Add friend**; they accept from their own friends list. Friends show with a gold ★ over their head, and the list shows which friends are online and where. Making a new link switches the old one off.
   - Stored in the `profiles`, `invites` and `friendships` tables. Players can't write them directly: everything goes through database functions that check who is asking. If you set up Supabase before this was added, run [supabase/schema.sql](supabase/schema.sql) again (it's safe to re-run).
+- **Daily care.** The title screen shows your character, how they're doing, and three small acts of care: 🥪 a kumanya, 📞 a call from home, ✉️ a note to a friend. While you're away in real life, mood, energy and health drift down slowly, but never below 45 and never for the first 24 hours after you last cared for them or came to campus. Grades, friendships and missions never change ([care.ts](apps/client/src/game/care.ts)). Solo players get the first two.
+  - Notes reach a friend's pigeonhole straight away, and they get an email about it (see **Note emails** above). Only friends can leave notes: 30 a day in all and 5 a day to the same friend. Anyone can be blocked from their note, which ends the friendship and stops notes and friend requests either way. Stored in the `notes`, `blocks` and `email_prefs` tables, written only through database functions.
 - Saves are stored per account in the `saves` table, protected by row-level security.

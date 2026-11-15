@@ -1,16 +1,19 @@
 import Phaser from 'phaser';
 import { CampusScene } from './scenes/CampusScene';
 import { getLang, setLang, t, onLangChange, type Lang } from './i18n';
-import { backupSave, clearSave, hasBackup, loadSave, newSave, restoreBackup, type SaveData } from './save';
+import { backupSave, clearSave, hasBackup, loadSave, newSave, restoreBackup, writeSave, type SaveData } from './save';
 import { runCreator } from './ui/creator';
 import { sfx } from './audio';
 import { askConfirm } from './ui/confirm';
 import { GUARDIANS, type CharacterData } from './content/character';
 import { L, type Text } from './i18n';
 import { clearLinkToken, currentSession, online, pendingLinkToken, sendSignInLink, signOut, takeLinkError, verifyLinkToken, verifySignInCode } from './net/supabase';
-import { loadCloudSave } from './net/cloudSave';
+import { flushCloudSave, loadCloudSave, saveToCloud } from './net/cloudSave';
 import { clearPendingInvite, inviteInfo, pendingInvite, redeemInvite } from './net/friends';
 import { withDefaults } from './game/state';
+import { applyDrift, markVisit } from './game/care';
+import { mountCare } from './ui/care';
+import { clearUnsubscribe, pendingUnsubscribe, unsubscribeNoteEmails } from './net/notes';
 
 /** who is playing online (null = offline / signed out) */
 export interface NetUser { id: string; email: string }
@@ -18,6 +21,8 @@ export interface NetUser { id: string; email: string }
 async function startGame(save: SaveData, net: NetUser | null = null) {
   // (whatever the save's origin, bring it up to date before the scene reads it)
   save.state = withDefaults(save.state);
+  // being on campus counts as looking after your character (GDD §6.2.2)
+  markVisit(save.state);
   // in-world labels use the pixel font; wait (briefly) so the first labels don't render in a fallback font
   try { await Promise.race([document.fonts.load('700 16px "Pixelify Sans"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
   const game = new Phaser.Game({
@@ -43,6 +48,14 @@ async function titleScreen() {
   // signed in: your save lives in your account (falls back to this browser's save the first time)
   const existing = (net ? await loadCloudSave(net.id) : null) ?? loadSave();
   if (existing) setLang(existing.lang);
+  // the time you were away: mood, energy and health drift down gently (never below a floor)
+  const persist = () => {
+    if (!existing) return;
+    writeSave(existing);
+    if (net) { saveToCloud(net.id, existing); flushCloudSave(); }
+  };
+  const away = existing ? applyDrift(existing.state) : 0;
+  if (away > 0) persist();
   const el = document.createElement('div');
   el.className = 'title-screen';
   document.body.appendChild(el);
@@ -56,6 +69,9 @@ async function titleScreen() {
   if (linkError) signInError = expiredLink();
   // came from the sign-in email: sign in only when the player presses the button (scanners never do)
   let linkToken = online && !net ? pendingLinkToken() : null;
+  // the "stop these emails" link from a note email: switched off only when the player presses the button
+  let unsub = online ? pendingUnsubscribe() : null;
+  let unsubDone = '';
   if (net && pendingLinkToken()) clearLinkToken();
 
   const render = () => {
@@ -84,7 +100,11 @@ async function titleScreen() {
         <h1>Daçka</h1>
         <div class="sub">${t('title_sub')}</div>
         ${invite ? `<div class="account invite ${invite.kind}"></div>` : ''}
+        ${unsub ? `<div class="account sent unsub">${L({ tr: 'Bir arkadaşın not bırakınca gelen e-postaları kapatmak istiyor musun?', en: 'Stop the emails you get when a friend leaves you a note?' })}
+           <div class="unsub-btns"><button type="button" data-act="unsub-yes">${L({ tr: 'E-postaları kapat', en: 'Stop the emails' })}</button> · <button type="button" data-act="unsub-no">${L({ tr: 'Vazgeç', en: 'Keep them' })}</button></div></div>`
+          : unsubDone ? `<div class="account">${unsubDone}</div>` : ''}
         ${account}
+        ${existing ? '<div class="care-slot"></div>' : ''}
         <div class="stack">
           ${existing ? `<button class="primary" data-act="continue">${t('continue')}</button>` : ''}
           <button class="${existing ? 'secondary' : 'primary'}" data-act="new">${online && !net ? L({ tr: 'Tek başına oyna (yeni oyun)', en: 'Play solo (new game)' }) : t('new_game')}</button>
@@ -102,6 +122,8 @@ async function titleScreen() {
     if (inv && invite) inv.textContent = L(invite.text);
     const err = el.querySelector('.signin .nav-error');
     if (err) err.textContent = signInError;
+    const careSlot = el.querySelector('.care-slot') as HTMLElement | null;
+    if (careSlot && existing) mountCare(careSlot, existing, net, away, persist);
   };
   render();
   onLangChange(render);
@@ -147,6 +169,18 @@ async function titleScreen() {
     const act = target.dataset.act;
     if (act === 'signout') { await signOut(); window.location.reload(); return; }
     if (act === 'resend') { linkSentTo = ''; signInError = ''; render(); return; }
+    if (act === 'unsub-yes' && unsub) {
+      (target as HTMLButtonElement).disabled = true;
+      const ok = await unsubscribeNoteEmails(unsub);
+      unsub = null;
+      clearUnsubscribe();
+      unsubDone = ok
+        ? L({ tr: '✓ Not e-postaları kapatıldı. İstediğin zaman buradaki ayardan yeniden açabilirsin.', en: '✓ Note emails are off. You can switch them back on here any time.' })
+        : L({ tr: 'Bu bağlantı çalışmadı. Giriş yapıp aşağıdaki ayardan kapatabilirsin.', en: "That link didn't work. Sign in and switch them off with the setting below." });
+      render();
+      return;
+    }
+    if (act === 'unsub-no') { unsub = null; clearUnsubscribe(); render(); return; }
     if (act === 'continue' && existing) {
       el.remove();
       existing.lang = getLang();

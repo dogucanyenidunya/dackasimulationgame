@@ -370,9 +370,9 @@ Each story also has its own scene: Compassion volunteers at the infirmary (Year 
 ### 6.2 Needs (short-term, Sims-lite, 0–100)
 | Need | Decays | Restored by | If low |
 |---|---|---|---|
-| Energy | Per action | Sleeping in the dorm; offline time (+10/real hour) | Can't do demanding activities |
+| Energy | Per action; slowly while you're away (§6.2.2) | Sleeping in the dorm; a kumanya | Can't do demanding activities |
 | Hunger | 6 per game hour [TUNE] | Meals (best), canteen snacks | Minigame scores −15% |
-| Mood | Events | Friends, wins, hobbies, letters from home | XP −20%; "homesick" quests trigger |
+| Mood | Events; slowly while you're away (§6.2.2) | Friends, wins, hobbies, letters and calls from home, notes from friends | XP −20%; "homesick" quests trigger |
 
 Needs are intentionally gentle. They give the day a rhythm, and **neglecting them never kills you or ends the game**.
 
@@ -402,6 +402,24 @@ Needs are intentionally gentle. They give the day a rhythm, and **neglecting the
 - You're **contagious**, so people near you take a small Health hit
 
 **It's never dangerous:** no permanent harm, no lost progress. Fight bruises and bandages (§8.3) don't count as being sick.
+
+#### 6.2.2 Daily care (v0.11, as built)
+A reason to open the game every day, even for a minute, like the digital pets of the 90s, but kind: **nobody dies, gets sick or loses progress from being away.**
+
+- **The title screen shows your character:** a blinking portrait (a tired character blinks slowly), how they're doing in a few words, and bars for mood, energy and health.
+- **Drift while you're away (real time):** for 24 real hours after your last care act or campus visit, nothing changes. After that, mood and energy drop 1.2 per real hour and health 0.6, but **never below 45**. Sickness only starts below 40, so being away can't make you sick. A stat already under 45 stays where it is. From full to the floor takes about two days.
+- **Three small acts of care,** each once per calendar day, any one of which holds the stats for the next 24 hours:
+
+| Act | Gives | Notes |
+|---|---|---|
+| 🥪 Give a *kumanya* | Hunger +35, energy +10, health +3 | A different sandwich each day |
+| 📞 A call from home | Mood +15 | Your guardian (§5.2) says something warm; a different call each day |
+| ✉️ A note to a friend | Mood +10 | Online only; you can send more notes, the care counts once |
+
+- **Coming to campus** also counts as care (it holds the stats, with no boost).
+- **Notes** reach the friend's pigeonhole (*posta kutusu*, on their title screen) straight away. Only mutual friends can send them, up to 140 characters, 30 a day in all and 5 a day to the same friend. There are quick presets for younger players. Each note can be answered or **blocked** (which ends the friendship and stops notes and requests either way).
+- **Note emails:** the friend gets an email saying **who** left a note, **never what it says**, so nothing a player writes leaves the game. At most one a day per player, on by default, with a "stop these emails" link and an in-game switch. Like the sign-in link, the stop link opens the game and asks before switching anything off, so mail scanners can't trigger it.
+- **What never changes:** grades, XP, respect, friendships, missions and the school year. Only how your character *feels* drifts.
 
 ### 6.3 Academics
 - **Subjects by stage:**

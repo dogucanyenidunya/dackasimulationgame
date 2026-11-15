@@ -1,0 +1,46 @@
+/* the daily care card on the title screen (ui/care.ts) */
+.care { text-align: left; margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fffdf8; }
+.care-head { display: flex; gap: 12px; align-items: center; }
+.care-bust { width: 72px; height: 72px; flex: none; image-rendering: pixelated; background: #efe6d4; border-radius: 10px; }
+.care-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.care-name { font-weight: 800; font-size: 15px; overflow-wrap: anywhere; }
+.care-mood { font-size: 13px; color: #5b6266; margin-bottom: 2px; }
+.care-bar { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.care-bar-icon { width: 16px; text-align: center; }
+.care-bar-track { flex: 1; height: 6px; background: #e3ddd1; border-radius: 3px; overflow: hidden; }
+.care-bar-track span { display: block; height: 100%; border-radius: 3px; transition: width 0.4s; }
+.care-bar.mood .care-bar-track span { background: #d9a13b; }
+.care-bar.energy .care-bar-track span { background: #4a86b8; }
+.care-bar.health .care-bar-track span { background: #c4554d; }
+.care-status { font-size: 13px; color: #4b5459; margin: 10px 0 8px; }
+.care-acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.care-act { font: inherit; font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; line-height: 1.2; text-align: center; }
+.care-act:hover:not(:disabled) { background: #fbf3df; }
+.care-act .care-icon { font-size: 20px; }
+.care-act.done { background: #eef3ea; color: #2f4a3a; }
+.care-act.done .care-icon { font-size: 18px; color: var(--good); }
+.care-act:disabled { cursor: default; }
+.care-msg { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #fbf3df; color: #5a4a25; font-size: 13px; line-height: 1.45; }
+.care-compose { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.care-compose select, .care-compose textarea { font: inherit; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.care-compose select { margin-left: 4px; max-width: 70%; }
+.care-compose textarea { resize: vertical; min-height: 44px; }
+.care-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.care-presets button { font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.care-compose-row { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.care-compose-row .care-count { margin-right: auto; color: #7b8387; font-size: 12px; }
+.care-compose-row .primary, .care-compose-row .secondary { padding: 7px 14px; }
+.care-inbox { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.care-inbox-title { font-weight: 800; font-size: 13px; margin-bottom: 6px; }
+.care-badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c4554d; color: #fff; font-size: 11px; text-align: center; }
+.care-note { padding: 7px 9px; border-radius: 8px; background: #f5f1e8; margin-bottom: 6px; font-size: 13px; }
+.care-note.new { background: #fbf3df; box-shadow: inset 3px 0 0 var(--accent); }
+.care-note-from { font-size: 12px; }
+.care-note-time { color: #7b8387; }
+.care-note-body { margin: 2px 0 4px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.care-note-btns { display: flex; gap: 10px; }
+.care-note-btns button { font: inherit; font-size: 12px; border: none; background: none; padding: 0; cursor: pointer; text-decoration: underline; color: #5b6266; }
+.care-empty { font-size: 13px; color: #7b8387; }
+.care-emails { display: flex; gap: 6px; align-items: flex-start; margin-top: 10px; font-size: 12px; color: #5b6266; cursor: pointer; }
+.care-emails input { margin-top: 2px; }
+.account.unsub .unsub-btns { margin-top: 6px; }
