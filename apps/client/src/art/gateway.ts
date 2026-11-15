@@ -2,7 +2,7 @@
 // the Roman-style aqueduct between Eğitim and the Cemiyet that you walk through. 2D sprites, painted once.
 import Phaser from 'phaser';
 import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_STAIRS, PYRAMID, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS } from '../content/campus';
-import { shade, wallColor } from './buildings3d';
+import { shade, wallColor } from './buildingArt';
 
 type Ctx = CanvasRenderingContext2D;
 

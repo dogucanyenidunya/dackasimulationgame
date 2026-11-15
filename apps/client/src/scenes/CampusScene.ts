@@ -10,7 +10,7 @@ import {
 import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
-import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildings3d';
+import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildingArt';
 import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, TRIBUNE_LIFT, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
