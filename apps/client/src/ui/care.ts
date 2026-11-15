@@ -50,6 +50,9 @@ const PRESETS: Text[] = [
   { tr: 'Maçta görüşürüz!', en: 'See you at the match!' },
 ];
 
+/** notes to friends (the button, the pigeonhole and the email switch) are switched off for now */
+export const NOTES_ENABLED = false;
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
 
 let timer: number | null = null;
@@ -101,8 +104,8 @@ export function mountCare(slot: HTMLElement, save: SaveData, net: { id: string }
           </div>
         </div>
         <div class="care-status">${esc(L(status))}</div>
-        <div class="care-acts">
-          ${actBtn('kumanya', '🥪', S.kumanya)}${actBtn('call', '📞', S.call)}${actBtn('note', '✉️', S.note)}
+        <div class="care-acts${NOTES_ENABLED ? '' : ' two'}">
+          ${actBtn('kumanya', '🥪', S.kumanya)}${actBtn('call', '📞', S.call)}${NOTES_ENABLED ? actBtn('note', '✉️', S.note) : ''}
         </div>
         ${message ? `<div class="care-msg"></div>` : ''}
         ${composing && friends ? `
@@ -114,7 +117,7 @@ export function mountCare(slot: HTMLElement, save: SaveData, net: { id: string }
               <button type="button" class="secondary" data-cancel>${esc(L(S.cancel))}</button>
               <button type="submit" class="primary">${esc(L(S.send))}</button></div>
           </form>` : ''}
-        ${net && notes ? `
+        ${NOTES_ENABLED && net && notes ? `
           <div class="care-inbox">
             <div class="care-inbox-title">📬 ${esc(L(S.inbox))}${unread ? ` <span class="care-badge">${unread}</span>` : ''}</div>
             ${notes.length ? notes.slice(0, 5).map((n) => `
@@ -124,7 +127,7 @@ export function mountCare(slot: HTMLElement, save: SaveData, net: { id: string }
                 <div class="care-note-btns"><button type="button" data-reply="${esc(n.sender)}">${esc(L(S.reply))}</button><button type="button" data-block="${esc(n.sender)}">${esc(L(S.block))}</button></div>
               </div>`).join('') : `<div class="care-empty">${esc(L(S.empty))}</div>`}
           </div>` : ''}
-        ${net && emailsOn !== null ? `<label class="care-emails"><input type="checkbox" data-emails ${emailsOn ? 'checked' : ''}> ${esc(L(S.emails))}</label>` : ''}
+        ${NOTES_ENABLED && net && emailsOn !== null ? `<label class="care-emails"><input type="checkbox" data-emails ${emailsOn ? 'checked' : ''}> ${esc(L(S.emails))}</label>` : ''}
       </div>`;
     (slot.querySelector('.care-name') as HTMLElement).textContent = `${save.character.first} ${save.character.last}`.trim();
     const msg = slot.querySelector('.care-msg');
@@ -180,7 +183,7 @@ export function mountCare(slot: HTMLElement, save: SaveData, net: { id: string }
     const a = target.dataset.care as CareAct | undefined;
     if (a === 'kumanya') act('kumanya', L({ tr: `🥪 Kumanyanı yedin: ${todaysKumanya().tr}. Afiyet olsun!`, en: `🥪 You had your kumanya: ${todaysKumanya().en}. Enjoy!` }));
     else if (a === 'call') act('call', `📞 ${L(todaysCall(who))}`);
-    else if (a === 'note') void openCompose();
+    else if (a === 'note' && NOTES_ENABLED) void openCompose();
     else if (target.dataset.reply) void openCompose(target.dataset.reply);
     else if (target.dataset.preset !== undefined) {
       const ta = slot.querySelector('[data-body]') as HTMLTextAreaElement;
@@ -222,7 +225,7 @@ export function mountCare(slot: HTMLElement, save: SaveData, net: { id: string }
   };
 
   render();
-  if (net) {
+  if (net && NOTES_ENABLED) {
     // the pigeonhole and the email setting load in the background; notes count as read once you've seen them
     void listNotes().then((list) => {
       notes = list;

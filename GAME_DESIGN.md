@@ -417,6 +417,7 @@ A reason to open the game every day, even for a minute, like the digital pets of
 | ✉️ A note to a friend | Mood +10 | Online only; you can send more notes, the care counts once |
 
 - **Coming to campus** also counts as care (it holds the stats, with no boost).
+- **Notes are switched off for now:** the note button, the pigeonhole and the email switch are hidden until they're switched back on. The rest of this section describes how they work.
 - **Notes** reach the friend's pigeonhole (*posta kutusu*, on their title screen) straight away. Only mutual friends can send them, up to 140 characters, 30 a day in all and 5 a day to the same friend. There are quick presets for younger players. Each note can be answered or **blocked** (which ends the friendship and stops notes and requests either way).
 - **Note emails:** the friend gets an email saying **who** left a note, **never what it says**, so nothing a player writes leaves the game. At most one a day per player, on by default, with a "stop these emails" link and an in-game switch. Like the sign-in link, the stop link opens the game and asks before switching anything off, so mail scanners can't trigger it.
 - **What never changes:** grades, XP, respect, friendships, missions and the school year. Only how your character *feels* drifts.
