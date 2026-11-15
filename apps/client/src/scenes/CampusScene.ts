@@ -3294,7 +3294,6 @@ export class CampusScene extends Phaser.Scene {
     const before = st.friends[id] ?? 0;
     const def = NPCS.find((n) => n.id === id);
     let bonus = 1;
-    if (amount > 0 && this.save.character.cause === 'illness') bonus *= 1.15; // Compassion
     if (amount > 0 && def?.group && def.group === myGroup(st)) bonus *= 1.25; // your group
     st.friends[id] = Math.max(-100, Math.min(100, Math.round(before + amount * bonus)));
     const g = myGroup(st);
@@ -3491,13 +3490,10 @@ export class CampusScene extends Phaser.Scene {
 
   private changeMood(delta: number) {
     const st = this.save.state;
-    const cause = this.save.character.cause;
-    const d = delta < 0 && cause === 'private' ? delta * 0.9 : delta;
-    st.mood = clamp(st.mood + d);
-    if (cause === 'disaster') st.mood = Math.max(25, st.mood); // Resilience
+    st.mood = clamp(st.mood + delta);
   }
 
-  /** what happens at a door depends on who you are (dorms by gender, Teknik Alan for the Handy story) */
+  /** what happens at a door depends on who you are (dorms by gender) */
   private doorNote(loc: Location): string {
     const c = this.save.character;
     if (loc.id === 'kiz_yurdu' || loc.id === 'erkek_yurdu') {
@@ -3505,7 +3501,7 @@ export class CampusScene extends Phaser.Scene {
       if (!own) return t(loc.id === 'kiz_yurdu' ? 'locked_girls' : 'locked_boys');
       return t('own_dorm');
     }
-    if (loc.id === 'teknik') return c.cause === 'work' ? t('teknik_open') : t('teknik_locked');
+    if (loc.id === 'teknik') return t('teknik_locked');
     if ((loc.id === 'cemiyet' || loc.id === 'muze') && isWeekend(this.save.clock.day)) return L({ tr: 'Hafta sonu kapalı. Pazartesi 08:00\'de açılır.', en: 'Closed at weekends. Opens Monday at 08:00.' });
     return '';
   }

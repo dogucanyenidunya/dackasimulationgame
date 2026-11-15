@@ -32,7 +32,6 @@ const STRINGS = {
   own_dorm: { tr: 'Burası senin yurdun: A1 Blok, 1. Kat.', en: 'This is your dorm: Block A1, Floor 1.' },
   locked_girls: { tr: 'Kapı kilitli: burası kızların yurdu.', en: "The door is locked: this is the girls' dorm." },
   locked_boys: { tr: 'Kapı kilitli: burası erkeklerin yurdu.', en: "The door is locked: this is the boys' dorm." },
-  teknik_open: { tr: 'Hüseyin Usta el sallıyor: "Gel evlat, atölyenin kapısı sana hep açık."', en: 'Hüseyin Usta waves: "Come in, kid. The workshop is always open to you."' },
   teknik_locked: { tr: 'Kapı kilitli. İçeriden makine sesleri geliyor.', en: 'The door is locked. You can hear machines humming inside.' },
   profile: { tr: 'Profil', en: 'Profile' },
   age_line: { tr: '9 yaşında · 4. sınıf · {home}', en: 'Age 9 · Grade 4 · {home}' },

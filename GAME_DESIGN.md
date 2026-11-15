@@ -316,6 +316,9 @@ Every Daçka student has lost a parent. The character creator's last step is a q
 The game doesn't treat any of these as "harder" or "stronger". Losing both parents gives no extra power: grief isn't a stat.
 
 **B. How it happened → the strength you grew.** Each answer gives:
+
+> **Prototype (v0.10):** these strengths are switched off for now. The answer is part of your story only: every character starts with 10 in each attribute and 0 Respect, and no perk, bonus or unlock depends on it. The design below is kept for later.
+
 - **+10 to one starting attribute**
 - **one unique perk**
 - **a keepsake item**
@@ -1264,3 +1267,4 @@ Students walk to a building's door and go in, and come out of the same door. The
 
 **Talk lines fit the moment:** what a student says depends on where and when you catch them (first days, morning, in class, at a meal, break, afternoon, evening plaza, study time, weekend), mixed with their own lines; rain, the ceremony and going home for the weekend add lines of their own (`content/lines.ts`).
 
+**Your story has no gameplay effect (for now):** how you lost your parent no longer gives a strength, a starting bonus or a perk (§5.2). Everyone starts with 10 in every attribute and 0 Respect; friendships, mood and the nurse treat every story the same; the Teknik Alan stays locked for everyone. The creator shows each answer with its calm sentence only, and the summary and profile no longer show a "Your strength" card.

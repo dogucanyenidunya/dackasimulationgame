@@ -1195,12 +1195,11 @@ export function exitPanel(ctx: GameCtx): PanelView {
 }
 
 function revir(ctx: GameCtx): PanelView {
-  const caring = ctx.ch.cause === 'illness';
   return {
     title: 'Revir', sub: T('Hemşire Gül Hanım · gece gündüz açık', 'Nurse Gül · open day and night'), status: status(ctx),
     rooms: [{
       id: 'revir', name: 'Revir',
-      note: caring ? T('Gül Hanım seni hemen tanıyor: "Gel bakalım, yardımcı hemşirem!"', 'Nurse Gül recognises you right away: "Come in, my little assistant!"') : T('Temiz çarşaflar ve hafif bir kolonya kokusu.', 'Clean sheets and a faint smell of cologne.'),
+      note: T('Temiz çarşaflar ve hafif bir kolonya kokusu.', 'Clean sheets and a faint smell of cologne.'),
       actions: [
         ...(ctx.st.sick ? [{
           id: 'treat', label: T('Tedavi ol', 'Get treated'), hint: T('3 saat yatak istirahati', '3 hours of bed rest'),
@@ -1237,7 +1236,7 @@ function revir(ctx: GameCtx): PanelView {
         {
           id: 'nurse', label: T('Hemşireyle sohbet et', 'Chat with the nurse'), hint: T('10 dk · +5 moral', '10 min · +5 mood'),
           locked: doneToday(ctx, 'nurse') ? T('Bugün zaten konuştunuz.', 'You already talked today.') : undefined,
-          run: () => { nudge(ctx, { heart: 1 }); markToday(ctx, 'nurse'); ctx.advance(10); ctx.gain({ mood: caring ? 10 : 5 }); },
+          run: () => { nudge(ctx, { heart: 1 }); markToday(ctx, 'nurse'); ctx.advance(10); ctx.gain({ mood: 5 }); },
         },
       ],
     }],
@@ -1357,21 +1356,6 @@ function kapaliSaha(ctx: GameCtx): PanelView {
       id: 'saha', name: T('Saha', 'Court'),
       note: T('Parke zeminde futbol kaleleri, hentbol çizgileri ve gerilmiş bir file. Akşamları yurtlardan gelenlerle dolup taşar.', 'Football goals, handball lines and a net strung across the parquet. In the evenings it fills up with kids from the dorms.'),
       actions: [play],
-    }],
-  };
-}
-
-function teknik(ctx: GameCtx): PanelView {
-  return {
-    title: 'Teknik Alan', sub: T('Hüseyin Usta\'nın atölyesi', "Hüseyin Usta's workshop"), status: status(ctx),
-    rooms: [{
-      id: 'atolye', name: T('Atölye', 'Workshop'),
-      note: T('Takım tezgâhı, yağ kokusu ve her yerde vidalar.', 'A workbench, the smell of oil and screws everywhere.'),
-      actions: [{
-        id: 'help', label: T('Hüseyin Usta\'ya yardım et', 'Help Hüseyin Usta'), hint: T('45 dk · +2 Yaratıcılık · +15 XP (günde bir)', '45 min · +2 Creativity · +15 XP (once a day)'),
-        locked: doneToday(ctx, 'workshop') ? T('Usta: "Yarın yine gel evlat."', 'Usta: "Come back tomorrow, kid."') : undefined,
-        run: () => { markToday(ctx, 'workshop'); ctx.advance(45); ctx.gain({ xp: 15, attrs: { creativity: 2 } }); ctx.toast(T('Birlikte bozuk bir sandalyeyi tamir ettiniz.', 'Together you fixed a broken chair.'), 'good'); },
-      }],
     }],
   };
 }
@@ -2191,7 +2175,6 @@ export function buildingPanel(locId: string, ctx: GameCtx): PanelView | null {
     case 'revir': return revir(ctx);
     case 'spor': return spor(ctx);
     case 'kapali_saha': return kapaliSaha(ctx);
-    case 'teknik': return ctx.ch.cause === 'work' ? teknik(ctx) : null;
     default: return null;
   }
 }

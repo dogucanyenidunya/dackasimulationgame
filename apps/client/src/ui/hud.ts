@@ -4,7 +4,7 @@ import { drawCharacter } from '../art/textures';
 import { sfx } from '../audio';
 import { askConfirm } from './confirm';
 import {
-  ATTRS, CAUSES, TRAITS, type CharacterData,
+  ATTRS, TRAITS, type CharacterData,
 } from '../content/character';
 import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
 import { weekday } from '../game/schedule';
@@ -514,7 +514,6 @@ export class Hud {
   }
 
   showProfile(c: CharacterData, st: PlayerState) {
-    const cause = CAUSES.find((x) => x.id === c.cause)!;
     const trait = TRAITS.find((x) => x.id === c.trait)!;
     const body = document.createElement('div');
     body.className = 'card profile-card';
@@ -525,10 +524,6 @@ export class Hud {
     body.innerHTML = `
       <div class="profile-head"><canvas width="32" height="32"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
       <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
-      <div class="strength-card">
-        <div class="sc-label">${L({ tr: 'Gücün', en: 'Your strength' })}</div>
-        <div class="sc-name"></div><p class="perk"></p>
-      </div>
       ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
       <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
       <div class="sum-row" style="margin-top:10px"><span>${L({ tr: 'Disiplin puanı (düşük iyidir)', en: 'Discipline points (lower is better)' })}</span><b>${st.discipline} · ${L(behaviorGrade(st.discipline))}</b></div>
@@ -538,8 +533,6 @@ export class Hud {
     body.querySelector('h2')!.textContent = `${c.first} ${c.last}`;
     body.querySelector('.age')!.textContent = t('age_line', { home: c.hometown });
     body.querySelector('.trait')!.textContent = L(trait.name);
-    body.querySelector('.sc-name')!.textContent = L(cause.strength);
-    body.querySelector('.perk')!.textContent = L(cause.perk);
     drawCharacter(body.querySelector('canvas')!.getContext('2d')!, 0, 0, c.look, 0, 0);
     this.openCustomModal(body, ['Enter', 'Escape', 'c', 'C', ' ']);
   }

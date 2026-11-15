@@ -1,7 +1,6 @@
 // Saves in Supabase (table `saves`, one row per player, protected by row-level security).
 import { sb } from './supabase';
-import type { SaveData } from '../save';
-import { withDefaults } from '../game/state';
+import { upgradeSave, type SaveData } from '../save';
 
 export async function loadCloudSave(userId: string): Promise<SaveData | null> {
   const c = sb();
@@ -10,9 +9,8 @@ export async function loadCloudSave(userId: string): Promise<SaveData | null> {
   if (error || !data) return null;
   const save = data.data as SaveData;
   if (!save || save.v !== 2 || !save.character) return null;
-  // saves made by an older version lack the fields added since: fill them in, as for a save in this browser
-  save.state = withDefaults(save.state);
-  return save;
+  // saves made by an older version are brought up to date, as for a save in this browser
+  return upgradeSave(save);
 }
 
 let pending: SaveData | null = null;

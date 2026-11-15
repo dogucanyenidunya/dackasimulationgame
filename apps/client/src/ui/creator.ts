@@ -2,7 +2,7 @@
 import { drawCharacter, type CharacterLook } from '../art/textures';
 import {
   ATTRS, BOARDING_OPTIONS, CAUSES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
-  computeAttributes, defaultGuardian, guardianOptions,
+  defaultGuardian, startingAttributes, guardianOptions,
   type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId,
 } from '../content/character';
 import { L, getLang, onLangChange, type Text } from '../i18n';
@@ -34,7 +34,6 @@ const S = {
   whoLost: { tr: 'Kimi kaybettin?', en: 'Who did you lose?' },
   guardian: { tr: 'Seni kim büyütüyor ve ziyaret ediyor?', en: 'Who raises you and visits you?' },
   how: { tr: 'Nasıl oldu?', en: 'How did it happen?' },
-  strength: { tr: 'Gücün', en: 'Your strength' },
   attributes: { tr: 'Özellikler', en: 'Attributes' },
   respect: { tr: 'Saygınlık', en: 'Respect' },
   family: { tr: 'Ailen', en: 'Family' },
@@ -140,14 +139,14 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
           field(S.guardian, `<select data-input="guardian">${gOpts.map((g) => `<option value="${g.id}" ${g.id === d.guardian ? 'selected' : ''}>${esc(L(g.name))}</option>`).join('')}</select>`) +
           field(S.how, `<div class="cards">${CAUSES.map((c) => `
             <button type="button" class="opt ${d.cause === c.id ? 'on' : ''}" data-field="cause" data-v="${c.id}">
-              <b>${esc(L(c.how))}</b><span>${esc(L(c.strength))}: ${esc(L(c.blurb))}</span></button>`).join('')}</div>`) +
+              <b>${esc(L(c.how))}</b><span>${esc(L(c.blurb))}</span></button>`).join('')}</div>`) +
           field({ tr: 'Hafta sonları', en: 'Weekends' }, `<div class="cards">${BOARDING_OPTIONS.map((b) => `
             <button type="button" class="opt ${d.boarding === b.id ? 'on' : ''}" data-field="boarding" data-v="${b.id}">
               <b>${esc(L(b.name))}</b><span>${esc(L(b.desc))}</span></button>`).join('')}</div>`);
       } else {
         const cause = CAUSES.find((c) => c.id === d.cause)!;
         const trait = TRAITS.find((x) => x.id === d.trait)!;
-        const { attributes, respect } = computeAttributes(d.trait!, d.cause!);
+        const { attributes, respect } = startingAttributes();
         const guardian = GUARDIANS.find((g) => g.id === d.guardian)!;
         const loss = LOSSES.find((l) => l.id === d.loss)!;
         form.innerHTML = `
@@ -157,11 +156,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
             <div class="sum-row"><span>${esc(L(S.lost))}</span><b>${esc(L(loss.name))}</b></div>
             <div class="sum-row"><span>${esc(L(S.family))}</span><b>${esc(L(guardian.name))}</b></div>
             <div class="sum-row"><span>${esc(L({ tr: 'Hafta sonları', en: 'Weekends' }))}</span><b>${esc(L(BOARDING_OPTIONS.find((b) => b.id === d.boarding)!.name))}</b></div>
-            <div class="strength-card">
-              <div class="sc-label">${esc(L(S.strength))}</div>
-              <div class="sc-name">${esc(L(cause.strength))}</div>
-              <p>${esc(L(cause.perk))}</p>
-            </div>
+            <div class="sum-row"><span>${esc(L({ tr: 'Nasıl oldu', en: 'How it happened' }))}</span><b>${esc(L(cause.how))}</b></div>
             <div class="field-label">${esc(L(S.attributes))}</div>
             ${ATTRS.map((a) => `<div class="attr"><span>${esc(L(a.name))}</span><div class="attr-bar"><i style="width:${Math.min(100, attributes[a.id] * 2)}%"></i></div><b>${attributes[a.id]}</b></div>`).join('')}
             <div class="attr"><span>${esc(L(S.respect))}</span><div class="attr-bar respect"><i style="width:${respect / 10}%"></i></div><b>${respect}</b></div>
@@ -207,7 +202,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         if (error) { render(); return; }
         if (step < 3) { step++; render(); return; }
         window.clearInterval(timer);
-        const { attributes, respect } = computeAttributes(d.trait!, d.cause!);
+        const { attributes, respect } = startingAttributes();
         resolve({
           first: d.first.trim(), last: d.last.trim(), gender: d.gender, look: { ...d.look },
           hometown: d.hometown, trait: d.trait!, loss: d.loss, guardian: d.guardian, cause: d.cause!,

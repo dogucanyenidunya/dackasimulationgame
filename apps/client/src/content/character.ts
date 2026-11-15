@@ -85,60 +85,38 @@ export function defaultGuardian(loss: Loss): GuardianId {
   return loss === 'mother' ? 'father' : loss === 'father' ? 'mother' : 'grandma_m';
 }
 
+/** how the parent was lost: part of the player's story only, with no gameplay effect */
 export interface Cause {
   id: CauseId;
   how: Text;
-  strength: Text;
   /** one calm sentence shown while choosing */
   blurb: Text;
-  /** concrete perk, shown on the summary */
-  perk: Text;
-  bonus: Partial<Attributes>;
-  respect: number;
 }
 
 export const CAUSES: Cause[] = [
   {
     id: 'illness', how: { tr: 'Uzun bir hastalık', en: 'A long illness' },
-    strength: { tr: 'Şefkat', en: 'Compassion' },
     blurb: { tr: 'Hasta ebeveynine bakarken başkalarına nasıl iyi geleceğini öğrendin.', en: 'Caring for your parent taught you how to look after others.' },
-    perk: { tr: 'Arkadaşlıkların %15 daha hızlı gelişir. Günde bir kez bir arkadaşını teselli edebilirsin (+15 moral). Hemşire seni tanır.', en: 'Friendships grow 15% faster. Once a day you can comfort a friend (+15 mood). The nurse knows you.' },
-    bonus: { social: 10 }, respect: 0,
   },
   {
     id: 'accident', how: { tr: 'Ani bir kaza', en: 'A sudden accident' },
-    strength: { tr: 'Erken Olgunluk', en: 'Grew up early' },
     blurb: { tr: 'Bir gecede sorumluluk almayı öğrendin.', en: 'You learned to take responsibility overnight.' },
-    perk: { tr: 'Ödevler %20 daha az enerji harcar. Disiplin puanların iki kat hızlı silinir. Öğretmenler sana baştan güvenir.', en: 'Homework costs 20% less energy. Discipline points fade twice as fast. Teachers trust you from the start.' },
-    bonus: { discipline: 10 }, respect: 0,
   },
   {
     id: 'disaster', how: { tr: 'Deprem ya da doğal afet', en: 'An earthquake or natural disaster' },
-    strength: { tr: 'Dayanıklılık', en: 'Resilience' },
     blurb: { tr: 'En kötüsünü zaten atlattın; kolay kolay yıkılmazsın.', en: "You've already survived the worst; you don't break easily." },
-    perk: { tr: 'Moralin asla 25\'in altına düşmez. Kayıplardan ve kötü sınavlardan iki kat hızlı toparlanırsın. Deprem tatbikatını sen yönetirsin.', en: 'Your mood never drops below 25. You bounce back twice as fast from losses and bad exams. You lead the earthquake drill.' },
-    bonus: { fitness: 10 }, respect: 0,
   },
   {
     id: 'work', how: { tr: 'Bir iş kazası', en: 'A work accident' },
-    strength: { tr: 'El Becerisi', en: 'Handy' },
     blurb: { tr: 'Ebeveyninin mesleği ellerinde yaşıyor.', en: "Your parent's craft lives on in your hands." },
-    perk: { tr: 'Teknik Alan atölyesi 1. yıldan açık. Robotik, sanat ve teknoloji oyunlarında +%10. Eşya tamir edebilirsin.', en: 'The Teknik Alan workshop is open to you from Year 1. +10% in robotics, art and technology games. You can repair items.' },
-    bonus: { creativity: 10 }, respect: 0,
   },
   {
     id: 'service', how: { tr: 'Görev başında (şehit)', en: 'In the line of duty (şehit)' },
-    strength: { tr: 'Onur', en: 'Honor' },
     blurb: { tr: 'Onların adını gururla taşıyorsun.', en: 'You carry their name with pride.' },
-    perk: { tr: '+50 saygınlıkla başlarsın. 29 Ekim ve 18 Mart törenlerinde ek saygınlık ve moral. Seçimlerde +%10 oy.', en: 'You start with +50 Respect. Extra respect and mood at the 29 Ekim and 18 Mart ceremonies. +10% votes in elections.' },
-    bonus: { discipline: 5, social: 5 }, respect: 50,
   },
   {
     id: 'private', how: { tr: 'Söylemek istemiyorum', en: "I'd rather not say" },
-    strength: { tr: 'Sessiz Güç', en: 'Quiet strength' },
     blurb: { tr: 'Hikâyen sana ait. Kimse sormaz.', en: 'Your story is yours. Nobody asks.' },
-    perk: { tr: 'Tüm özelliklerin +2. Moralin %10 daha yavaş düşer. Hikâyen gizli kalır.', en: 'All attributes +2. Your mood falls 10% more slowly. Your story stays private.' },
-    bonus: { knowledge: 2, fitness: 2, social: 2, discipline: 2, creativity: 2 }, respect: 0,
   },
 ];
 
@@ -151,12 +129,9 @@ export function capitalize(s: string): string {
   return s.charAt(0).toLocaleUpperCase(getLang() === 'tr' ? 'tr-TR' : 'en-US') + s.slice(1);
 }
 
-export function computeAttributes(trait: TraitId, cause: CauseId): { attributes: Attributes; respect: number } {
-  const attributes: Attributes = { knowledge: 10, fitness: 10, social: 10, discipline: 10, creativity: 10 };
-  const c = CAUSES.find((x) => x.id === cause)!;
-  for (const [k, v] of Object.entries(c.bonus)) attributes[k as AttrId] += v ?? 0;
-  void trait; // traits change XP gain rates, not starting values
-  return { attributes, respect: c.respect };
+/** everyone starts level: traits change gain rates, and the story has no gameplay effect */
+export function startingAttributes(): { attributes: Attributes; respect: number } {
+  return { attributes: { knowledge: 10, fitness: 10, social: 10, discipline: 10, creativity: 10 }, respect: 0 };
 }
 
 export const PROVINCES = [

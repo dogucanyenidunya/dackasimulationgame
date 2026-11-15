@@ -1,7 +1,7 @@
 // Prototype persistence: browser localStorage. Replaced by server-side saves in M2 (GDD §18.5).
 import { LAYOUT, MAP_H, MAP_W, SPAWN } from './content/campus';
 import type { Lang } from './i18n';
-import type { CharacterData } from './content/character';
+import type { AttrId, CauseId, CharacterData } from './content/character';
 import { defaultState, withDefaults, type PlayerState } from './game/state';
 
 export interface SaveData {
@@ -35,9 +35,38 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     fog: '',
     seen: [],
     discovered: [],
-    flags: {},
+    flags: { [STORY_BONUS_REMOVED]: true },
     layout: LAYOUT,
   };
+}
+
+const STORY_BONUS_REMOVED = 'storyBonusRemoved';
+/** what each story used to add when the character was created (removed in v0.10) */
+const OLD_STORY_BONUS: Record<CauseId, { attrs: Partial<Record<AttrId, number>>; respect: number }> = {
+  illness: { attrs: { social: 10 }, respect: 0 },
+  accident: { attrs: { discipline: 10 }, respect: 0 },
+  disaster: { attrs: { fitness: 10 }, respect: 0 },
+  work: { attrs: { creativity: 10 }, respect: 0 },
+  service: { attrs: { discipline: 5, social: 5 }, respect: 50 },
+  private: { attrs: { knowledge: 2, fitness: 2, social: 2, discipline: 2, creativity: 2 }, respect: 0 },
+};
+
+/** brings a save made by an older version up to date (used for saves in this browser and in the cloud) */
+export function upgradeSave(data: SaveData): SaveData {
+  data.state = withDefaults(data.state);
+  data.flags ??= {};
+  if (!data.flags[STORY_BONUS_REMOVED]) {
+    // your story no longer gives a starting bonus: take back what older characters were given, once
+    const old = OLD_STORY_BONUS[data.character.cause];
+    if (old) {
+      for (const [k, v] of Object.entries(old.attrs) as Array<[AttrId, number]>) {
+        data.character.attributes[k] = Math.max(0, Math.round((data.character.attributes[k] - v) * 10) / 10);
+      }
+      data.character.respect = Math.max(0, data.character.respect - old.respect);
+    }
+    data.flags[STORY_BONUS_REMOVED] = true;
+  }
+  return data;
 }
 
 export function loadSave(): SaveData | null {
@@ -46,8 +75,7 @@ export function loadSave(): SaveData | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as SaveData;
     if (data.v !== 2) return null;
-    data.state = withDefaults(data.state);
-    return data;
+    return upgradeSave(data);
   } catch {
     return null;
   }
