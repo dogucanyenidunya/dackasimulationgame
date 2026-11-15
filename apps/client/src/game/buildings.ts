@@ -118,7 +118,7 @@ function nudge(ctx: GameCtx, d: Partial<Record<AxisId, number>>) { shape(ctx.st,
 const TEAM_SPORTS: string[] = ['basketball', 'volleyball', 'football'];
 const LESSON_NUDGE: Record<string, Partial<Record<AxisId, number>>> = {
   answer: { ambition: 1, presence: 1 }, notes: { rules: -1, ambition: 1 }, talk: { rules: 1, loyalty: 1 },
-  tease: { warmth: 2, presence: 1, rules: 1 }, else: { rules: 1, ambition: -1 },
+  tease: { warmth: 2, presence: 1, rules: 1 }, else: { rules: 1, ambition: -1 }, mandolin: { ambition: 1 },
 };
 
 function doneToday(ctx: GameCtx, key: string) { return ctx.st.daily[key] === ctx.clock.day; }
@@ -416,7 +416,15 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       const sub = subject!;
       const teacher = tname;
       const mates = NPCS.filter((n) => n.kind === 'classmate');
+      const mus = ctx.st.music;
+      const course = ctx.st.year === 1 && !mus.mandolinDone;
       const choice = await ctx.panel.choose(T(`${subjName(sub)} dersi · ${teacher}: ne yapacaksın?`, `${subjName(sub)} with ${teacher}: what will you do?`), [
+        // in music lessons the class plays the mandolin (the 4th-grade course: six lessons for the certificate)
+        ...(sub === 'muzik' ? [{
+          id: 'mandolin', label: course ? T(`🪕 Mandolin çal (kurs: ${mus.mandolin}/${MANDOLIN_LESSONS})`, `🪕 Play the mandolin (course: ${mus.mandolin}/${MANDOLIN_LESSONS})`) : T('🪕 Mandolin çal', '🪕 Play the mandolin'),
+          hint: course ? T(`Ritim oyunu · 4. sınıf mandolin kursu, ${MANDOLIN_LESSONS} derste sertifika · iyi çalarsan yüksek performans notu`, `Rhythm game · the 4th-grade mandolin course, a certificate after ${MANDOLIN_LESSONS} lessons · play well for a high performance mark`)
+            : T('Ritim oyunu · iyi çalarsan yüksek performans notu · +Yaratıcılık', 'Rhythm game · play well for a high performance mark · +Creativity'),
+        }] : []),
         { id: 'answer', label: T('Öğretmenin sorusunu cevapla', "Answer the teacher's question"), hint: T('Dört şıklı bir soru · doğru bilirsen +40 XP ve yüksek performans notu', 'A four-choice question · get it right for +40 XP and a high performance mark') },
         { id: 'notes', label: T('Not al', 'Take notes'), hint: T('+15 XP · +2 Bilgi · güvenli seçim', '+15 XP · +2 Knowledge · the safe choice') },
         { id: 'talk', label: T('Arkadaşınla fısıldaş', 'Whisper with a friend'), hint: T('+8 arkadaşlık · ⚠ öğretmen uyarabilir', '+8 friendship · ⚠ the teacher may warn you') },
@@ -432,7 +440,22 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         const id = await ctx.panel.choose(q, sorted.map((n) => ({ id: n.id, label: n.name, hint: `${L(friendLevel(ctx.st.friends[n.id] ?? 0))} · ${Math.round(ctx.st.friends[n.id] ?? 0)}` })));
         return mates.find((n) => n.id === (id ?? sorted[0].id))!;
       };
-      if (choice === 'answer') {
+      if (choice === 'mandolin') {
+        const hits = await ctx.panel.rhythm(T(`${teacher} · mandolin`, `${teacher} · mandolin`), T('Bütün sınıf birlikte çalıyor: notalar çizgiye gelince BOŞLUK\'a bas.', 'The whole class plays together: press SPACE as each note crosses the line.'), 8, 0.4);
+        score = Math.min(100, 30 + hits * 9); xp = 5 + hits * 3;
+        ctx.gain({ mood: hits >= 6 ? 5 : 1, attrs: { creativity: hits >= 6 ? 2 : 1 } });
+        title = T(`Mandolin · ${hits}/8 nota`, `Mandolin · ${hits}/8 notes`);
+        body = hits >= 7 ? T(`${teacher}: "Harika! Bir sonraki derste öne geç, sınıfa sen çal."`, `${teacher}: "Wonderful! Next lesson you come to the front and play for the class."`)
+          : hits >= 4 ? T(`${teacher}: "Güzel, parmakların alışıyor. Biraz daha pratik!"`, `${teacher}: "Nice, your fingers are getting used to it. A bit more practice!"`)
+            : T(`Teller birbirine karıştı; yanındaki kıkırdadı. ${teacher}: "Olsun, herkes böyle başlar."`, `The strings got tangled and your neighbour giggled. ${teacher}: "Never mind, everyone starts like this."`);
+        if (course) {
+          mus.mandolin++;
+          if (mus.mandolin >= MANDOLIN_LESSONS) {
+            mus.mandolinDone = true;
+            body += T(` Mandolin kursu bitti! 🎶 ${teacher} sertifikanı verdi: "5. sınıftan itibaren müzik odasında istediğin enstrümanı seçebilirsin."`, ` Mandolin course complete! 🎶 ${teacher} handed you the certificate: "From the 5th grade you can pick any instrument you like in the music room."`);
+          } else body += T(` (Mandolin kursu: ${mus.mandolin}/${MANDOLIN_LESSONS})`, ` (Mandolin course: ${mus.mandolin}/${MANDOLIN_LESSONS})`);
+        }
+      } else if (choice === 'answer') {
         const q = askFor(sub, (s.lessons[sub] ?? 0) + ctx.clock.day);
         const ok = await ctx.panel.quiz(`${teacher} · ${subjName(sub)}`, L(q.q), q.options.map(L), q.answer, T('Parmak kaldırdın…', 'You put your hand up…'));
         if (ok) {
@@ -1725,30 +1748,10 @@ function musicRoom(ctx: GameCtx): RoomView {
   const inst = INSTRUMENTS.find((i) => i.id === m.instrument);
   const lessonNow = currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson';
   const actions: ActionView[] = [];
-  if (!m.mandolinDone) {
-    actions.push({
-      id: 'mandolin', label: T(`🪕 Mandolin dersi (${m.mandolin}/${MANDOLIN_LESSONS})`, `🪕 Mandolin lesson (${m.mandolin}/${MANDOLIN_LESSONS})`),
-      hint: T('4. sınıfta zorunlu · 45 dk · ritim oyunu', 'Compulsory in the 4th grade · 45 min · rhythm game'),
-      locked: st.year > 1 ? T('Mandolin kursu sadece 4. sınıfta açılıyor; kaçırdın.', 'The mandolin course only runs in the 4th grade; you missed it.')
-        : needRegistration(ctx) ?? (lessonNow ? T('Ders saatinde müzik odası boş değil.', 'The music room is busy during lessons.')
-          : doneToday(ctx, 'mandolin') ? T('Bugünkü dersini aldın.', 'You had your lesson today.') : undefined),
-      run: async () => {
-        markToday(ctx, 'mandolin');
-        const hits = await ctx.panel.rhythm(T('Mandolin', 'Mandolin'), T('Notalar çizgiye gelince BOŞLUK\'a bas.', 'Press SPACE as each note crosses the line.'), 8, 0.4);
-        ctx.advance(45);
-        m.mandolin++;
-        ctx.gain({ xp: 15 + hits * 2, attrs: { creativity: hits >= 6 ? 2 : 1 } });
-        if (m.mandolin >= MANDOLIN_LESSONS) {
-          m.mandolinDone = true;
-          await ctx.panel.message(T('Mandolin kursu bitti! 🎶', 'Mandolin course complete! 🎶'), T('Müzik öğretmeni Leyla Hanım sertifikanı verdi: "5. sınıftan itibaren istediğin enstrümanı seçebilirsin."', 'Your music teacher, Ms. Leyla, handed you the certificate: "From the 5th grade you can pick any instrument you like."'));
-        } else ctx.toast(T(`Mandolin ${m.mandolin}/${MANDOLIN_LESSONS} · ${hits}/8 nota`, `Mandolin ${m.mandolin}/${MANDOLIN_LESSONS} · ${hits}/8 notes`), 'good');
-      },
-    });
-  }
   if (!m.instrument) {
     actions.push({
       id: 'pick', label: T('🎸 Bir enstrüman seç', '🎸 Pick an instrument'), hint: T('5. sınıftan itibaren · mandolin sertifikası gerekir', 'From the 5th grade · needs the mandolin certificate'),
-      locked: !m.mandolinDone ? T('Önce 4. sınıftaki mandolin kursunu bitirmelisin.', 'You need to finish the 4th-grade mandolin course first.')
+      locked: !m.mandolinDone ? T(`Önce 4. sınıftaki mandolin kursunu bitirmelisin: Müzik derslerinde mandolin çal (${m.mandolin}/${MANDOLIN_LESSONS}).`, `You need to finish the 4th-grade mandolin course first: play the mandolin in Music lessons (${m.mandolin}/${MANDOLIN_LESSONS}).`)
         : st.year < 2 && !DEV ? T('Enstrüman seçimi 5. sınıfta.', 'You pick an instrument in the 5th grade.') : undefined,
       run: async () => {
         const id = await ctx.panel.choose(T('Hangi enstrüman?', 'Which instrument?'), INSTRUMENTS.map((i) => ({ id: i.id, label: L(i.name) })));
@@ -1804,7 +1807,9 @@ function musicRoom(ctx: GameCtx): RoomView {
   }
   return {
     id: 'muzik', name: T('Müzik odası', 'Music room'),
-    note: T('Duvarda mandolinler, köşede bir davul seti. Leyla Hanım: "4. sınıfta herkes mandolinle başlar."', 'Mandolins on the wall, a drum kit in the corner. Ms. Leyla: "In the 4th grade everyone starts with the mandolin."'),
+    note: m.mandolinDone
+      ? T(`Duvarda mandolinler, köşede bir davul seti. ${TEACHERS.muzik.name}: "Mandolin sertifikan var; artık kendi enstrümanını seçebilirsin."`, `Mandolins on the wall, a drum kit in the corner. ${TEACHERS.muzik.name}: "You have your mandolin certificate; now you can choose your own instrument."`)
+      : T(`Duvarda mandolinler, köşede bir davul seti. ${TEACHERS.muzik.name}: "4. sınıfta herkes mandolinle başlar: Müzik derslerinde birlikte çalıyoruz." (Mandolin kursu: ${m.mandolin}/${MANDOLIN_LESSONS})`, `Mandolins on the wall, a drum kit in the corner. ${TEACHERS.muzik.name}: "In the 4th grade everyone starts with the mandolin: we play it together in Music lessons." (Mandolin course: ${m.mandolin}/${MANDOLIN_LESSONS})`),
     actions,
   };
 }
