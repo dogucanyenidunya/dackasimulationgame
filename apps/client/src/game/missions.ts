@@ -190,6 +190,15 @@ export const MISSIONS: Mission[] = [
     reward: { xp: 50, text: { tr: 'Cemil Emmi\'nin şekerleri · yeni görevler yolda', en: "Cemil Emmi's sweets · more tasks to come" } },
   },
   {
+    id: 'basket_maci', kind: 'challenge',
+    title: { tr: 'Darüşşafaka – Banvit', en: 'Darüşşafaka v Banvit' },
+    desc: { tr: 'İkinci Pazar akşamı saat 19:00\'da Spor Salonu\'nda Darüşşafaka\'nın basketbol maçı var: rakip Banvit. O akşam etüt yok, bütün okul tribünde olacak. Saat 7 civarı Spor Salonu\'na git ve maçı izle.', en: "On the second Sunday at 19:00 Darüşşafaka play a basketball match in the Spor Salonu, against Banvit. There's no evening study that night and the whole school will be in the stand. Get to the Spor Salonu around 7 and watch." },
+    requires: ['kayit'],
+    objectives: [{ id: 'watch', text: { tr: 'Pazar 19:00 · Spor Salonu\'nda maçı izle', en: 'Sunday 19:00 · watch the match in the Spor Salonu' }, done: (c) => c.st.once.matchWatched === true, targets: at('spor') }],
+    failed: (c) => c.st.once.matchMissed === true && !c.st.once.matchWatched,
+    reward: { xp: 60, text: { tr: 'Maç gecesinin anısı · +moral', en: 'A match night to remember · +mood' } },
+  },
+  {
     id: 'saglikli_yil', kind: 'challenge',
     title: { tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' },
     desc: { tr: 'Yılı hiç hastalanmadan bitir. Öğünlerini atlama, uyu, yağmurda montsuz dolaşma, geceleri dışarıda kalma.', en: "Finish the year without getting sick. Don't skip meals, get your sleep, keep your coat on in the rain and don't stay out at night." },

@@ -19,7 +19,10 @@ export const AXES: Array<{ id: AxisId; lo: Text; hi: Text }> = [
   { id: 'heart', lo: { tr: 'Kapalı', en: 'Guarded' }, hi: { tr: 'Açık', en: 'Open' } },
 ];
 
-export type DilemmaId = 'telefon' | 'arka' | 'parti';
+export type DilemmaId = 'telefon' | 'arka' | 'parti' | 'mac';
+
+/** the score at half-time on match night (the match screen sets it before the dilemma) */
+export const matchState = { home: 0, away: 0 };
 
 /** nudge the axes (positive = towards `hi`) */
 export function shape(st: PlayerState, d: Partial<Record<AxisId, number>>) {
@@ -204,7 +207,60 @@ function parti(ctx: GameCtx): Dilemma {
   };
 }
 
-const BUILD: Record<DilemmaId, (ctx: GameCtx) => Dilemma> = { telefon, arka, parti };
+/** half-time at Darüşşafaka v Banvit, in the Spor Salonu */
+function mac(ctx: GameCtx): Dilemma {
+  const st = ctx.st;
+  const { home, away } = matchState;
+  const pals = NPCS.filter((n) => n.kind !== 'abi' && friendOf(ctx, n.id) >= 10).sort((a, b) => friendOf(ctx, b.id) - friendOf(ctx, a.id)).slice(0, 3);
+  const with_ = pals.length ? T(`Yanında ${pals.map((n) => n.name).join(', ')} var.`, `${pals.map((n) => n.name).join(', ')} ${pals.length > 1 ? 'are' : 'is'} next to you.`) : T('Yanında sınıfından birkaç kişi var.', 'A few kids from your class are next to you.');
+  const score = home > away ? T(`Darüşşafaka ${home}–${away} önde`, `Darüşşafaka lead ${home}–${away}`) : home < away ? T(`Darüşşafaka ${home}–${away} geride`, `Darüşşafaka trail ${home}–${away}`) : T(`skor ${home}–${away} eşit`, `it's level at ${home}–${away}`);
+  return {
+    title: { tr: '🏀 Darüşşafaka – Banvit', en: '🏀 Darüşşafaka v Banvit' },
+    intro: { tr: `Devre arası ve ${score}. Spor Salonu tıklım tıklım: tribünde davullar, hoparlörden müzik, herkes ayakta. ${with_} İkinci yarı birazdan başlıyor.`, en: `It's half-time and ${score}. The Spor Salonu is packed: drums in the stand, music over the speakers, everyone on their feet. ${with_} The second half is about to start.` },
+    question: { tr: 'Ne yaparsın?', en: 'What do you do?' },
+    choices: [
+      {
+        id: 'cheer', label: { tr: '📣 Tezahürat yap', en: '📣 Lead the chants' },
+        run: () => {
+          shape(st, { presence: 6, loyalty: 4 }); ctx.gain({ mood: 10, energy: -6 });
+          pals.forEach((n) => ctx.befriend(n.id, 3));
+          return { tr: 'Ayağa fırladın: "Da-rüş-şa-fa-ka!" Bütün tribün arkandan geldi, sesin kısılana kadar bağırdın. Oyuncular ikinci yarıya tribüne el sallayarak çıktı.', en: 'You leapt up: "Da-rüş-şa-fa-ka!" The whole stand joined in, and you shouted till your voice went. The players came out for the second half waving at the stand.' };
+        },
+      },
+      {
+        id: 'hotdog', label: { tr: '🌭 Kantinden sosisli al ve ye', en: "🌭 Get a hot dog from the canteen" },
+        run: () => {
+          shape(st, { ambition: -3, presence: -2 });
+          const paid = st.money >= 15;
+          ctx.gain({ hunger: 35, mood: 6, money: paid ? -15 : 0 });
+          return paid
+            ? { tr: 'Kantinin önünde uzun bir sıra vardı. Şakir Abi\'nin sosislisi efsaneydi ama döndüğünde Darüşşafaka bir smaç basmıştı ve sen kaçırmıştın.', en: "There was a long queue at the canteen. Şakir's hot dog was legendary, but by the time you got back Darüşşafaka had dunked and you'd missed it." }
+            : { tr: 'Paran yetmiyordu; Şakir Abi göz kırptı: "Maç gecesi, bu benden." Sosislini yerken ikinci yarının başını kaçırdın.', en: 'You were short of money; Şakir winked: "It\'s match night, this one\'s on me." You missed the start of the second half eating it.' };
+        },
+      },
+      {
+        id: 'chat', label: { tr: '💬 Arkadaşlarınla sohbet et', en: '💬 Chat with your friends' },
+        run: () => {
+          shape(st, { heart: 5, loyalty: 3 }); ctx.gain({ mood: 6 });
+          pals.forEach((n) => ctx.befriend(n.id, 6));
+          return pals.length
+            ? { tr: `${pals.map((n) => n.name).join(', ')} ile maçı, hocaları, yurttaki dedikoduları konuştunuz. İkinci yarının yarısını kaçırdın ama çok güldünüz.`, en: `You and ${pals.map((n) => n.name).join(', ')} talked about the match, the teachers and the gossip from the dorm. You missed half the second half but laughed a lot.` }
+            : { tr: 'Yanındakilerle tanıştın, sohbet ettiniz; maçtan çok birbirinizi dinlediniz.', en: 'You got talking to the kids next to you; you listened to each other more than you watched the match.' };
+        },
+      },
+      {
+        id: 'watch', label: { tr: '👀 Maçı izle', en: '👀 Watch the match' },
+        run: () => {
+          shape(st, { presence: -5, ambition: 2 }); ctx.gain({ mood: 5 });
+          st.skills.basketball = Math.min(100, st.skills.basketball + 4);
+          return { tr: 'Gözünü sahadan ayırmadın. Oyuncuların perdelemesini, savunmada nasıl yer değiştirdiklerini ilk kez fark ettin. Basketbol becerin arttı.', en: "You didn't take your eyes off the court. For the first time you noticed how the players set screens and switch on defence. Your basketball skill went up." };
+        },
+      },
+    ],
+  };
+}
+
+const BUILD: Record<DilemmaId, (ctx: GameCtx) => Dilemma> = { telefon, arka, parti, mac };
 
 /** what a choice changed, read off the state before and after it ran */
 function snapshot(ctx: GameCtx) {

@@ -459,6 +459,7 @@ export class Panel {
    * Put the scattered words of a sentence back in order: click a word to add it to the line, click it on the
    * line to take it back. Resolves with how many checks it took (0 = you ran out of tries and were shown it).
    */
+  /** (resolves with -1 if you stop without writing) */
   arrange(title: string, prompt: string, words: string[], tries = 3, note = ''): Promise<number> {
     const stage = this.stage();
     const key = (w: string) => w.toLocaleLowerCase('tr-TR');
@@ -490,13 +491,14 @@ export class Panel {
             <p class="stage-help">${esc(prompt)}</p>
             <div class="arr-line">${placed.length ? placed.map((i, k) => `<button type="button" class="chip ${wrongAt >= 0 && k >= wrongAt ? 'bad' : ''}" data-back="${k}">${esc(words[i])}</button>`).join('') : `<span class="arr-empty">${esc(L({ tr: 'Kelimeleri sırayla buraya diz…', en: 'Line the words up here in order…' }))}</span>`}</div>
             <div class="arr-pool">${pool.map((i) => `<button type="button" class="chip" data-word="${i}">${esc(words[i])}</button>`).join('')}</div>
-            <div class="arr-foot"><button type="button" class="secondary" data-clear>${esc(L({ tr: 'Temizle', en: 'Clear' }))}</button><button type="button" class="primary" data-check ${pool.length ? 'disabled' : ''}>${esc(L({ tr: 'Kontrol et', en: 'Check' }))}</button></div>
+            <div class="arr-foot"><span><button type="button" class="secondary" data-quit>${esc(L({ tr: 'Yazmadan çık', en: 'Stop writing' }))}</button> <button type="button" class="secondary" data-clear>${esc(L({ tr: 'Temizle', en: 'Clear' }))}</button></span><button type="button" class="primary" data-check ${pool.length ? 'disabled' : ''}>${esc(L({ tr: 'Kontrol et', en: 'Check' }))}</button></div>
             <div class="feedback">${wrongAt >= 0 ? esc(L({ tr: 'Tam olmadı: kırmızı kelimelerin yeri yanlış.', en: 'Not quite: the red words are out of place.' })) : ''}</div>
           </div>`;
         if (wrongAt >= 0) (stage.querySelector('.feedback') as HTMLElement).className = 'feedback bad';
         stage.querySelectorAll<HTMLButtonElement>('[data-word]').forEach((b) => b.addEventListener('click', () => { sfx.click(); placed.push(Number(b.dataset.word)); render(); }));
         stage.querySelectorAll<HTMLButtonElement>('[data-back]').forEach((b) => b.addEventListener('click', () => { placed.splice(Number(b.dataset.back), 1); render(); }));
         stage.querySelector('[data-clear]')!.addEventListener('click', () => { placed.length = 0; render(); });
+        stage.querySelector('[data-quit]')!.addEventListener('click', () => { stage.remove(); resolve(-1); });
         stage.querySelector('[data-check]')!.addEventListener('click', () => {
           used++;
           const firstWrong = placed.findIndex((i, k) => key(words[i]) !== key(words[k]));

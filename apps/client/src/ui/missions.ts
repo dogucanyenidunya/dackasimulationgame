@@ -141,13 +141,12 @@ export function announceCard(m: Mission, c: MissionCtx): HTMLElement {
 export function announceManyCard(ms: Mission[], c: MissionCtx): HTMLElement {
   if (ms.length === 1) return announceCard(ms[0], c);
   const el = document.createElement('div');
-  el.className = 'card announce-card';
+  el.className = 'card announce-card many';
   el.innerHTML = `
     <div class="m-label">${L({ tr: `${ms.length} yeni görev açıldı`, en: `${ms.length} new missions unlocked` })}</div>
     <h2>${L({ tr: 'Okul hayatı başlıyor!', en: 'School life begins!' })}</h2>
-    ${ms.map((m) => `<div class="mission active" style="margin-top:8px"><div class="m-title">${esc(L(m.title))}</div><div class="m-desc">${esc(L(m.desc))}</div></div>`).join('')}
-    <p class="m-desc">${L({ tr: 'İstediğin sırayla yapabilirsin. Hepsini Görevler panelinde (J) görebilirsin.', en: 'Do them in any order. See them all in the Missions panel (J).' })}</p>
-    <div style="margin-top:14px;text-align:right"><button type="button" class="primary">${L({ tr: 'Tamam', en: 'Got it' })}</button></div>`;
+    <div class="announce-list">${ms.map((m) => `<div class="mission active"><div class="m-title">${esc(L(m.title))}</div><div class="m-desc">${esc(L(m.desc))}</div></div>`).join('')}</div>
+    <div class="announce-foot"><p class="m-desc">${L({ tr: 'İstediğin sırayla yapabilirsin. Hepsini Görevler panelinde (J) görebilirsin.', en: 'Do them in any order. See them all in the Missions panel (J).' })}</p><button type="button" class="primary">${L({ tr: 'Tamam', en: 'Got it' })}</button></div>`;
   return el;
 }
 

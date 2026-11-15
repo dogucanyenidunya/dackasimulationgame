@@ -55,7 +55,20 @@ export const PLAZA_START = h(20);
 export const LIGHTS_OUT = h(22);
 export const WAKE_UP = h(7);
 /** no evening study on Fridays and Saturdays: 18:00–22:00 is all free time around the dorms */
-export const hasEtut = (day: number) => weekday(day) < 4 || weekday(day) === 6;
+export const hasEtut = (day: number) => (weekday(day) < 4 || weekday(day) === 6) && !isMatchDay(day);
+
+/** the second Sunday: Darüşşafaka play Banvit in the Spor Salonu at 19:00, and the whole school goes (no evening study) */
+let matchDay = 9;
+export const setMatchDay = (d: number) => { matchDay = d; };
+export const getMatchDay = () => matchDay;
+export function isMatchDay(day: number) { return day === matchDay; }
+/** doors open, tip-off, final whistle; until MATCH_FREE you may be anywhere on the campus */
+export const MATCH_OPEN = h(18, 30);
+export const MATCH_TIP = h(19);
+export const MATCH_END = h(20, 45);
+export const MATCH_FREE = h(21);
+export const matchOn = (day: number, minutes: number) => isMatchDay(day) && minutes >= MATCH_OPEN && minutes < MATCH_END;
+export const matchFree = (day: number, minutes: number) => isMatchDay(day) && minutes >= MATCH_OPEN && minutes < MATCH_FREE;
 export type DayPhase = 'day' | 'etut' | 'plaza' | 'night';
 export function phaseOf(minutes: number, day: number): DayPhase {
   if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return 'night';

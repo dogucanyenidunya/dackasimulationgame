@@ -25,9 +25,11 @@ import {
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
-import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, carsiNow, isFriday, isWednesday, weekday } from '../game/weekend';
+import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
+import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
+import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
-import { dilemmaDone, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
+import { dilemmaDone, matchState, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
@@ -213,6 +215,13 @@ export class CampusScene extends Phaser.Scene {
       this.save.layout = LAYOUT;
     }
     this.net = data.net ?? null;
+    const st0 = this.save.state, c0 = this.save.clock;
+    if (st0.once.matchDay === undefined) {
+      const past = c0.day > 9 || (c0.day === 9 && c0.minutes >= MATCH_END);
+      st0.daily.matchDay = past ? c0.day + ((6 - weekday(c0.day) + 7) % 7 || 7) : 9;
+      st0.once.matchDay = true;
+    }
+    setMatchDay(st0.daily.matchDay ?? 9);
     const known = (id: string) => LOCATIONS.some((l) => l.id === id);
     this.seen = new Set(this.save.seen.filter(known));
     this.discovered = new Set(this.save.discovered.filter(known));
@@ -690,14 +699,19 @@ export class CampusScene extends Phaser.Scene {
     this.player.setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE).setVelocity(0, 0);
     this.player.anims.stop();
     this.dir = seat.faces;
-    // whoever is at your table when you finish is who you ate with
-    const tablemates = () => this.diners.filter((d) => d.visible && Math.abs((d.getData('seat') as { x: number }).x - seat.x) <= 1
-      && Math.abs((d.getData('seat') as { y: number }).y - seat.y) <= 2).map((d) => d.getData('def') as NpcDef).slice(0, 4);
+    // whoever sits beside you or across from you at the same table when you finish is who you ate with
+    type Seat = { x: number; y: number; faces: 0 | 3 };
+    const tableOf = (s: Seat) => s.y + (s.faces === 0 ? 1 : -1);
+    const near = (s: Seat) => tableOf(s) === tableOf(seat) && (s.faces === seat.faces ? Math.abs(s.x - seat.x) === 1 : Math.abs(s.x - seat.x) <= 1);
+    const seated = () => this.diners.filter((d) => d.visible && d.getData('def'));
+    const tablemates = () => seated().filter((d) => near(d.getData('seat') as Seat)).map((d) => d.getData('def') as NpcDef).slice(0, 4);
+    // friends of yours eating somewhere else in the hall
+    const elsewhere = () => seated().filter((d) => !near(d.getData('seat') as Seat) && this.isFriend(d.getData('def') as NpcDef)).map((d) => d.getData('def') as NpcDef);
     this.trayAt = { x: this.player.x, y: this.player.y + (seat.faces === 0 ? 14 : -14) };
     this.sleeping = true;
     this.sleepRun = {
       kind: 'eat', msPerMin: MEAL_MS_PER_MIN, acc: 0, left: MEAL_MINUTES, total: MEAL_MINUTES, busy: false, events: [],
-      onDone: () => { this.trayAt = null; eatMeal(ctx, tray.meal, tray.name, tablemates()); this.persist(); },
+      onDone: () => { this.trayAt = null; eatMeal(ctx, tray.meal, tray.name, tablemates(), elsewhere()); this.persist(); },
     };
     this.hud.toast(L({ tr: `${tray.name}: afiyet olsun!`, en: `${tray.name}: enjoy your meal!` }), 'good');
   }
@@ -2222,7 +2236,9 @@ export class CampusScene extends Phaser.Scene {
     });
   }
 
-  private blocked() { return this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
+  /** watching the match on match night */
+  private watching = false;
+  private blocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
 
   private findNearNpc(): NpcDef | null {
     let best: NpcDef | null = null, bestD = 1.7 * TILE;
@@ -2286,7 +2302,7 @@ export class CampusScene extends Phaser.Scene {
     // the dining hall is open only while something is being served
     if (loc.id === 'yemekhane') { if (diningOpen(this.save.clock.minutes)) this.enterDining(); else this.panel.open(() => yemekhaneClosed(ctx)); return; }
     // in the evening only your own dorm is reachable anyway; outside study hours other doors stay shut (the Revir never does)
-    if (phaseOf(this.save.clock.minutes, this.save.clock.day) !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && this.settled()) {
+    if (phaseOf(this.save.clock.minutes, this.save.clock.day) !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && this.settled() && !(loc.id === 'spor' && matchFree(this.save.clock.day, this.save.clock.minutes))) {
       this.hud.toast(L({ tr: 'Bu saatte kapalı.', en: 'Closed at this hour.' }));
       return;
     }
@@ -2324,6 +2340,7 @@ export class CampusScene extends Phaser.Scene {
       killTime: (until) => this.killTime(until),
       toClass: () => this.backToClass(),
       log: (text) => this.log(text),
+      watchMatch: () => void this.watchMatch(),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
   }
@@ -2480,7 +2497,8 @@ export class CampusScene extends Phaser.Scene {
         this.befriend(belId, -10);
       }
     }
-    if ((phase === 'plaza' || phase === 'night') && !this.room) {
+    // (match night: the whole campus is open until 21:00)
+    if ((phase === 'plaza' || phase === 'night') && !this.room && !matchFree(c.day, c.minutes)) {
       const tx = this.player.x / TILE, ty = this.player.y / TILE;
       const inside = PLAZA_ALLOWED.some((r) => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h);
       if (!inside) {
@@ -2824,13 +2842,10 @@ export class CampusScene extends Phaser.Scene {
         : L({ tr: `🔦 ${names.join(' ve ')} seni arıyor! Bulunmadan yurduna dön.`, en: `🔦 ${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} looking for you! Get back to your dorm before you're found.` }), true);
       return;
     }
-    // the weekend bus: shown in the dorm too, so you don't miss it
-    const evci = (this.save.character.boarding ?? 'daimi') === 'evci';
-    if (evci && st.school.registered && isFriday(this.save.clock.day) && m >= BUS_BOARDING && m < BUS_LEAVES) {
-      this.hud.setCountdown(L({ tr: `🚌 Servis 17:00'de Ana Kapı'dan kalkıyor · ${BUS_LEAVES - m} dk`, en: `🚌 The bus leaves the main gate at 17:00 · ${BUS_LEAVES - m} min` }), m >= BUS_LEAVES - 20);
-      return;
-    }
     if (this.rushOn()) { this.rushCountdown(); return; }
+    // visits, the weekend bus, match night, the flag ceremony: shown wherever you are, with the time running down
+    const ev = this.timedEvent();
+    if (ev) { this.hud.setCountdown(ev.text, ev.urgent, ev.progress); return; }
     if (this.room === 'dorm' || st.escaped || !this.settled()) { this.hud.setCountdown(null); return; }
     const phase = phaseOf(m, this.save.clock.day);
     if (phase === 'day' && m >= 17 * 60 + 30 && !hasEtut(this.save.clock.day)) {
@@ -2850,6 +2865,80 @@ export class CampusScene extends Phaser.Scene {
         ? L({ tr: `🌙 Işıklar söndü! ${5 - late} dk içinde yurdunda ol`, en: `🌙 Lights are out! Be in your dorm within ${5 - late} min` })
         : L({ tr: `⚠ Işıklar söneli ${late} dk oldu · hemen yurduna dön`, en: `⚠ Lights went out ${late} min ago · get back to your dorm` }), true);
     } else this.hud.setCountdown(null);
+  }
+
+  // ---------- match night: Darüşşafaka v Banvit ----------
+
+  private async watchMatch() {
+    if (this.watching) return;
+    const st = this.save.state, c = this.save.clock;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    // early: the wait in the stand until tip-off
+    if (c.minutes < MATCH_TIP) this.advance(MATCH_TIP - c.minutes);
+    this.watching = true;
+    this.hud.setPrompt(null);
+    const friends = NPCS.filter((n) => this.isFriend(n)).sort((a, b) => (st.friends[b.id] ?? 0) - (st.friends[a.id] ?? 0)).map((n) => n.name);
+    const view = new MatchView(this.hud.host, this.save.character.first, friends);
+    // late: what you missed went by without you (each quarter, breaks included, takes about 26 minutes)
+    const missed = Math.max(0, Math.min(3, Math.floor((c.minutes - MATCH_TIP) / 26)));
+    view.presim(missed);
+    if (missed < 2) await view.play(2);
+    // half-time: the dilemma, over the match screen
+    Object.assign(matchState, { home: view.score[0], away: view.score[1] });
+    this.panel.open(() => ({ title: L({ tr: 'Devre arası', en: 'Half-time' }), rooms: [{ id: 'mac', name: L({ tr: 'Devre arası', en: 'Half-time' }), actions: [] }] }));
+    await runDilemma(this.gameCtx(), 'mac');
+    if (this.panel.isOpen) this.panel.close();
+    const choice = st.memories.find((m) => m.id === 'mac')?.choice;
+    view.boost = choice === 'cheer' ? 0.1 : choice === 'watch' ? 0.03 : 0;
+    if (choice === 'cheer') view.say({ tr: 'Tribün senin başlattığın tezahüratla inliyor!', en: 'The stand is roaring with the chant you started!' });
+    await view.play(4);
+    const [h, a] = view.score;
+    st.once.matchWatched = true;
+    this.log(L({ tr: `🏀 Darüşşafaka – Banvit maçını izledin: ${h}–${a}${h > a ? ', Darüşşafaka kazandı!' : ''}`, en: `🏀 You watched Darüşşafaka v Banvit: ${h}–${a}${h > a ? ', Darüşşafaka won!' : ''}` }));
+    this.gain({ xp: 30, mood: h > a ? 12 : 4 });
+    await view.finale();
+    view.close();
+    this.watching = false;
+    // out of the hall with everyone; the belletmens want you all back round the dorms by 21:00
+    if (c.minutes < MATCH_END) this.advance(MATCH_END - c.minutes);
+    this.screenFade(() => {
+      const spor = LOCATIONS.find((l) => l.id === 'spor')!;
+      const stand = doorStandTile(spor.doors![0]);
+      this.player.setPosition((stand.x + 0.5) * TILE, (stand.y + 0.5) * TILE).setVelocity(0, 0);
+      this.npcClock = -1;
+      this.checkMissions();
+      this.persist();
+      this.hud.toast(L({ tr: `Maç bitti! Saat ${fmtTime(MATCH_FREE)}'e kadar yurtların çevresine dön.`, en: `The match is over! Get back round the dorms by ${fmtTime(MATCH_FREE)}.` }));
+    });
+  }
+
+  /** time-limited things worth a strip at the top of the screen, with a bar running down (most pressing first) */
+  private timedEvent(): { text: string; urgent: boolean; progress: number } | null {
+    const st = this.save.state, c = this.save.clock, m = c.minutes;
+    if (!this.settled() || this.watching) return null;
+    const g = L(GUARDIANS.find((x) => x.id === this.save.character.guardian)!.your);
+    const bar = (end: number, start: number) => Math.max(0, Math.min(1, (end - m) / (end - start)));
+    if (isMatchDay(c.day) && !st.once.matchWatched && m >= 17 * 60 && m < MATCH_END) {
+      return m < MATCH_TIP
+        ? { text: L({ tr: `🏀 Bu akşam 19:00 · Darüşşafaka – Banvit · Spor Salonu'na git · ${MATCH_TIP - m} dk`, en: `🏀 Tonight at 19:00 · Darüşşafaka v Banvit · go to the Spor Salonu · ${MATCH_TIP - m} min` }), urgent: m >= MATCH_TIP - 15, progress: bar(MATCH_TIP, 17 * 60) }
+        : { text: L({ tr: `🏀 Maç başladı! Spor Salonu'na koş · bitmesine ${MATCH_END - m} dk`, en: `🏀 The match is on! Run to the Spor Salonu · ${MATCH_END - m} min to go` }), urgent: true, progress: bar(MATCH_END, MATCH_TIP) };
+    }
+    const evci = (this.save.character.boarding ?? 'daimi') === 'evci';
+    if (evci && isFriday(c.day) && m >= BUS_BOARDING && m < BUS_LEAVES && st.daily.weekendHome !== c.day) {
+      return { text: L({ tr: `🚌 Hafta sonu servisi Ana Kapı'da · 17:00'de kalkıyor · ${BUS_LEAVES - m} dk`, en: `🚌 The weekend bus is at the main gate · leaves at 17:00 · ${BUS_LEAVES - m} min` }), urgent: m >= BUS_LEAVES - 20, progress: bar(BUS_LEAVES, BUS_BOARDING) };
+    }
+    if (carsiNow(c.day, m) && st.daily.wedvisit !== c.day) {
+      return { text: L({ tr: `👪 Çarşı izni: ${g} kantinde (Spor Salonu) seni bekliyor · ${fmtTime(CARSI_END)}'e kadar · ${CARSI_END - m} dk`, en: `👪 Wednesday visit: ${g} is waiting at the canteen (Spor Salonu) · until ${fmtTime(CARSI_END)} · ${CARSI_END - m} min` }), urgent: CARSI_END - m <= 30, progress: bar(CARSI_END, CARSI_START) };
+    }
+    if (!evci && isSunday(c.day) && m >= VISIT_START && m < VISIT_END && st.daily.visit !== c.day) {
+      return { text: L({ tr: `👪 Ziyaret günü: ${g} Ana Kapı'da seni bekliyor · ${fmtTime(VISIT_END)}'ya kadar · ${VISIT_END - m} dk`, en: `👪 Visiting day: ${g} is waiting at the main gate · until ${fmtTime(VISIT_END)} · ${VISIT_END - m} min` }), urgent: VISIT_END - m <= 30, progress: bar(VISIT_END, VISIT_START) };
+    }
+    const cer = this.isRaining() ? null : ceremonyWindow(c.day);
+    if (cer && m >= cer[0] - 15 && m < cer[1]) {
+      return { text: m < cer[0] ? L({ tr: `🇹🇷 Bayrak töreni ${fmtTime(cer[0])}'da Merkez Meydan'da · ${cer[0] - m} dk`, en: `🇹🇷 Flag ceremony at ${fmtTime(cer[0])} on the Merkez Meydan · ${cer[0] - m} min` }) : L({ tr: '🇹🇷 Bayrak töreni sürüyor · Merkez Meydan\'da sıraya gir', en: '🇹🇷 The flag ceremony is on · line up on the Merkez Meydan' }), urgent: m >= cer[0], progress: m < cer[0] ? bar(cer[0], cer[0] - 15) : bar(cer[1], cer[0]) };
+    }
+    return null;
   }
 
   // ---------- the registration weekend ("kayıt dönemi") ----------
@@ -3221,6 +3310,7 @@ export class CampusScene extends Phaser.Scene {
   // ---------- clock ----------
 
   private tickClock(delta: number) {
+    if (this.watching) return; // the match screen keeps its own time
     if (this.panel.isOpen) return; // time stands still while you're inside a menu (single-player prototype)
     const c = this.save.clock;
     const night = c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP;
@@ -3255,6 +3345,12 @@ export class CampusScene extends Phaser.Scene {
     if (before < BUS_BOARDING && c.minutes >= BUS_BOARDING && isFriday(c.day) && (this.save.character.boarding ?? 'daimi') === 'evci' && st.school.registered) {
       this.hud.toast(L({ tr: '🚌 Hafta sonu servisi Ana Kapı\'da! 17:00\'de kalkıyor.', en: '🚌 The weekend bus is at the main gate! It leaves at 17:00.' }), 'good');
     }
+    if (isMatchDay(c.day) && !st.once.matchWatched && this.settled()) {
+      if (c.minutes === 9 * 60) this.hud.toast(L({ tr: '🏀 Bu akşam 19:00\'da Spor Salonu\'nda Darüşşafaka – Banvit maçı var! Etüt yok, herkes tribünde.', en: '🏀 Darüşşafaka v Banvit tonight at 19:00 in the Spor Salonu! No evening study, everyone will be in the stand.' }), 'good');
+      if (c.minutes === MATCH_OPEN) { this.hud.toast(L({ tr: '🏀 Spor Salonu\'nun kapıları açıldı: maç 19:00\'da!', en: '🏀 The Spor Salonu doors are open: tip-off at 19:00!' }), 'good'); sfx.bell(); }
+      if (c.minutes === MATCH_END) { st.once.matchMissed = true; this.hud.toast(L({ tr: '🏀 Maç bitti; sen kaçırdın.', en: "🏀 The match is over, and you missed it." })); }
+    }
+    if (c.day > getMatchDay() && !st.once.matchWatched && !st.once.matchMissed && this.settled()) st.once.matchMissed = true;
     if (before < CARSI_START && c.minutes >= CARSI_START && isWednesday(c.day)) {
       const guardian = L(GUARDIANS.find((g) => g.id === this.save.character.guardian)!.your);
       this.hud.toast(L({ tr: `📅 Çarşı izni! ${guardian} kantinde seni bekliyor (Spor Salonu).`, en: `📅 Wednesday visit! ${guardian} is waiting for you at the canteen (in the Spor Salonu).` }), 'good');
@@ -3599,7 +3695,7 @@ export class CampusScene extends Phaser.Scene {
     this.save.seen = [...this.seen];
     this.save.discovered = [...this.discovered];
     this.save.lang = getLang();
-    this.save.state.daily = Object.fromEntries(Object.entries(this.save.state.daily).filter(([, d]) => d >= this.save.clock.day - 1));
+    this.save.state.daily = Object.fromEntries(Object.entries(this.save.state.daily).filter(([k, d]) => k === 'matchDay' || d >= this.save.clock.day - 1));
     writeSave(this.save);
     if (this.net) saveToCloud(this.net.id, this.save);
   }

@@ -6,7 +6,7 @@ import { ANTHEM_LINES, BOOKS, askFor } from '../content/quiz';
 import { TEACHERS } from '../content/classroom';
 import { bioOf } from '../content/bios';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
-import { ceremonyNow, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
+import { MATCH_TIP, matchOn, ceremonyNow, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { missionById, reached, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
@@ -57,6 +57,8 @@ export interface GameCtx {
   toClass(): void;
   /** a line in today's diary */
   log(text: string): void;
+  /** take your seat in the stand for the match */
+  watchMatch(): void;
 }
 
 /** reason text when a feature is still locked behind a mission */
@@ -652,7 +654,7 @@ export function washHands(ctx: GameCtx) {
 }
 
 /** you've finished your tray (the scene lets the meal last a while first): you're full, and you got to know the people at your table */
-export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates: NpcDef[]) {
+export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates: NpcDef[], friendsElsewhere: NpcDef[] = []) {
   markToday(ctx, `meal-${meal}`);
   nudge(ctx, tablemates.length ? { loyalty: 1 } : { presence: -1, loyalty: -1 }); // with friends, or on your own
   // every meal you eat counts toward "Three Meals", even before that mission opens
@@ -665,11 +667,17 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
   }
   ctx.st.health = clamp(ctx.st.health + 3);
   ctx.gain({ hunger: 100, mood: 5, xp: 10 });
+  // a friend in the hall you didn't sit with feels a little left out
+  if (friendsElsewhere.length) {
+    friendsElsewhere.forEach((n) => ctx.befriend(n.id, -3));
+    ctx.toast(T(`${friendsElsewhere.map((n) => n.name).join(', ')} başka bir masada oturduğuna biraz bozuldu.`, `${friendsElsewhere.map((n) => n.name).join(', ')} ${friendsElsewhere.length > 1 ? 'were' : 'was'} a bit hurt that you sat at another table.`));
+  }
   ctx.log(tablemates.length
     ? T(`🍽 ${mealName} yedin; masanda ${tablemates.map((n) => n.name).join(', ')} vardı`, `🍽 You had ${mealName.toLowerCase()} with ${tablemates.map((n) => n.name).join(', ')}`)
     : T(`🍽 ${mealName} yedin, tek başına`, `🍽 You had ${mealName.toLowerCase()} on your own`));
   if (tablemates.length) {
-    tablemates.forEach((n) => ctx.befriend(n.id, n.kind === 'classmate' ? 8 : 5));
+    // eating side by side or across from someone brings you a little closer (a friend most of all)
+    tablemates.forEach((n) => ctx.befriend(n.id, (ctx.st.friends[n.id] ?? 0) >= FRIEND_AT ? 10 : n.kind === 'classmate' ? 8 : 5));
     ctx.toast(T(`Masada: ${tablemates.map((n) => n.name).join(', ')}. Afiyet olsun!`, `At your table: ${tablemates.map((n) => n.name).join(', ')}. Enjoy!`), 'good');
   } else {
     ctx.toast(T('Afiyet olsun!', 'Enjoy your meal!'), 'good');
@@ -857,17 +865,20 @@ function anthemActions(ctx: GameCtx): ActionView[] {
         markToday(ctx, 'anthem');
         // up to four stanzas an evening: one line of each, its words scattered
         const steps = Math.min(4, ANTHEM_STANZAS - a.stanzas);
-        let learned = 0, clean = 0;
+        let learned = 0, clean = 0, quit = false;
         for (let i = 0; i < steps; i++) {
           const n = a.stanzas + 1;
           const lines = ANTHEM_LINES[n - 1];
           const line = lines[Math.floor(Math.random() * lines.length)];
-          const used = await ctx.panel.arrange(T(`${n}. kıta`, `Stanza ${n}`), T('Dizeyi deftere yaz: kelimelere sırayla tıkla.', 'Write the line in your notebook: click the words in order.'), line.split(' '), 3, T(`adım ${i + 1}/${steps}`, `step ${i + 1}/${steps}`));
+          const used: number = await ctx.panel.arrange(T(`${n}. kıta`, `Stanza ${n}`), T('Dizeyi deftere yaz: kelimelere sırayla tıkla.', 'Write the line in your notebook: click the words in order.'), line.split(' '), 3, T(`adım ${i + 1}/${steps}`, `step ${i + 1}/${steps}`));
+          if (used < 0) { quit = true; break; } // stopped without writing
           if (!used) break;       // you'll go over this stanza again tomorrow
           a.stanzas++; learned++;
           if (used === 1) clean++;
         }
-        ctx.advance(40);
+        // (stopping before writing a word costs nothing: you can sit down to it again this evening)
+        if (quit && !learned) { delete ctx.st.daily.anthem; return; }
+        ctx.advance(quit ? 10 + learned * 10 : 40);
         ctx.gain({ xp: 6 + learned * 5 + clean * 3, energy: -4, attrs: { discipline: 1 } });
         ctx.toast(a.stanzas >= ANTHEM_STANZAS
           ? T(`On kıtanın hepsi defterinde ve aklında! Şimdi ${belletmen}'e ezberden oku.`, `All ten stanzas are in your notebook and in your head! Now recite them to ${belletmen}.`)
@@ -1274,6 +1285,7 @@ function spor(ctx: GameCtx): PanelView {
   return {
     title: 'Spor Salonu', sub: T('Salon · havuz · kantin · depo', 'Hall · pool · canteen · stores'), status: status(ctx),
     rooms: [
+      ...(matchOn(ctx.clock.day, ctx.clock.minutes) && !st.once.matchWatched ? [matchRoom(ctx)] : []),
       ...(st.school.kit ? [] : [depoRoom(ctx)]),
       {
         id: 'antrenor', name: T('Antrenör odası', "Coaches' office"),
@@ -1295,6 +1307,21 @@ function spor(ctx: GameCtx): PanelView {
         }],
       },
     ],
+  };
+}
+
+/** match night: the grandstand in the main hall, Darüşşafaka v Banvit */
+function matchRoom(ctx: GameCtx): RoomView {
+  const early = ctx.clock.minutes < MATCH_TIP;
+  return {
+    id: 'mac', name: T('🏀 Maç gecesi', '🏀 Match night'),
+    note: early
+      ? T(`Ana salonun tribünleri dolmaya başladı. Darüşşafaka – Banvit maçı 19:00'da (${MATCH_TIP - ctx.clock.minutes} dk). Davullar şimdiden çalıyor!`, `The stands in the main hall are filling up. Darüşşafaka v Banvit tips off at 19:00 (${MATCH_TIP - ctx.clock.minutes} min). The drums are already going!`)
+      : T('Maç başladı! Tribünden tezahürat sesleri geliyor.', "The match has started! You can hear the chants from the stand."),
+    actions: [{
+      id: 'match', label: T('🏀 Basket maçı izle', '🏀 Watch the basketball match'), hint: early ? T('Tribünde yerini al · 19:00\'da başlıyor', 'Take your seat in the stand · tip-off at 19:00') : T('Tribüne geç · maç sürüyor', 'Go up to the stand · the match is on'),
+      run: () => { ctx.panel.close(); ctx.watchMatch(); },
+    }],
   };
 }
 

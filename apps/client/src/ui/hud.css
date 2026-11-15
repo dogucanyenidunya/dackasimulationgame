@@ -468,3 +468,32 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .tnode.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
 .tree-detail { margin-top: 12px; }
 .tree-detail .mission { margin-bottom: 0; }
+
+/* match night */
+.match-overlay { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(6, 8, 14, 0.82); pointer-events: auto; animation: dl-fade 0.3s ease-out; }
+.match-card { width: min(800px, 100%); background: #14161c; border: 1px solid #3a3f4a; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,0.6); }
+.match-card canvas { display: block; width: 100%; height: auto; image-rendering: auto; }
+.match-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 10px 16px 6px; background: linear-gradient(180deg, #0c0e13, #1a1d25); color: #fff; }
+.mb-team { display: flex; align-items: center; gap: 8px; font-family: "Pixelify Sans", system-ui, sans-serif; font-size: 18px; letter-spacing: 0.04em; }
+.mb-team.away { justify-content: flex-end; }
+.mb-team i { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: inline-block; }
+.mb-score { font-family: "Pixelify Sans", monospace; font-size: 34px; color: #ffcf4a; background: #000; padding: 2px 14px; border-radius: 8px; border: 1px solid #333; text-shadow: 0 0 8px rgba(255, 207, 74, 0.6); }
+.mb-score em { font-style: normal; color: #888; margin: 0 8px; }
+.mb-clock { grid-column: 1 / -1; text-align: center; font-size: 12px; font-weight: 700; color: #b8bec8; letter-spacing: 0.06em; text-transform: uppercase; }
+.match-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #1a1d25; color: #e8e8ee; }
+.match-line { margin: 0; font-weight: 700; font-size: 15px; min-height: 20px; }
+
+/* mission announcements always fit the screen: the list scrolls, the button stays in view */
+.announce-card { max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.announce-card.many { width: min(680px, 100%); }
+.announce-card .announce-list { overflow: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; min-height: 0; }
+.announce-card .announce-list .mission { margin: 0; padding: 10px 12px; }
+.announce-card .announce-list .m-title { font-size: 14px; }
+.announce-card .announce-list .m-desc { font-size: 12.5px; margin: 4px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.announce-card .announce-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.announce-card .announce-foot .m-desc { margin: 0; font-size: 13px; }
+@media (max-width: 560px) { .announce-card .announce-list { grid-template-columns: 1fr; } }
+/* cards sit above the countdown strip */
+.overlay.modal { z-index: 6; }
+.announce-card:not(.many) { overflow: auto; }
+.modal-card { max-height: calc(100vh - 32px); overflow: auto; }

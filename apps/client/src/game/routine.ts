@@ -2,7 +2,7 @@
 // It is a pure function of the clock, so the campus, the dining hall, the classroom and the dorm room
 // all agree about who is where. Each student runs a few minutes early or late, so nobody moves in step.
 import type { NpcDef } from '../content/npcs';
-import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, currentPeriod, hasEtut, subjectFor } from './schedule';
+import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, currentPeriod, hasEtut, matchOn, subjectFor } from './schedule';
 import { BACK_ON_SUNDAY, BUS_BOARDING, CARSI_START, VISIT_START, npcIsEvci, weekday } from './weekend';
 
 /** inside a building (`dorm` = their own dorm) or off campus (`away`: they leave by the main gate) */
@@ -22,6 +22,8 @@ export interface RoutineClock {
 }
 
 const H = (h: number, m = 0) => h * 60 + m;
+/** when the crowd starts taking their seats on match night */
+const MATCH_SEAT = H(18, 30);
 
 const memo = new Map<string, number>();
 /** a steady number in 0..1 for a student and a purpose (so each one keeps their own habits) */
@@ -71,6 +73,8 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   const evci = npcIsEvci(def);
 
   if (c.rush) return registering(def, c);
+  // match night: almost the whole school is in the Spor Salonu, cheering
+  if (matchOn(c.day, c.minutes) && c.minutes >= MATCH_SEAT + roll(def.id + 'seat') * 20 && roll(def.id + 'fan') < 0.85) return { in: 'spor' };
 
   // home for the weekend: out by the gate on Friday after lessons, back on Sunday evening
   if (evci && ((wd === 4 && m >= BUS_BOARDING + 22 + u('bus') * 50) || wd === 5 || (wd === 6 && m < BACK_ON_SUNDAY + u('bus') * 8))) return { in: 'away' };
