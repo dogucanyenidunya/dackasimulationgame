@@ -46,5 +46,8 @@ For online play locally, copy `apps/client/.env.example` to `apps/client/.env.lo
 
 - Everyone online is in one shared campus channel (Supabase Realtime). Presence shows who is here, and broadcasts carry positions, chat and emotes.
 - You only see players who are in the same place as you: the campus, the dining hall, the classroom, or your dorm (girls' and boys' dorms are separate).
-- Each player still has their own clock and progress. A shared world clock is planned for stage 2.
+- **Shared campus clock (stage 2).** Signed in and past registration weekend, everyone sees the same weekday and time ([worldClock.ts](apps/client/src/game/worldClock.ts)). It's worked out from real time (a campus day is about 24 real minutes), so it needs no server and keeps running when nobody is playing. Your day count and progress stay your own.
+  - Nothing skips time online: sleep, lessons, meals and other actions last as long as they take on the campus clock (a night is about 4 minutes), with a Stop button. Menus don't pause it and fast time (T) is off.
+  - Coming back after a break, your clock jumps forward to the campus time, with no penalties for the time you missed.
+  - Solo play and the registration weekend keep their own clock, as before.
 - Saves are stored per account in the `saves` table, protected by row-level security.

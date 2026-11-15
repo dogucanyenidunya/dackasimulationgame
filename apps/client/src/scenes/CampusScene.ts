@@ -17,6 +17,7 @@ import { Ambient } from './ambient';
 import { ClassLife } from './classLife';
 import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { saveToCloud } from '../net/cloudSave';
+import { MS_PER_MIN_DAY, MS_PER_MIN_NIGHT, absMinutes, alignOffset, worldNow } from '../game/worldClock';
 import type { NetUser } from '../main';
 import { Panel } from '../ui/panel';
 import { attendLesson, lessonNow, pePanel, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
@@ -51,9 +52,8 @@ import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData }
 const REVEAL_RADIUS = 7;
 const SEEN_RADIUS = 9;
 const SPEED = 150;
-/** real milliseconds per game minute: day (07:00–22:30) ≈ 1 game hour per 80 s; night is compressed */
-const MS_PER_MIN_DAY = 80_000 / 60;
-const MS_PER_MIN_NIGHT = 240_000 / (8.5 * 60);
+/** a gap in the campus clock longer than this (game minutes) is jumped over instead of played through */
+const CATCH_UP_MAX = 360;
 /** the registration weekend runs fast (it's a rush); evening study drags, so it runs at double speed too */
 const RUSH_SPEED = 4;
 const ETUT_SPEED = 2;
@@ -170,10 +170,12 @@ export class CampusScene extends Phaser.Scene {
   private courtAt: Rect | null = null;
   /** time running fast while you stay put: asleep (the night goes by in about 20 seconds; night challenges can
    *  interrupt it), killing time at your desk, or eating at the table */
-  private sleepRun: { kind: 'sleep' | 'idle' | 'eat'; msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }>; onDone?: () => void } | null = null;
+  private sleepRun: { kind: 'sleep' | 'idle' | 'eat' | 'busy' | 'home'; label?: string; msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }>; onDone?: () => void } | null = null;
   private zzz: Phaser.GameObjects.Text[] = [];
   /** online play (null = offline) */
   private net: NetUser | null = null;
+  /** online: campus day number minus your own (null until this session has lined your clock up with the campus) */
+  private worldOffset: number | null = null;
   private mp: Multiplayer | null = null;
   private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; room: string; seen: boolean }>();
   /** which walkable interior you're in, if any */
@@ -413,6 +415,7 @@ export class CampusScene extends Phaser.Scene {
     kb.on('keydown-R', () => { if (!this.blocked()) this.showRelationships(); });
     kb.on('keydown-ESC', () => this.hud.toggleMap(false));
     kb.on('keydown-T', () => {
+      if (this.synced()) { this.fast = false; this.hud.toast(L({ tr: 'Çevrimiçiyken kampüs saati herkes için aynı; hızlandırılamaz.', en: "Online, the campus clock is the same for everyone, so it can't be sped up." })); return; }
       this.fast = !this.fast;
       this.hud.toast(this.fast ? t('fast_on') : t('fast_off'));
     });
@@ -449,6 +452,7 @@ export class CampusScene extends Phaser.Scene {
   // ---------- online: other real players ----------
 
   private roomKey(): string {
+    if (this.sleepRun?.kind === 'home') return 'away';
     return this.room === 'dorm' ? `dorm-${this.save.character.gender}` : this.room ?? 'campus';
   }
 
@@ -2013,6 +2017,8 @@ export class CampusScene extends Phaser.Scene {
 
   /** about one day in four is rainy; deterministic per day */
   private isRaining(day = this.save.clock.day): boolean {
+    // online, the campus day decides (your day numbers are your own, the weather is everyone's)
+    if (this.synced() && this.worldOffset !== null) day += this.worldOffset;
     let h = day * 2654435761 >>> 0;
     h ^= h >>> 13;
     return h % 100 < 25;
@@ -2208,32 +2214,50 @@ export class CampusScene extends Phaser.Scene {
     return Math.hypot(this.player.x / TILE - (GATE_IN[0] + 0.5), this.player.y / TILE - (GATE_IN[1] + 0.5)) < 2;
   }
 
-  /** evci: the weekend at home; you're back at the gate on Sunday at 17:40 */
+  /** evci: the weekend at home; you're back at the gate on Sunday at 17:40 (online, the weekend goes by on the campus clock) */
   private goHome(summary: string) {
     const c = this.save.clock;
-    const st = this.save.state;
-    const guardian = L(GUARDIANS.find((g) => g.id === this.save.character.guardian)!.your);
     this.sleeping = true;
     this.cameras.main.fadeOut(500, 8, 14, 24);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.sleeping = false;
-      c.day += (6 - weekday(c.day) + 7) % 7; // to Sunday
-      c.minutes = BACK_ON_SUNDAY;
-      st.hunger = 85; st.energy = 95;
-      st.daily.weekendHome = c.day;
-      this.room = null;
-      this.player.setPosition(SPAWN.x * TILE, SPAWN.y * TILE).setVelocity(0, 0);
-      this.dir = 3;
-      this.setCameraArea();
-      this.refreshClockAndNeeds();
-      this.persist();
-      this.cameras.main.fadeIn(600, 8, 14, 24);
-      this.hud.showModal({
-        title: L({ tr: '🏠 Evde bir hafta sonu', en: '🏠 A weekend at home' }), sub: L({ tr: 'Pazar 17:40 · okula döndün', en: 'Sunday 17:40 · back at school' }),
-        body: summary,
-        note: L({ tr: `${guardian} seni kapıya bıraktı. Etüt 18:00'de: yurduna yetiş!`, en: `${guardian} dropped you at the gate. Study time is at 18:00: hurry to your dorm!` }),
-        button: L({ tr: 'Yurda koş', en: 'Run to the dorm' }),
-      });
+      const back = (c.day + (6 - weekday(c.day) + 7) % 7) * 24 * 60 + BACK_ON_SUNDAY; // Sunday 17:40
+      if (!this.synced()) {
+        this.sleeping = false;
+        c.day = Math.floor(back / (24 * 60));
+        c.minutes = BACK_ON_SUNDAY;
+        this.backFromHome(summary);
+        return;
+      }
+      const left = back - absMinutes(c);
+      this.player.setVisible(false).setVelocity(0, 0);
+      this.player.body!.enable = false;
+      this.sleepRun = { kind: 'home', msPerMin: 0, acc: 0, left, total: left, busy: false, events: [], onDone: () => this.backFromHome(summary) };
+    });
+  }
+
+  private backFromHome(summary: string) {
+    const c = this.save.clock;
+    const st = this.save.state;
+    const guardian = L(GUARDIANS.find((g) => g.id === this.save.character.guardian)!.your);
+    this.player.setVisible(true);
+    this.player.body!.enable = true;
+    const onTime = isSunday(c.day) && c.minutes >= BACK_ON_SUNDAY - 5;
+    st.hunger = 85; st.energy = 95;
+    st.daily.weekendHome = c.day;
+    this.room = null;
+    this.player.setPosition(SPAWN.x * TILE, SPAWN.y * TILE).setVelocity(0, 0);
+    this.dir = 3;
+    this.setCameraArea();
+    this.refreshClockAndNeeds();
+    this.persist();
+    this.cameras.main.fadeIn(600, 8, 14, 24);
+    this.hud.showModal({
+      title: L({ tr: '🏠 Evde bir hafta sonu', en: '🏠 A weekend at home' }),
+      sub: onTime ? L({ tr: 'Pazar 17:40 · okula döndün', en: 'Sunday 17:40 · back at school' }) : L({ tr: `${fmtTime(c.minutes)} · okula erken döndün`, en: `${fmtTime(c.minutes)} · back at school early` }),
+      body: summary,
+      note: onTime ? L({ tr: `${guardian} seni kapıya bıraktı. Etüt 18:00'de: yurduna yetiş!`, en: `${guardian} dropped you at the gate. Study time is at 18:00: hurry to your dorm!` })
+        : L({ tr: `${guardian} seni kapıya bıraktı.`, en: `${guardian} dropped you at the gate.` }),
+      button: onTime ? L({ tr: 'Yurda koş', en: 'Run to the dorm' }) : t('close'),
     });
   }
 
@@ -2779,8 +2803,7 @@ export class CampusScene extends Phaser.Scene {
       const ctx = this.gameCtx();
       attendLesson(ctx, `${this.save.clock.day}-${les.p.id}`, 'beden', 30);
       this.gain({ energy: -15, attrs: { fitness: 1 } });
-      this.advance(Math.max(0, les.p.end - this.save.clock.minutes));
-      this.backToClass();
+      this.advance(Math.max(0, les.p.end - this.save.clock.minutes), L({ tr: '🏃 Saha kenarında tur', en: '🏃 Laps of the touchline' }), () => this.backToClass());
       this.hud.showModal({
         title: L({ tr: 'Beden Eğitimi', en: 'Physical Education' }), sub: les.teacher.name,
         body: L({ tr: `${name} seni sahaya getirdi: "Bu öğrenci dersi asıyordu." ${les.teacher.name} düdüğünü öttürdü: "Ders bitene kadar saha kenarında tur atacaksın!"`, en: `${name} brought you out to the pitch: "This one was skipping your lesson." ${les.teacher.name} blew his whistle: "Laps of the touchline until the bell!"` }),
@@ -2798,7 +2821,7 @@ export class CampusScene extends Phaser.Scene {
     const sname = L(SUBJECTS.find((x) => x.id === les.subject)!.name);
     attendLesson(ctx, `${this.save.clock.day}-${les.p.id}`, les.subject, 30);
     this.gain({ energy: -8 });
-    this.advance(Math.max(0, les.p.end - this.save.clock.minutes));
+    this.advance(Math.max(0, les.p.end - this.save.clock.minutes), L({ tr: '📚 Derstesin', en: '📚 In class' }));
     this.hud.showModal({
       title: L({ tr: `${sname} dersi`, en: sname }), sub: les.teacher.name,
       body: L({ tr: `${name} seni kapıdan içeri soktu: "Öğretmenim, bu öğrenci dersten kaçıyordu." Bütün sınıf sana baktı. Dersin kalanını kıpırdamadan dinledin.`, en: `${name} put you through the door: "This one was skipping your lesson." The whole class stared at you. You sat through the rest of it without moving a muscle.` }),
@@ -2869,7 +2892,7 @@ export class CampusScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
     // early: the wait in the stand until tip-off
-    if (c.minutes < MATCH_TIP) this.advance(MATCH_TIP - c.minutes);
+    if (c.minutes < MATCH_TIP && !this.synced()) this.advance(MATCH_TIP - c.minutes);
     this.watching = true;
     this.hud.setPrompt(null);
     const friends = NPCS.filter((n) => this.isFriend(n)).sort((a, b) => (st.friends[b.id] ?? 0) - (st.friends[a.id] ?? 0)).map((n) => n.name);
@@ -2895,7 +2918,7 @@ export class CampusScene extends Phaser.Scene {
     view.close();
     this.watching = false;
     // out of the hall with everyone; the belletmens want you all back round the dorms by 21:00
-    if (c.minutes < MATCH_END) this.advance(MATCH_END - c.minutes);
+    if (c.minutes < MATCH_END && !this.synced()) this.advance(MATCH_END - c.minutes);
     this.screenFade(() => {
       const spor = LOCATIONS.find((l) => l.id === 'spor')!;
       const stand = doorStandTile(spor.doors![0]);
@@ -3012,6 +3035,7 @@ export class CampusScene extends Phaser.Scene {
         const wd = weekdayOf(c.day);
         if (wd >= 5) { c.day += 7 - wd; c.minutes = WAKE_UP; }
         st.once.rushDone = true;
+        this.worldOffset = null; // online: from now on you're on the campus clock
         st.energy = 100; st.hunger = Math.max(st.hunger, 60);
         if (st.wardrobe.wearing === 'pijama' || st.wardrobe.wearing === 'sivil') st.wardrobe.wearing = 'uniforma';
         this.dress();
@@ -3304,7 +3328,14 @@ export class CampusScene extends Phaser.Scene {
   // ---------- clock ----------
 
   private tickClock(delta: number) {
-    if (this.watching) return; // the match screen keeps its own time
+    if (this.watching) return; // the match screen keeps its own time (online, you catch up afterwards)
+    if (this.synced()) {
+      // the campus doesn't wait for anyone: menus don't stop it either
+      const n = this.worldLag();
+      for (let i = 0; i < n; i++) this.stepMinute();
+      if (n) this.refreshClockAndNeeds();
+      return;
+    }
     if (this.panel.isOpen) return; // time stands still while you're inside a menu (single-player prototype)
     const c = this.save.clock;
     const night = c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP;
@@ -3355,7 +3386,7 @@ export class CampusScene extends Phaser.Scene {
       sfx.bell();
     }
 
-    const asleep = this.sleepRun !== null;
+    const asleep = this.sleepRun !== null && this.sleepRun.kind !== 'busy' && this.sleepRun.kind !== 'home';
     const awakeLate = !asleep && (c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP);
     st.hunger = clamp(st.hunger - (asleep ? 0.03 : 0.1));
     st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035)));
@@ -3463,10 +3494,91 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** time passes because of an action (lesson, meal, reading…) */
-  private advance(minutes: number) {
+  /** time passes because of an action (lesson, meal, reading…); online it takes that long on the campus clock */
+  private advance(minutes: number, label?: string, onDone?: () => void) {
+    if (this.synced()) { this.busyFor(minutes, label, onDone); return; }
     for (let i = 0; i < Math.round(minutes); i++) this.stepMinute();
     this.refreshClockAndNeeds();
+    onDone?.();
+  }
+
+  /** online: you stay put while the campus clock runs on (several actions in a row add up) */
+  private busyFor(minutes: number, label?: string, onDone?: () => void) {
+    const m = Math.round(minutes);
+    const s = this.sleepRun;
+    if (s) {
+      // already busy: the time adds on; asleep, eating or away, it's passing anyway
+      if (s.kind === 'busy' && m > 0) { s.left += m; s.total += m; }
+      if (onDone) { const prev = s.onDone; s.onDone = () => { prev?.(); onDone(); }; }
+      return;
+    }
+    if (m <= 0) { onDone?.(); return; }
+    this.sleeping = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    this.sleepRun = { kind: 'busy', label, msPerMin: 0, acc: 0, left: m, total: m, busy: false, events: [], onDone };
+  }
+
+  // ---------- the campus clock (online) ----------
+
+  /** online and moved in: your clock is the campus clock (registration weekend and solo play keep their own) */
+  private synced(): boolean { return this.net !== null && this.settled(); }
+
+  /** the campus time in your own day numbers */
+  private worldTarget(): number {
+    const w = worldNow();
+    this.worldOffset ??= alignOffset(this.save.clock, w);
+    return absMinutes(w) - this.worldOffset * 24 * 60;
+  }
+
+  /**
+   * How many game minutes your clock is behind the campus clock, to be played through now.
+   * The first time in a session, or after a long gap (a hidden tab), it jumps straight there instead.
+   * Ahead of the campus (it shouldn't happen), your clock simply waits for it.
+   */
+  private worldLag(): number {
+    const fresh = this.worldOffset === null;
+    let lag = this.worldTarget() - absMinutes(this.save.clock);
+    if (lag < -24 * 60) { this.worldOffset = null; lag = this.worldTarget() - absMinutes(this.save.clock); }
+    if (fresh || lag > CATCH_UP_MAX) { this.jumpToWorld(fresh); return 0; }
+    return Math.max(0, lag);
+  }
+
+  /** straight to the campus time: nothing happens in between (no penalties, no hunger), it just went by */
+  private jumpToWorld(arriving: boolean) {
+    const c = this.save.clock;
+    const to = this.worldTarget();
+    const gap = to - absMinutes(c);
+    this.fast = false;
+    this.minuteAcc = 0;
+    if (gap <= 0) { this.refreshClockAndNeeds(); return; }
+    c.day = Math.floor(to / (24 * 60));
+    c.minutes = to - c.day * 24 * 60;
+    // whatever you were doing is over
+    const s = this.sleepRun;
+    if (s && !s.busy) s.left = 0;
+    // after lessons it's dorm time: you're back in your dorm
+    if (!s && phaseOf(c.minutes, c.day) !== 'day' && this.room !== 'dorm' && !this.escort) this.placeInDorm();
+    this.npcClock = -1;
+    this.refreshClockAndNeeds();
+    if (gap >= 15) {
+      const day = t('days').split(',')[weekdayOf(c.day)];
+      this.hud.toast(arriving
+        ? L({ tr: `🕒 Kampüs saatindesin: ${day} ${fmtTime(c.minutes)}.`, en: `🕒 You're on campus time: ${day} ${fmtTime(c.minutes)}.` })
+        : L({ tr: `🕒 Kampüs saatine yetiştin: ${day} ${fmtTime(c.minutes)}.`, en: `🕒 Caught up with the campus clock: ${day} ${fmtTime(c.minutes)}.` }), 'good');
+    }
+    this.persist();
+  }
+
+  /** quietly into your dorm room, by your bed */
+  private placeInDorm() {
+    if (!this.room) this.outdoorZoom = this.cameras.main.zoom;
+    this.tray = null; this.trayAt = null;
+    this.lastDoor = this.nearestStand(this.ownDormLoc());
+    this.room = 'dorm';
+    this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE).setVelocity(0, 0);
+    this.dir = 3;
+    this.setCameraArea();
   }
 
   /** into bed: the night fast-forwards in about 40 seconds (your roommates are asleep around you) */
@@ -3535,10 +3647,12 @@ export class CampusScene extends Phaser.Scene {
   private updateSleep(delta: number) {
     const s = this.sleepRun!;
     if (s.busy) return;
-    s.acc += delta;
+    // online: as many minutes as the campus clock has moved on (worldLag can also end the run outright)
+    let steps = this.synced() ? Math.min(s.left, this.worldLag()) : -1;
+    if (steps < 0) s.acc += delta;
     let changed = false;
-    while (s.acc >= s.msPerMin && s.left > 0) {
-      s.acc -= s.msPerMin;
+    while (s.left > 0 && (steps < 0 ? s.acc >= s.msPerMin : steps-- > 0)) {
+      if (steps < 0) s.acc -= s.msPerMin;
       s.left--;
       this.stepMinute();
       changed = true;
@@ -3553,6 +3667,8 @@ export class CampusScene extends Phaser.Scene {
     const c = this.save.clock;
     const pct = Math.round(((s.total - s.left) / s.total) * 100);
     if (s.kind === 'sleep') this.hud.setBanner(L({ tr: `😴 Uyuyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `😴 Sleeping… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Uyan', en: 'Wake up' }), onClick: () => this.wakeUp(true) });
+    else if (s.kind === 'busy') this.hud.setBanner(`${s.label ?? '⏳'} ${fmtTime(c.minutes)} → ${fmtTime((c.minutes + s.left) % (24 * 60))}`, { label: L({ tr: 'Bırak', en: 'Stop' }), onClick: () => this.wakeUp(true) });
+    else if (s.kind === 'home') this.hud.setBanner(L({ tr: `🏠 Evde hafta sonu… ${t('days').split(',')[weekdayOf(c.day)]} ${fmtTime(c.minutes)} · dönüş Pazar 17:40`, en: `🏠 Weekend at home… ${t('days').split(',')[weekdayOf(c.day)]} ${fmtTime(c.minutes)} · back Sunday 17:40` }), { label: L({ tr: 'Okula dön', en: 'Back to school' }), onClick: () => this.wakeUp(true) });
     else if (s.kind === 'idle') this.hud.setBanner(L({ tr: `⏳ Vakit öldürüyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `⏳ Killing time… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Bırak', en: 'Stop' }), onClick: () => this.wakeUp(true) });
     else this.hud.setBanner(L({ tr: `🍽 Yemek yiyorsun… ${s.left} dk`, en: `🍽 Eating… ${s.left} min` }));
     if (s.left <= 0) this.wakeUp(false);
