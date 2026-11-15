@@ -14,6 +14,8 @@ import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } 
 import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, TRIBUNE_LIFT, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
+import { YetimCat } from './yetim';
+import { yetimPanel } from '../game/yetimCat';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
@@ -107,6 +109,8 @@ export class CampusScene extends Phaser.Scene {
   private warmLights!: Phaser.GameObjects.Group;
   /** birds, pigeons, rain puddles, trees (2D only) */
   private ambient!: Ambient;
+  /** the cat on the Merkez Meydan */
+  private yetim!: YetimCat;
   /** cached screen vignette for the night layer */
   private vignette: HTMLCanvasElement | null = null;
   /** 2.5D buildings: the painted image, its night windows, and where it stands */
@@ -351,6 +355,7 @@ export class CampusScene extends Phaser.Scene {
     for (const l of this.lightSpots) this.warmLights.add(this.add.image(l.x, l.y, 'warm').setScale(l.r / 2.5).setDepth(200_001).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0));
     // ground detail (lawn, worn edges, plaza outlines, court markings) and the living bits on top
     this.ambient = new Ambient(this, dressGround(this, this.map));
+    this.yetim = new YetimCat(this);
 
     // player
     const p = this.save.player;
@@ -1280,6 +1285,10 @@ export class CampusScene extends Phaser.Scene {
   private outdoorSpot(): { label: string; open: () => void } | null {
     if (this.room) return null;
     const ctx = () => this.gameCtx();
+    if (this.yetim.near(this.player)) {
+      const cat = { purr: (f: boolean) => this.yetim.purr(f), zoomies: () => this.yetim.zoomies(), startle: () => this.yetim.startle(this.player) };
+      return { label: L({ tr: 'Yetim (kedi)', en: 'Yetim (cat)' }), open: () => { const g = ctx(); this.panel.open(() => yetimPanel(g, cat)); } };
+    }
     if (this.cemilOut.visible && Phaser.Math.Distance.Between(this.cemilOut.x, this.cemilOut.y, this.player.x, this.player.y) < 1.6 * TILE) {
       return { label: 'Cemil Emmi', open: () => { const g = ctx(); this.panel.open(() => cemilPanel(g)); } };
     }
@@ -3985,6 +3994,10 @@ export class CampusScene extends Phaser.Scene {
     this.drawNight();
     this.updateParticles();
     this.ambient.update(time, delta, { player: this.player, inside: this.inside, rain: this.isRaining(), dark: this.darkAlpha });
+    this.yetim.update(time, delta, {
+      player: this.player, inside: this.inside, rain: this.isRaining(), dark: this.darkAlpha,
+      bond: this.save.state.friends.yetim ?? 0, engaged: !!this.panel?.isOpen && this.yetim.near(this.player),
+    });
     this.mapTimer += delta;
     if (this.mapTimer > 200) { this.mapTimer = 0; this.updateMaps(); }
     this.saveTimer += delta;

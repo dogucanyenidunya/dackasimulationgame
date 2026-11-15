@@ -56,7 +56,7 @@ function rgbOf(col: string): [number, number, number] {
   const n = parseInt(s, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-function mix(a: string, b: string, t: number): string {
+export function mix(a: string, b: string, t: number): string {
   const x = rgbOf(a), y = rgbOf(b);
   return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
@@ -875,7 +875,7 @@ function hairSideCap(k: Kid) {
 // ---------- outlines, textures and portraits ----------
 
 /** adds a dark outline `r` pixels wide around everything solid on the canvas, behind its soft edges */
-function addOutline(c: CanvasRenderingContext2D, w: number, h: number, r: number) {
+export function addOutline(c: CanvasRenderingContext2D, w: number, h: number, r: number) {
   const src = c.getImageData(0, 0, w, h).data;
   const img = new ImageData(w, h);
   const o = img.data;
