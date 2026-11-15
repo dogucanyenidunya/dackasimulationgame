@@ -9,7 +9,8 @@ export interface SaveData {
   lang: Lang;
   character: CharacterData;
   state: PlayerState;
-  player: { x: number; y: number; dir: number; inside?: boolean | 'dorm' | 'class' | 'dining' };
+  /** `door`: the outside step of the door you went in by (tiles) */
+  player: { x: number; y: number; dir: number; inside?: boolean | 'dorm' | 'class' | 'dining'; door?: [number, number] };
   clock: { day: number; minutes: number };
   /** revealed fog tiles, bit-packed + base64 */
   fog: string;
@@ -29,7 +30,8 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     character,
     state: defaultState(),
     player: { x: SPAWN.x, y: SPAWN.y, dir: 3 },
-    clock: { day: 1, minutes: 7 * 60 },
+    // the story starts on the Saturday morning of the registration weekend
+    clock: { day: 1, minutes: 9 * 60 },
     fog: '',
     seen: [],
     discovered: [],

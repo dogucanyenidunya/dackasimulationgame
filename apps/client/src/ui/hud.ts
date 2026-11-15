@@ -4,9 +4,10 @@ import { drawCharacter } from '../art/textures';
 import { sfx } from '../audio';
 import { askConfirm } from './confirm';
 import {
-  ATTRS, CAUSES, TRAITS, capitalize, keepsakeName, type CharacterData,
+  ATTRS, CAUSES, TRAITS, type CharacterData,
 } from '../content/character';
 import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
+import { weekday } from '../game/schedule';
 
 const TILE_COLORS: Record<number, [number, number, number]> = {
   [T.FOREST]: [47, 107, 69], [T.GROUND]: [231, 227, 218], [T.PATH]: [210, 200, 180], [T.PLAZA]: [183, 214, 160],
@@ -24,6 +25,8 @@ export interface MapView {
   player: { x: number; y: number };
   /** current mission target, tile coords (drawn as a ring when known) */
   target?: { x: number; y: number } | null;
+  /** your friends out on the campus (tile coords) */
+  friends?: Array<{ x: number; y: number; name: string }>;
 }
 
 /** where a location's "?" sits: its first door, or the label anchor for zones */
@@ -125,6 +128,17 @@ class MapCanvas {
       c.strokeStyle = '#e8453c'; c.lineWidth = 2.5;
       c.beginPath(); c.arc(tx, ty, (this.labels ? 13 : 8) * pulse, 0, Math.PI * 2); c.stroke();
     }
+    // friends: gold hearts you can find them by
+    for (const f of v.friends ?? []) {
+      const fx = X(f.x), fy = Y(f.y), r = this.labels ? 6 : 3.5;
+      c.fillStyle = '#3a2a10'; c.beginPath(); c.arc(fx, fy, r + 1.5, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffd34d'; c.beginPath(); c.arc(fx, fy, r, 0, Math.PI * 2); c.fill();
+      if (this.labels) {
+        c.font = 'bold 12px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+        c.lineWidth = 3; c.strokeStyle = 'rgba(20,30,26,0.85)'; c.strokeText(`💛 ${f.name}`, fx, fy - 8);
+        c.fillStyle = '#ffe27a'; c.fillText(`💛 ${f.name}`, fx, fy - 8);
+      }
+    }
     // player
     const px = X(v.player.x), py = Y(v.player.y);
     c.fillStyle = '#ffffff'; c.beginPath(); c.arc(px, py, this.labels ? 7 : 4.5, 0, Math.PI * 2); c.fill();
@@ -171,14 +185,7 @@ export class Hud {
   onProfile: () => void = () => {};
   onMissions: () => void = () => {};
   onChatSend: (text: string) => void = () => {};
-  onViewToggle: () => void = () => {};
 
-  /** the 2D/3D button shows the view you'd switch to */
-  setViewMode(mode: '2d' | '3d') {
-    const b = this.root.querySelector('.view-btn') as HTMLButtonElement;
-    b.textContent = mode === '3d' ? '2D' : '3D β';
-    b.title = mode === '3d' ? L({ tr: '2D görünüme geç', en: 'Switch to the 2D view' }) : L({ tr: '3D görünüme geç (deneme)', en: 'Switch to the 3D view (preview)' });
-  }
   chatOpen = false;
 
   /** shows the chat box (online only) */
@@ -235,7 +242,6 @@ export class Hud {
           <button class="profile-btn" type="button"></button>
           <button class="lang-btn" type="button"></button>
           <button class="mute-btn" type="button"></button>
-          <button class="view-btn" type="button"></button>
           <button class="reset-btn" type="button">↺</button>
         </div>
       </div>
@@ -315,7 +321,6 @@ export class Hud {
     const setMute = () => { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; };
     mute.addEventListener('click', () => { sfx.toggle(); setMute(); });
     setMute();
-    q('.view-btn').addEventListener('click', () => this.onViewToggle());
     q('.tracker').addEventListener('click', () => this.onMissions());
     q('.reset-btn').addEventListener('click', async () => { if (await askConfirm(t('reset_confirm'), t('menu_reset'), L({ tr: 'Vazgeç', en: 'Cancel' }))) this.onReset(); });
     onLangChange(() => this.refreshStatic());
@@ -384,7 +389,7 @@ export class Hud {
 
   setClock(day: number, minutes: number, periodText: string, weatherText = '') {
     const names = t('days').split(',');
-    this.clockDay.textContent = `${names[(day - 1) % 7]} · ${t('day_n', { n: day })}${weatherText ? ` · ${weatherText}` : ''}`;
+    this.clockDay.textContent = `${names[weekday(day)]} · ${t('day_n', { n: day })}${weatherText ? ` · ${weatherText}` : ''}`;
     const h = Math.floor(minutes / 60) % 24;
     const m = Math.floor(minutes % 60);
     this.clockTime.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -420,11 +425,20 @@ export class Hud {
     if (button) { b.textContent = button.label; b.onclick = button.onClick; }
   }
 
-  setCountdown(text: string | null, urgent = false) {
+  /** the strip at the top; `progress` (0–1) adds a time bar that runs down, `button` an action */
+  setCountdown(text: string | null, urgent = false, progress?: number, button?: { label: string; onClick: () => void }) {
     const el = this.root.querySelector('.hud-countdown') as HTMLElement;
     el.classList.toggle('hidden', !text);
     el.classList.toggle('urgent', urgent);
-    if (text && el.textContent !== text) el.textContent = text;
+    el.classList.toggle('with-bar', progress !== undefined);
+    if (!text) return;
+    if (!el.querySelector('.cd-text')) el.innerHTML = '<span class="cd-text"></span><div class="cd-bar"><i></i></div><button type="button" class="secondary cd-btn hidden"></button>';
+    const tx = el.querySelector('.cd-text') as HTMLElement;
+    if (tx.textContent !== text) tx.textContent = text;
+    (el.querySelector('.cd-bar i') as HTMLElement).style.width = `${Math.max(0, Math.min(1, progress ?? 0)) * 100}%`;
+    const b = el.querySelector('.cd-btn') as HTMLButtonElement;
+    b.classList.toggle('hidden', !button);
+    if (button) { if (b.textContent !== button.label) b.textContent = button.label; b.onclick = button.onClick; }
   }
 
   setPrompt(text: string | null) {
@@ -486,7 +500,6 @@ export class Hud {
       <div class="strength-card">
         <div class="sc-label">${L({ tr: 'Gücün', en: 'Your strength' })}</div>
         <div class="sc-name"></div><p class="perk"></p>
-        <div class="sc-keep">🎁 <b class="keep"></b></div>
       </div>
       ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
       <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
@@ -499,7 +512,6 @@ export class Hud {
     body.querySelector('.trait')!.textContent = L(trait.name);
     body.querySelector('.sc-name')!.textContent = L(cause.strength);
     body.querySelector('.perk')!.textContent = L(cause.perk);
-    body.querySelector('.keep')!.textContent = capitalize(keepsakeName(c.cause, c.loss));
     drawCharacter(body.querySelector('canvas')!.getContext('2d')!, 0, 0, c.look, 0, 0);
     this.openCustomModal(body, ['Enter', 'Escape', 'c', 'C', ' ']);
   }

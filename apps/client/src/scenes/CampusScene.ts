@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
-  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
+  MEYDAN_STAIRS, PYRAMID, TRIBUNE,
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -10,8 +11,7 @@ import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildings3d';
-import { CABIN_SIZE, GATE_LEAF_SIZE, WALL_FACE, makeGatewayTextures } from '../art/gateway';
-import { World3D, type Host3D } from '../three/World3D';
+import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, TRIBUNE_LIFT, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
 import { ClassLife } from './classLife';
@@ -19,26 +19,27 @@ import { Multiplayer, type PeerProfile, type PeerPos } from '../net/multiplayer'
 import { saveToCloud } from '../net/cloudSave';
 import type { NetUser } from '../main';
 import { Panel } from '../ui/panel';
-import { bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, exitPanel, lockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
+import { attendLesson, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
   BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
-import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane } from '../game/buildings';
+import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, carsiNow, isFriday, isWednesday, weekday } from '../game/weekend';
-import { activityOf, teacherActivity, type Activity, type Indoors, type RoutineClock } from '../game/routine';
+import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
 import { dilemmaDone, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
-import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, KANTIN_TILES, SEATS, SINKS, VISITOR_SPOT, buildDining } from '../content/dining';
-import { BELLETMENS, GROUPS, NPCS, TEACHER_NPCS, ageGroup, type NpcDef } from '../content/npcs';
+import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, buildDining } from '../content/dining';
+import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
+import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { CEREMONY, ETUT_START, LIGHTS_OUT, WAKE_UP, ceremonyNow, ceremonyWindow, phaseOf, type DayPhase } from '../game/schedule';
+import { CEREMONY, ETUT_START, LATE_AFTER, LIGHTS_OUT, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
 import {
   MISSIONS, missionById, nextObjective, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
-import { SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, type CourtSport, type SubjectId } from '../game/state';
+import { CLASS_LETTERS, SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
 import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp } from '../game/state';
 import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
@@ -50,6 +51,18 @@ const SPEED = 150;
 /** real milliseconds per game minute: day (07:00–22:30) ≈ 1 game hour per 80 s; night is compressed */
 const MS_PER_MIN_DAY = 80_000 / 60;
 const MS_PER_MIN_NIGHT = 240_000 / (8.5 * 60);
+/** the registration weekend runs fast (it's a rush); evening study drags, so it runs at double speed too */
+const RUSH_SPEED = 4;
+const ETUT_SPEED = 2;
+/** a night's sleep fast-forwards in about this many real milliseconds */
+const SLEEP_MS = 20_000;
+/** how long a meal takes at the table (game minutes), and how fast it goes by */
+const MEAL_MINUTES = 25;
+const MEAL_MS_PER_MIN = 320;
+/** a lesson you haven't gone to: after this many minutes the deputy head comes looking for you */
+const TRUANT_AFTER = 8;
+/** how many of your closest friends come and hang around near you in their free time */
+const FOLLOWERS = 3;
 
 const DIRS = { down: 0, left: 1, right: 2, up: 3 } as const;
 const PLAZA_RECT = PLAZA_EVENING;
@@ -126,28 +139,33 @@ export class CampusScene extends Phaser.Scene {
   private lastAllowed: { x: number; y: number } | null = null;
   private lastCurfewToast = 0;
   /** out at study time or after lights out: belletmens search for you (t = ms of searching, seen = where you were last seen) */
-  private hunt: { t: number; npcs: Phaser.Physics.Arcade.Sprite[]; seen: { x: number; y: number }; tipAt: number; cutAt: number; spotted: boolean } | null = null;
+  private hunt: { kind: 'curfew' | 'truant'; t: number; npcs: Phaser.Physics.Arcade.Sprite[]; seen: { x: number; y: number }; tipAt: number; cutAt: number; spotted: boolean } | null = null;
   /** real time you've been out of place (the grace period before the search starts) */
   private outFor = 0;
   /** caught: the belletmen walks you back to your dorm (walking = the scolding is over) */
-  private escort: { npc: Phaser.Physics.Arcade.Sprite; t: number; walking: boolean; done: boolean } | null = null;
+  private escort: { kind: 'curfew' | 'truant'; npc: Phaser.Physics.Arcade.Sprite; t: number; walking: boolean; done: boolean } | null = null;
+  /** the registration weekend: what's due once nothing is in the way (a modal, a menu) */
+  private rushDue: 'night' | 'end' | null = null;
+  private drawing = false;
+  /** the door you went in by (its outside step, in tiles): you come back out there */
+  private lastDoor: { x: number; y: number } | null = null;
+  /** where each friend who is keeping you company is heading, and when they last picked the spot */
+  private followAt = new Map<string, { x: number; y: number; t: number }>();
   private groupId: string | null = null;
   private sleeping = false;
   private layoutReset = false;
   /** the HD-2D view (null = classic 2D) */
-  private view3d: World3D | null = null;
-  private lastTint: [number, number, number] = [255, 255, 255];
   /** the dorm payphone, Cemil Emmi (in the boys' dorm and at its door by day), your Wednesday visitor */
   private payphone!: Phaser.GameObjects.Image;
   private cemilIn!: Phaser.GameObjects.Sprite;
   private cemilOut!: Phaser.Physics.Arcade.Sprite;
-  private visitor!: Phaser.GameObjects.Sprite;
   /** a pick-up game: friends on their way to the court */
   private match: { sport: CourtSport; court: Rect; mates: Phaser.Physics.Arcade.Sprite[]; until: number; ready: boolean } | null = null;
   /** the court whose panel was opened last (there's more than one basketball court) */
   private courtAt: Rect | null = null;
-  /** sleeping: the night fast-forwards in about 40 seconds; night challenges can interrupt it */
-  private sleepRun: { msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }> } | null = null;
+  /** time running fast while you stay put: asleep (the night goes by in about 20 seconds; night challenges can
+   *  interrupt it), killing time at your desk, or eating at the table */
+  private sleepRun: { kind: 'sleep' | 'idle' | 'eat'; msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }>; onDone?: () => void } | null = null;
   private zzz: Phaser.GameObjects.Text[] = [];
   /** online play (null = offline) */
   private net: NetUser | null = null;
@@ -159,6 +177,8 @@ export class CampusScene extends Phaser.Scene {
   private cooks: Phaser.GameObjects.Sprite[] = [];
   private dinerKey = '';
   private tray: { meal: import('../game/state').MealId; name: string } | null = null;
+  /** your tray on the table while you eat */
+  private trayAt: { x: number; y: number } | null = null;
   private trayImg!: Phaser.GameObjects.Image;
   private get inside() { return this.room !== null; }
   private classMates: Phaser.Physics.Arcade.Sprite[] = [];
@@ -180,18 +200,27 @@ export class CampusScene extends Phaser.Scene {
     // buildings moved since this save: keep the progress, reset the fog and walk in from the gate
     this.layoutReset = this.save.layout !== LAYOUT;
     if (this.layoutReset) {
+      // the calendar now starts on the Saturday of registration weekend: older saves keep their weekdays
+      if ((this.save.layout ?? 0) < 7) {
+        this.save.clock.day += 2;
+        for (const h of this.save.state.school.homework) h.day += 2;
+        for (const k of Object.keys(this.save.state.daily)) this.save.state.daily[k] += 2;
+      }
       this.save.fog = '';
       if (!this.save.player.inside) Object.assign(this.save.player, { x: SPAWN.x, y: SPAWN.y, dir: 2 });
       this.save.layout = LAYOUT;
     }
     this.net = data.net ?? null;
-    this.seen = new Set(this.save.seen);
-    this.discovered = new Set(this.save.discovered);
+    const known = (id: string) => LOCATIONS.some((l) => l.id === id);
+    this.seen = new Set(this.save.seen.filter(known));
+    this.discovered = new Set(this.save.discovered.filter(known));
+    const door = this.save.player.door;
+    this.lastDoor = door ? { x: door[0], y: door[1] } : null;
   }
 
   create() {
     generateTextures(this);
-    makeCharacterTexture(this, 'player', this.save.character.look);
+    makeCharacterTexture(this, 'player', wornLook(this.save.character.look, this.save.state));
     this.map = buildMap();
 
     // world tiles
@@ -202,6 +231,8 @@ export class CampusScene extends Phaser.Scene {
     this.drawCourtLines();
     makeGatewayTextures(this);
     this.add.image(STAIRS.x * TILE, STAIRS.y * TILE, 'stairs').setOrigin(0).setDepth(3);
+    // the steps down from the first-floor corridor through Eğitim to the Merkez Meydan
+    this.add.image(MEYDAN_STAIRS.x * TILE, MEYDAN_STAIRS.y * TILE - 4, 'stairs-ew').setOrigin(0).setDepth(3);
 
     this.drawBuildings();
 
@@ -234,22 +265,19 @@ export class CampusScene extends Phaser.Scene {
     this.lightSpots.push({ x: FOUNTAIN[0] * TILE, y: FOUNTAIN[1] * TILE, r: 2.5 });
     // the big green main gate: stone pillars, a green arch with the school's name, the leaves slid open
     // along the fence, and the guards' cabin just inside
-    const vertical = GATE.h > GATE.w;
-    const posts: Array<[number, number]> = vertical
-      ? [[GATE.x + 0.5, GATE.y - 0.5], [GATE.x + 0.5, GATE.y + GATE.h + 0.5]]
-      : [[GATE.x - 0.5, GATE.y + 0.5], [GATE.x + GATE.w + 0.5, GATE.y + 0.5]];
-    for (const [gx, gy] of posts) {
-      const post = trees.create(gx * TILE, gy * TILE - 34, 'gatepost') as Phaser.Physics.Arcade.Sprite;
-      post.setDepth(gy * TILE + 16);
-      post.body!.setSize(24, 12).setOffset(4, 86);
-    }
-    if (!vertical) {
-      const gy = GATE.y + 0.5;
-      this.add.image((GATE.x + GATE.w / 2) * TILE, gy * TILE - 70, 'gatearch').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
+    for (const gate of GATES) {
+      for (const gx of [gate.x - 0.5, gate.x + gate.w + 0.5]) {
+        const post = trees.create(gx * TILE, (gate.y + 0.5) * TILE - 34, 'gatepost') as Phaser.Physics.Arcade.Sprite;
+        post.setDepth((gate.y + 0.5) * TILE + 16);
+        post.body!.setSize(24, 12).setOffset(4, 86);
+      }
+      const gy = gate.y + 0.5;
+      this.add.image((gate.x + gate.w / 2) * TILE, gy * TILE - 70, gate === GATE ? 'gatearch' : 'gatearch-tim').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
       // the two leaves stand swung open into the campus, hinged on the pillars
-      const hinge = (GATE.y + 0.3) * TILE, ox = 1 / GATE_LEAF_SIZE.w;
-      this.add.image(GATE.x * TILE, hinge, 'gateleaf').setOrigin(ox, 1).setDepth(hinge);
-      this.add.image((GATE.x + GATE.w) * TILE, hinge, 'gateleaf').setOrigin(1 - ox, 1).setFlipX(true).setDepth(hinge);
+      const hinge = (gate.y + 0.3) * TILE, ox = 1 / GATE_LEAF_SIZE.w;
+      this.add.image(gate.x * TILE, hinge, 'gateleaf').setOrigin(ox, 1).setDepth(hinge);
+      this.add.image((gate.x + gate.w) * TILE, hinge, 'gateleaf').setOrigin(1 - ox, 1).setFlipX(true).setDepth(hinge);
+      this.lightSpots.push({ x: (gate.x + gate.w / 2) * TILE, y: (gate.y - 0.4) * TILE, r: 2 });
     }
     const cabin = trees.create(CABIN.x * TILE, (CABIN.y + CABIN.h) * TILE, 'cabin') as Phaser.Physics.Arcade.Sprite;
     cabin.setOrigin(0, 1).setDepth((CABIN.y + CABIN.h) * TILE).refreshBody();
@@ -270,7 +298,18 @@ export class CampusScene extends Phaser.Scene {
     }
     // Cemil Emmi sweeps in front of the boys' dorm by day
     this.cemilOut = trees.create(CEMIL_OUT[0] * TILE, CEMIL_OUT[1] * TILE, 'player', 0) as Phaser.Physics.Arcade.Sprite;
-    // the Atatürk bust in the very centre of the campus
+    // the three-sided pyramid in the very centre of the Merkez Meydan
+    const pyr = trees.create(PYRAMID.x * TILE, PYRAMID.y * TILE, 'pyramid') as Phaser.Physics.Arcade.Sprite;
+    pyr.setOrigin(0.5, 1 - PYRAMID_SIZE.foot / 2 / PYRAMID_SIZE.h).setDepth(PYRAMID.y * TILE + 6).refreshBody();
+    pyr.body!.setSize(PYRAMID_SIZE.w - 20, PYRAMID_SIZE.foot - 8).setOffset(10, PYRAMID_SIZE.h - PYRAMID_SIZE.foot + 2);
+    this.lightSpots.push({ x: PYRAMID.x * TILE, y: PYRAMID.y * TILE - 20, r: 2.6 });
+    // the grandstand along the Spor Salonu's east wall, facing the pitch (solid: you watch from the path in front)
+    TRIBUNE.forEach((r, i) => {
+      this.add.image(r.x * TILE, r.y * TILE - TRIBUNE_LIFT, tribuneKey(i)).setOrigin(0).setDepth((r.y + r.h) * TILE - 2);
+      const block = this.add.rectangle((r.x + r.w / 2) * TILE, (r.y + r.h / 2) * TILE, r.w * TILE, r.h * TILE).setVisible(false);
+      trees.add(block);
+    });
+    // the Atatürk bust in the south-west corner of the Merkez Meydan
     const bust = trees.create(BUST[0] * TILE, BUST[1] * TILE - 8, 'bust') as Phaser.Physics.Arcade.Sprite;
     bust.setDepth(BUST[1] * TILE + 28);
     bust.body!.setSize(30, 12).setOffset(5, 50);
@@ -373,8 +412,6 @@ export class CampusScene extends Phaser.Scene {
     void ATTRS; void CAUSES;
     this.hud.onMissions = () => { if (!this.blocked()) this.showMissions(); };
     this.hud.onRelationships = () => { if (!this.blocked()) this.showRelationships(); };
-    this.hud.onViewToggle = () => this.setView(this.view3d ? '2d' : '3d');
-    this.events.once('shutdown', () => { this.view3d?.dispose(); this.view3d = null; });
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
     this.groupId = myGroup(this.save.state);
@@ -392,8 +429,7 @@ export class CampusScene extends Phaser.Scene {
     this.updateTracker();
     this.updateMaps();
     if (this.net) void this.goOnline();
-    // 2D is the default; the 3D view is an opt-in preview
-    this.setView((() => { try { return localStorage.getItem('dacka.view') === '3d' ? '3d' : '2d'; } catch { return '2d'; } })());
+    try { localStorage.removeItem('dacka.view'); } catch { /* private mode */ }
   }
 
   // ---------- online: other real players ----------
@@ -502,7 +538,9 @@ export class CampusScene extends Phaser.Scene {
       const sp = this.physics.add.sprite((ROOM_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9).setDepth((y + 1) * TILE + 16);
       sp.body!.setSize(16, 10).setOffset(8, 21);
       sp.setImmovable(true);
-      sp.setData('def', def);
+      sp.setData('def', def).setData('slot', this.roomMates.length);
+      // (they sleep in pyjamas, and change at their lockers when they get up)
+      makeCharacterTexture(this, `npc-${def.id}-pj`, { ...DEFAULT_LOOK, ...def.look, ...PYJAMAS, skirt: false });
       this.physics.add.collider(this.player, sp);
       this.roomMates.push(sp);
     });
@@ -561,12 +599,6 @@ export class CampusScene extends Phaser.Scene {
     makeCharacterTexture(this, 'cook', { ...DEFAULT_LOOK, ...cookLook });
     for (const [x, y] of COOKS) this.cooks.push(this.add.sprite((DINING_OX + x + 0.5) * TILE, y * TILE, 'cook', 0).setDepth(y * TILE + 16));
     this.trayImg = this.add.image(0, 0, 'tray').setVisible(false);
-    // Wednesday afternoons: your family waits by the canteen
-    const g = this.save.character.guardian;
-    const granny = g.startsWith('grandma'), oldMan = g === 'grandpa';
-    const female = granny || g === 'mother' || g.startsWith('aunt');
-    makeCharacterTexture(this, 'visitor', { ...DEFAULT_LOOK, skin: this.save.character.look.skin, hair: granny || oldMan ? '#cfcfcf' : '#3b2a20', hairStyle: female ? 2 : 1, skirt: female, top: female ? '#8a4f6b' : '#4f5f7a', bottom: '#3a3a3a' });
-    this.visitor = this.add.sprite((DINING_OX + VISITOR_SPOT[0]) * TILE, VISITOR_SPOT[1] * TILE, 'visitor', 2).setScale(1.15).setDepth(VISITOR_SPOT[1] * TILE + 16).setVisible(false);
   }
 
   /** seats whoever is in the dining hall right now: people arrive and leave through the meal */
@@ -606,10 +638,9 @@ export class CampusScene extends Phaser.Scene {
     this.cameras.main.fadeIn(280, 10, 14, 20);
     this.hud.setPrompt(null);
     const m = currentMeal(this.gameCtx());
-    this.hud.toast(m
+    if (m || isSnackTime(this.save.clock.minutes)) this.hud.toast(m
       ? L({ tr: `${m.name} servisi var: ellerini yıka, tezgâhtan tepsini al ve boş bir yere otur.`, en: `${m.name} is being served: wash your hands, get a tray at the counter and find a free seat.` })
-      : isSnackTime(this.save.clock.minutes) ? L({ tr: 'Ara öğün saati: tezgâhta poğaça, simit ve kek var.', en: 'Snack time: poğaça, simit and cake at the counter.' })
-      : L({ tr: 'Şu an servis yok. Kantin sağ köşede.', en: 'Nothing is being served right now. The canteen is in the right corner.' }));
+      : L({ tr: 'Ara öğün saati: tezgâhta poğaça, simit ve kek var.', en: 'Snack time: poğaça, simit and cake at the counter.' }));
     this.persist();
   }
 
@@ -624,9 +655,35 @@ export class CampusScene extends Phaser.Scene {
     const snack = isSnackTime(this.save.clock.minutes);
     this.cooks.forEach((c, i) => c.setVisible(serving || snack).setFrame(Math.floor(time / 900 + i) % 5 === 0 ? 1 : 0));
     // carry your tray
-    this.trayImg.setVisible(this.room === 'dining' && !!this.tray);
+    this.trayImg.setVisible(this.room === 'dining' && (!!this.tray || !!this.trayAt));
     if (this.tray) this.trayImg.setPosition(this.player.x, this.player.y + 4).setDepth(this.player.y + 18);
+    else if (this.trayAt) this.trayImg.setPosition(this.trayAt.x, this.trayAt.y).setDepth(this.trayAt.y + 20);
     if (this.tray && !serving) { this.tray = null; this.hud.toast(L({ tr: 'Servis bitti; tepsini geri bıraktın.', en: 'Serving is over; you put your tray back.' })); }
+    // the hall shuts between meals: whoever is still inside is shown out (once they've finished eating)
+    if (this.room === 'dining' && !diningOpen(this.save.clock.minutes) && !this.blocked() && !this.sleeping) {
+      this.leaveDorm();
+      this.hud.toast(L({ tr: 'Yemekhane kapandı; görevli seni kapının önüne çıkardı.', en: 'The dining hall has closed; the staff showed you out to the door.' }));
+    }
+  }
+
+  /** sit down with your tray: the meal takes a while (the hall goes on around you), then you're full */
+  private startMeal(seat: { x: number; y: number; faces: 0 | 3 }) {
+    const ctx = this.gameCtx();
+    const tray = this.tray!;
+    this.tray = null;
+    this.player.setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE).setVelocity(0, 0);
+    this.player.anims.stop();
+    this.dir = seat.faces;
+    // whoever is at your table when you finish is who you ate with
+    const tablemates = () => this.diners.filter((d) => d.visible && Math.abs((d.getData('seat') as { x: number }).x - seat.x) <= 1
+      && Math.abs((d.getData('seat') as { y: number }).y - seat.y) <= 2).map((d) => d.getData('def') as NpcDef).slice(0, 4);
+    this.trayAt = { x: this.player.x, y: this.player.y + (seat.faces === 0 ? 14 : -14) };
+    this.sleeping = true;
+    this.sleepRun = {
+      kind: 'eat', msPerMin: MEAL_MS_PER_MIN, acc: 0, left: MEAL_MINUTES, total: MEAL_MINUTES, busy: false, events: [],
+      onDone: () => { this.trayAt = null; eatMeal(ctx, tray.meal, tray.name, tablemates()); this.persist(); },
+    };
+    this.hud.toast(L({ tr: `${tray.name}: afiyet olsun!`, en: `${tray.name}: enjoy your meal!` }), 'good');
   }
 
   private freeSeatNear(): { x: number; y: number; faces: 0 | 3 } | null {
@@ -648,11 +705,10 @@ export class CampusScene extends Phaser.Scene {
     if (COUNTER_TILES.some(([x, y]) => near(x, y + 0.9, 1))) return { id: 'counter', label: this.tray ? L({ tr: 'Tepsin elinde: boş bir yere otur', en: 'You have your tray: find a free seat' })
       : !currentMeal(this.gameCtx()) && isSnackTime(this.save.clock.minutes) ? L({ tr: 'Ara öğün', en: 'Afternoon snack' }) : L({ tr: 'Tepsini al', en: 'Get a tray' }) };
     if (SINKS.some(([x, y]) => near(x + 0.8, y, 1.1))) return { id: 'sink', label: L({ tr: 'Ellerini yıka', en: 'Wash your hands' }) };
-    if (KANTIN_TILES.some(([x, y]) => near(x, y - 0.8, 1.1))) return { id: 'kantin', label: L({ tr: 'Kantin', en: 'Canteen' }) };
     for (const d of this.diners) {
       if (d.visible && Phaser.Math.Distance.Between(d.x, d.y, this.player.x, this.player.y) < 1.4 * TILE) {
         const def = d.getData('def') as NpcDef;
-        return { id: 'diner', label: def.name, npc: def };
+        return { id: 'diner', label: this.tagged(def), npc: def };
       }
     }
     if (DINING_EXIT.some(([x, y]) => near(x, y - 0.6, 1.3))) return { id: 'exit', label: L({ tr: 'Kapı · merdivenler', en: 'Door · stairs' }) };
@@ -676,21 +732,21 @@ export class CampusScene extends Phaser.Scene {
         break;
       }
       case 'seat': {
-        const seat = this.freeSeatNear()!;
-        const mates = this.diners.filter((d) => d.visible && Math.abs((d.getData('seat') as { x: number }).x - seat.x) <= 1
-          && Math.abs((d.getData('seat') as { y: number }).y - seat.y) <= 2).map((d) => d.getData('def') as NpcDef).slice(0, 4);
-        const tray = this.tray!;
-        this.tray = null;
-        this.player.setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE);
-        this.dir = seat.faces;
-        eatMeal(ctx, tray.meal, tray.name, mates);
+        this.startMeal(this.freeSeatNear()!);
         break;
       }
       case 'sink': washHands(ctx); break;
-      case 'kantin': this.panel.open(() => yemekhane(ctx, 'kantin')); break;
       case 'diner': this.nearNpc = th.npc!; this.panel.open(() => npcPanel(th.npc!, ctx)); break;
-      case 'exit': this.panel.open(() => yemekhane(ctx, 'exit')); break;
+      case 'exit': this.panel.open(() => yemekhane(ctx)); break;
     }
+  }
+
+  /** a friend's name carries a heart, so you can tell them from everyone else at a glance */
+  private isFriend(def: NpcDef): boolean {
+    return def.kind !== 'belletmen' && def.kind !== 'teacher' && (this.save.state.friends[def.id] ?? 0) >= FRIEND_AT;
+  }
+  private tagged(def: NpcDef): string {
+    return `${this.isFriend(def) ? '💛 ' : ''}${def.name}`;
   }
 
   // ---------- classroom (Eğitim Binası) ----------
@@ -738,9 +794,14 @@ export class CampusScene extends Phaser.Scene {
     this.cameras.main.fadeIn(280, 10, 14, 20);
     this.hud.setPrompt(null);
     const les = this.currentLesson();
-    if (les && reached('derse_gir', this.mc())) {
+    if (les && this.lessonsOn()) {
       const sname = L(SUBJECTS.find((x) => x.id === les.subject)!.name);
-      this.hud.toast(L({ tr: `${sname} dersi · ${les.teacher.name}. Sırana otur!`, en: `${sname} with ${les.teacher.name}. Take your seat!` }));
+      const late = this.save.clock.minutes - les.p.start;
+      const slip = this.save.state.daily[`slip-${les.p.id}`] === this.save.clock.day;
+      if (this.save.state.school.attended.includes(`${this.save.clock.day}-${les.p.id}`)) { /* you've had this lesson */ }
+      else if (this.save.state.sick) this.hud.toast(L({ tr: `${les.teacher.name}: "Hastasın sen! Seni derse alamam, doğru Revir'e git."`, en: `${les.teacher.name}: "You're ill! I can't have you in class. Go straight to the infirmary."` }));
+      else if (late > LATE_AFTER && !slip) this.hud.toast(L({ tr: `${les.teacher.name}: "${late} dakika geç kaldın! Önce müdür yardımcısından geç kâğıdı al." (kapıdan koridora çık)`, en: `${les.teacher.name}: "You're ${late} minutes late! Get a late slip from the deputy head first." (go out to the corridor)` }));
+      else this.hud.toast(L({ tr: `${sname} dersi · ${les.teacher.name}. Sırana otur!`, en: `${sname} with ${les.teacher.name}. Take your seat!` }));
     }
     this.persist();
   }
@@ -806,7 +867,7 @@ export class CampusScene extends Phaser.Scene {
     for (const sp of this.classMates) {
       if (sp.visible && Phaser.Math.Distance.Between(sp.x, sp.y, this.player.x, this.player.y) < 1.5 * TILE) {
         const def = sp.getData('def') as NpcDef;
-        return { id: 'mate', label: def.name, npc: def };
+        return { id: 'mate', label: this.tagged(def), npc: def };
       }
     }
     if (near(MY_CLASS_DESK[0], MY_CLASS_DESK[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Sırana otur', en: 'Sit at your desk' }) };
@@ -855,7 +916,8 @@ export class CampusScene extends Phaser.Scene {
         ? L({ tr: `${escortedBy}: "Masana otur ve ders çalış. Gözüm üstünde!"`, en: `${escortedBy}: "Sit at your desk and study. I'm watching you!"` })
         : L({ tr: `${escortedBy}: "Doğru yatağına! Bir daha olmasın."`, en: `${escortedBy}: "Straight to bed! Don't let it happen again."` }));
     }
-    else if (!this.save.state.once.luggage) this.hud.toast(L({ tr: 'Yatağın sağdaki yatakhanede (sarı etiket). Bavulunu oraya götür.', en: 'Your bed is in the sleeping room on the right (yellow tag). Take your suitcase there.' }));
+    else if (!this.save.state.once.luggage) this.hud.toast(L({ tr: 'Dolabın sağdaki yatakhanede, alt duvarda (sarı etiket). Bavulunu oraya götür ve dolabına yerleştir.', en: 'Your locker is in the sleeping room on the right, on the bottom wall (yellow tag). Take your suitcase there and unpack it.' }));
+    else if (!this.settled()) { /* registration weekend: come and go as you please */ }
     else if (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night') {
       const mm = this.save.clock.minutes;
       const late = mm >= 22 * 60 ? mm - 22 * 60 : mm + 120;
@@ -872,13 +934,13 @@ export class CampusScene extends Phaser.Scene {
     this.persist();
   }
 
-  /** step out of whichever room you're in */
+  /** step out of whichever room you're in, by the door you came in at */
   private leaveDorm() {
     const from = this.room;
+    if (!from) return; // (menus of buildings you never walk into have nothing to step out of)
     this.room = null;
-    const loc = from === 'class' ? LOCATIONS.find((l) => l.id === 'egitim')! : from === 'dining' ? LOCATIONS.find((l) => l.id === 'yemekhane')! : this.ownDormLoc();
-    this.tray = null;
-    const stand = doorStandTile(loc.doors![0]);
+    this.tray = null; this.trayAt = null;
+    const stand = this.exitTile(from);
     this.player.setPosition((stand.x + 0.5) * TILE, (stand.y + 0.5) * TILE).setVelocity(0, 0);
     this.setCameraArea();
     this.cameras.main.fadeIn(280, 10, 14, 20);
@@ -886,16 +948,33 @@ export class CampusScene extends Phaser.Scene {
     this.persist();
   }
 
-  /** where you are on the campus map (your dorm door while inside) */
+  private roomLoc(room: 'dorm' | 'class' | 'dining') {
+    return room === 'class' ? LOCATIONS.find((l) => l.id === 'egitim')! : room === 'dining' ? LOCATIONS.find((l) => l.id === 'yemekhane')! : this.ownDormLoc();
+  }
+
+  /** the step outside the door you used to get into this room (its first door if that isn't known) */
+  private exitTile(room: 'dorm' | 'class' | 'dining'): { x: number; y: number } {
+    const stands = this.roomLoc(room).doors!.map(doorStandTile);
+    const last = this.lastDoor;
+    return (last && stands.find((d) => d.x === last.x && d.y === last.y)) || stands[0];
+  }
+
+  /** the door of a place nearest to you (its outside step) */
+  private nearestStand(loc: Location): { x: number; y: number } {
+    const px = this.player.x / TILE, py = this.player.y / TILE;
+    return loc.doors!.map(doorStandTile).reduce((a, b) => (Math.hypot(a.x + 0.5 - px, a.y + 0.5 - py) <= Math.hypot(b.x + 0.5 - px, b.y + 0.5 - py) ? a : b));
+  }
+
+  /** where you are on the campus map (the door you went in by while inside) */
   private campusPos(): { x: number; y: number } {
-    if (!this.inside) return { x: this.player.x / TILE, y: this.player.y / TILE };
-    const s = doorStandTile((this.room === 'class' ? LOCATIONS.find((l) => l.id === 'egitim')! : this.room === 'dining' ? LOCATIONS.find((l) => l.id === 'yemekhane')! : this.ownDormLoc()).doors![0]);
+    if (!this.room) return { x: this.player.x / TILE, y: this.player.y / TILE };
+    const s = this.exitTile(this.room);
     return { x: s.x + 0.5, y: s.y + 0.5 };
   }
 
   /** little z's float up from everyone asleep in the room */
   private updateZzz(on: boolean, time: number) {
-    const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.angle !== 0), ...(this.sleepRun ? [this.player] : [])] : [];
+    const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.angle !== 0), ...(this.sleepRun?.kind === 'sleep' ? [this.player] : [])] : [];
     while (this.zzz.length < sleepers.length) {
       this.zzz.push(this.add.text(0, 0, 'z', { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#dfe8ff', stroke: '#1d2326', strokeThickness: 3 }).setOrigin(0.5).setDepth(95_500));
     }
@@ -941,8 +1020,6 @@ export class CampusScene extends Phaser.Scene {
     this.cemilOut.setVisible(outDay);
     (this.cemilOut.body as Phaser.Physics.Arcade.StaticBody).enable = outDay;
     if (outDay) this.cemilOut.setFrame(Math.floor(this.time.now / 900) % 2 ? 1 : 2);
-    const st = this.save.state;
-    this.visitor.setVisible(this.room === 'dining' && carsiNow(c.day, m) && st.daily.wedvisit !== c.day);
   }
 
   /** E-interactions outdoors that aren't doors or students: Cemil Emmi, the courts */
@@ -1033,25 +1110,54 @@ export class CampusScene extends Phaser.Scene {
     this.hud.setBanner(null);
   }
 
-  private updateRoom(time: number) {
-    const phase = phaseOf(this.save.clock.minutes, this.save.clock.day);
+  private updateRoom(time: number, delta: number) {
+    const c = this.save.clock;
+    const phase = phaseOf(c.minutes, c.day);
     const study = phase === 'etut';
-    const night = phase === 'night' || this.sleepRun !== null;
-    const early = this.save.clock.minutes < 9 * 60; // still in the dorm in the morning = not up yet
+    const night = phase === 'night' || this.sleepRun?.kind === 'sleep';
+    const early = c.minutes < 9 * 60; // still in the dorm in the morning = not up yet
     const beds = BEDS.filter(([x, y]) => !(x === MY_BED[0] && y === MY_BED[1]));
-    let bed = 0;
+    const step = (Math.min(delta, 100) / 1000) * 75 * (this.fast ? 3 : 1);
     this.roomMates.forEach((sp, i) => {
-      const home = this.whereIs(sp.getData('def') as NpcDef) === 'dorm';
+      const def = sp.getData('def') as NpcDef;
+      const home = this.whereIs(def) === 'dorm';
       if (!sp.getData('desk')) sp.setData('desk', [sp.x, sp.y]);
-      if ((night || early) && home && bed < beds.length) {
-        // asleep in the bunks next to yours
-        const [bx, by] = beds[bed++];
-        sp.setPosition((ROOM_OX + bx + 0.5) * TILE, (by + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((by + 1) * TILE + 4);
+      const wake = wakeTime(def, c.day);
+      const tex = (pj: boolean) => { const key = pj ? `npc-${def.id}-pj` : `npc-${def.id}`; if (sp.texture.key !== key) sp.setTexture(key, 0); };
+      // just up: over to the lockers in pyjamas, a few minutes changing, then off to breakfast in uniform
+      if (home && early && !night && c.minutes >= wake && c.minutes < wake + DRESS_MINUTES && !this.rushOn()) {
+        const lx = (ROOM_OX + 21 + (i % 4) + 0.5) * TILE, ly = 11.35 * TILE;
+        if (sp.angle !== 0) sp.setAngle(0);
+        sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
+        const dx = lx - sp.x, dy = ly - sp.y, d = Math.hypot(dx, dy);
+        const changed = c.minutes >= wake + DRESS_MINUTES / 2;
+        if (d > 2) {
+          // (straight across the sleeping room: beds are low enough to walk round in a blink)
+          sp.setPosition(sp.x + (dx / d) * Math.min(d, step), sp.y + (dy / d) * Math.min(d, step));
+          tex(true);
+          sp.setFrame((Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0) * 3 + [1, 0, 2, 0][Math.floor(time / 150) % 4]);
+        } else {
+          tex(!changed);
+          // rummaging in the locker, pulling a sweater over their head
+          sp.setFrame(Math.floor(time / 260 + i) % 3 === 0 ? 1 : 0);
+          if (!changed && !sp.getData('dressSaid') && this.room === 'dorm' && Math.random() < 0.01) { sp.setData('dressSaid', true); this.bubbleAbove(sp, L({ tr: 'Kazağım nerede?', en: "Where's my sweater?" })); }
+        }
+        sp.setDepth(sp.y + 16);
+        return;
+      }
+      sp.setData('dressSaid', false);
+      if ((night || early) && home) {
+        // asleep in the bunks next to yours (there are more of them than beds in this corner: the rest sleep next door)
+        const b = beds[i];
+        if (!b) { sp.setVisible(false); sp.body!.enable = false; return; }
+        tex(true);
+        sp.setPosition((ROOM_OX + b[0] + 0.5) * TILE, (b[1] + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((b[1] + 1) * TILE + 4);
         sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
         return;
       }
       const [dx, dy] = sp.getData('desk') as [number, number];
-      if (sp.angle !== 0) sp.setAngle(0).setPosition(dx, dy).setDepth(dy + 16);
+      tex(false);
+      if (sp.angle !== 0 || sp.x !== dx || sp.y !== dy) sp.setAngle(0).setPosition(dx, dy).setDepth(dy + 16);
       sp.setVisible(home);
       sp.body!.enable = home;
       // heads down, writing: a tiny bob now and then
@@ -1090,14 +1196,19 @@ export class CampusScene extends Phaser.Scene {
       if (!sp.visible) continue;
       if (Phaser.Math.Distance.Between(sp.x, sp.y, this.player.x, this.player.y) < 1.5 * TILE) {
         const def = sp.getData('def') as NpcDef;
-        return { id: 'mate', label: L({ tr: `${def.name} ile…`, en: `${def.name}…` }), npc: def };
+        return { id: 'mate', label: L({ tr: `${this.tagged(def)} ile…`, en: `${this.tagged(def)}…` }), npc: def };
       }
     }
     if (this.cemilIn.visible && Phaser.Math.Distance.Between(this.cemilIn.x, this.cemilIn.y, this.player.x, this.player.y) < 1.6 * TILE) return { id: 'cemil', label: 'Cemil Emmi' };
     if (near(PHONE_SPOT[0], 2.2, 1.2)) return { id: 'phone', label: L({ tr: 'Telefon', en: 'Phone' }) };
     if (near(MY_DESK[0], MY_DESK[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Masana otur', en: 'Sit at your desk' }) };
     if (near(MY_BED[0], MY_BED[1], 1.6)) return { id: 'bed', label: L({ tr: 'Yatağın', en: 'Your bed' }) };
-    if (near(MY_LOCKER[0], MY_LOCKER[1] - 0.6, 1.5)) return { id: 'locker', label: L({ tr: 'Dolabın', en: 'Your locker' }) };
+    if (near(MY_LOCKER[0], MY_LOCKER[1] - 0.6, 1.3)) return { id: 'locker', label: this.save.state.once.luggage ? L({ tr: 'Dolabın', en: 'Your locker' }) : L({ tr: 'Dolabın: bavulunu yerleştir', en: 'Your locker: unpack your suitcase' }) };
+    // the lockers next to yours belong to your classmates
+    if ([22, 23, 24].some((x) => near(x, MY_LOCKER[1] - 0.6, 1.1))) {
+      const pal = dormBestFriend(this.gameCtx());
+      return { id: 'matelocker', label: pal ? L({ tr: `${genitiveTr(pal.name)} dolabı · kıyafet iste`, en: `${pal.name}'s locker · borrow clothes` }) : L({ tr: 'Arkadaşının dolabı', en: "A friend's locker" }) };
+    }
     if (near(TV_SPOT[0], TV_SPOT[1] - 0.4, 1.5)) return { id: 'tv', label: L({ tr: 'Televizyon', en: 'TV' }) };
     if (EXIT.some(([x, y]) => near(x, y - 0.6, 1.3))) return { id: 'exit', label: L({ tr: 'Kapı', en: 'Door' }) };
     return null;
@@ -1114,6 +1225,7 @@ export class CampusScene extends Phaser.Scene {
       case 'desk': this.panel.open(() => deskPanel(ctx)); break;
       case 'bed': this.panel.open(() => bedPanel(ctx)); break;
       case 'locker': this.panel.open(() => lockerPanel(ctx)); break;
+      case 'matelocker': this.panel.open(() => mateLockerPanel(ctx)); break;
       case 'tv': this.panel.open(() => tvPanel(ctx)); break;
       case 'exit': this.panel.open(() => exitPanel(ctx)); break;
       case 'phone': this.panel.open(() => phonePanel(ctx)); break;
@@ -1340,7 +1452,7 @@ export class CampusScene extends Phaser.Scene {
     this.gateTile = this.walkable(GATE_IN[0], GATE_IN[1] - 2);
     // the line-up for the flag ceremony: three columns facing the flag, the little ones at the front, the teachers beside the flag
     const lineUp = [...NPCS].sort((a, b) => (a.grade ?? 4) - (b.grade ?? 4));
-    for (const def of [...NPCS, ...BELLETMENS, ...TEACHER_NPCS]) {
+    for (const def of [...NPCS, ...BELLETMENS, ...TEACHER_NPCS, DEPUTY]) {
       const key = `npc-${def.id}`;
       makeCharacterTexture(this, key, { ...DEFAULT_LOOK, ...def.look });
       const [x, y] = this.walkable(def.home[0], def.home[1]);
@@ -1355,8 +1467,9 @@ export class CampusScene extends Phaser.Scene {
       npc.setData('dayRoam', def.roam);
       if (def.kind !== 'belletmen' && def.kind !== 'teacher' && !def.fixed) this.pickDayHome(npc);
       const li = lineUp.indexOf(def), ti = TEACHER_NPCS.indexOf(def);
-      if (ti >= 0) npc.setData('ceremonyHome', this.walkable(48, 26 + ti));
-      else if (li >= 0) npc.setData('ceremonyHome', this.walkable(46 - (li % 3) * 2, 26 + Math.floor(li / 3)));
+      if (ti >= 0) npc.setData('ceremonyHome', this.walkable(52 + (ti % 2), 27 + Math.floor(ti / 2)));
+      else if (def === DEPUTY) npc.setData('ceremonyHome', this.walkable(51, 27));
+      else if (li >= 0) npc.setData('ceremonyHome', this.walkable(45.2 - (li % 4) * 1.2, 25 + Math.floor(li / 4)));
       // evening spot around the dorms (20:00–22:00)
       this.pickEveningHome(npc);
       // where they wait for the bell
@@ -1388,7 +1501,8 @@ export class CampusScene extends Phaser.Scene {
   private pickEveningHome(npc: Phaser.Physics.Arcade.Sprite) {
     const def = npc.getData('def') as NpcDef;
     const g = def.grade ?? 4;
-    const z = def.fixed || Math.random() < 0.35 ? EVENING_CENTER : EVENING_ZONES[g >= 9 ? 'lise' : (String(g) as '4' | '5' | '6' | '7' | '8')];
+    // (most of them are out on the Yurt Meydanı itself; a few keep to their own year's corner)
+    const z = def.fixed || Math.random() < 0.7 ? EVENING_CENTER : EVENING_ZONES[g >= 9 ? 'lise' : (String(g) as '4' | '5' | '6' | '7' | '8')];
     npc.setData('plazaHome', this.walkable(z.x + Math.random() * (z.w - 1), z.y + Math.random() * (z.h - 1)));
   }
 
@@ -1411,8 +1525,15 @@ export class CampusScene extends Phaser.Scene {
 
   private routineClock(): RoutineClock {
     const c = this.save.clock;
-    return this.rc ?? { day: c.day, minutes: c.minutes, lessonsOn: reached('derse_gir', this.mc()), raining: this.isRaining() };
+    return this.rc ?? { day: c.day, minutes: c.minutes, lessonsOn: this.lessonsOn(), raining: this.isRaining(), rush: this.rushOn() };
   }
+
+  /** the registration weekend is still on */
+  private rushOn(): boolean { return !this.save.state.once.rushDone; }
+  /** registered and moved in: from the first Monday the school's rules apply to you */
+  private settled(): boolean { return !this.rushOn(); }
+  /** lessons run from the first Monday */
+  private lessonsOn(): boolean { return this.settled(); }
 
   /** the building a student is inside right now (null = outdoors, or called over to a game) */
   private whereIs(def: NpcDef): Indoors | null {
@@ -1446,9 +1567,21 @@ export class CampusScene extends Phaser.Scene {
     }
     const summon = npc.getData('summon') as [number, number] | undefined;
     if (summon) return { home: summon, roam: 0 };
+    if (def === DEPUTY) {
+      // in his office on school days (and through the registration weekend); at the flag for the ceremony
+      const c = this.save.clock, rc = this.routineClock();
+      const cer = rc.raining ? null : ceremonyWindow(c.day);
+      if (cer && c.minutes >= cer[0] - 6 && c.minutes < cer[1]) return { home: npc.getData('ceremonyHome'), roam: 0, face: FLAGPOLE };
+      return (rc.rush || weekdayOf(c.day) < 5) && c.minutes >= 7 * 60 + 40 && c.minutes < 17 * 60 ? indoors('egitim') : indoors('away');
+    }
     const ti = def.kind === 'teacher' ? TEACHER_NPCS.indexOf(def) : -1;
     const act: Activity = ti >= 0 ? teacherActivity(ti, this.routineClock()) : activityOf(def, this.routineClock());
     if (act.in) return indoors(act.in);
+    // your closest friends spend their free time near you
+    if ((act.out === 'lawn' || act.out === 'plaza') && !this.room && this.followers().includes(def.id)) {
+      const spot = this.followSpot(def.id);
+      if (spot) return { home: [spot.x, spot.y], roam: 2 };
+    }
     // lined up at the flag, standing still and facing it
     if (act.out === 'ceremony') return { home: npc.getData('ceremonyHome'), roam: 0, face: FLAGPOLE };
     if (act.out === 'plaza') return { home: npc.getData('plazaHome'), roam: 3 };
@@ -1456,10 +1589,39 @@ export class CampusScene extends Phaser.Scene {
     return { home: npc.getData('dayHome'), roam: npc.getData('dayRoam') ?? def.roam };
   }
 
+  /** the friends who keep you company: your closest few, once you're friends */
+  private followers(): string[] {
+    if (this.followIds) return this.followIds;
+    const st = this.save.state;
+    this.followIds = NPCS.filter((n) => !n.fixed && (st.friends[n.id] ?? 0) >= FRIEND_AT)
+      .sort((a, b) => (st.friends[b.id] ?? 0) - (st.friends[a.id] ?? 0)).slice(0, FOLLOWERS).map((n) => n.id);
+    return this.followIds;
+  }
+  private followIds: string[] | null = null;
+
+  /** somewhere to stand a few tiles from you; they pick a new spot when you've walked off, not at every step */
+  private followSpot(id: string): { x: number; y: number } | null {
+    const px = this.player.x / TILE, py = this.player.y / TILE;
+    const cur = this.followAt.get(id);
+    const now = this.time.now;
+    if (cur && (Math.hypot(cur.x - px, cur.y - py) < 6 || now - cur.t < 2500)) return cur;
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 2.5;
+      const tx = Math.round(px + Math.cos(a) * r), ty = Math.round(py + Math.sin(a) * r);
+      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
+      const k = ty * MAP_W + tx;
+      if (!this.npcReach[k] || this.doorClear[k]) continue;
+      const spot = { x: tx, y: ty, t: now };
+      this.followAt.set(id, spot);
+      return spot;
+    }
+    return cur ?? null;
+  }
+
   private updateNpcs(time: number) {
     const c = this.save.clock;
     const phase = phaseOf(c.minutes, c.day);
-    this.rc = { day: c.day, minutes: c.minutes, lessonsOn: reached('derse_gir', this.mc()), raining: this.isRaining() };
+    this.rc = { day: c.day, minutes: c.minutes, lessonsOn: this.lessonsOn(), raining: this.isRaining(), rush: this.rushOn() };
     // after a jump in time (a lesson, a night's sleep, a loaded save) nobody walks: they are simply where they should be
     const now = c.day * 1440 + c.minutes;
     const first = this.npcClock < 0;
@@ -1538,10 +1700,13 @@ export class CampusScene extends Phaser.Scene {
       const step = moving ? [1, 0, 2, 0][Math.floor(time / 130) % 4] : 0;
       npc.setFrame(dir * 3 + step);
       npc.setDepth(npc.y + 16);
-      const star = def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : '';
+      // friends carry a heart and a gold name you can read from right across the screen
+      const friend = this.isFriend(def);
+      const star = (friend ? '💛 ' : '') + (def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : '');
       if (label.text !== star + def.name) label.setText(star + def.name);
+      if (label.getData('friend') !== friend) { label.setData('friend', friend); label.setColor(friend ? '#ffe27a' : def.kind === 'belletmen' ? '#ffb3a8' : def.kind === 'teacher' ? '#cfe8ff' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff').setFontSize(friend ? 13 : 12); }
       label.setPosition(npc.x, npc.y - 24);
-      const near = Phaser.Math.Distance.Between(npc.x, npc.y, this.player.x, this.player.y) < 4 * TILE;
+      const near = Phaser.Math.Distance.Between(npc.x, npc.y, this.player.x, this.player.y) < (friend ? 16 : 4) * TILE;
       label.setVisible(near && this.revealed[Math.floor(npc.y / TILE) * MAP_W + Math.floor(npc.x / TILE)] === 1);
     }
   }
@@ -1580,37 +1745,6 @@ export class CampusScene extends Phaser.Scene {
     this.refreshClockAndNeeds();
     this.updatePrompt(true);
     this.panel?.refresh();
-  }
-
-  // ---------- 2D / 3D view ----------
-
-  private host3d(): Host3D {
-    return {
-      scene: this,
-      map: this.map,
-      room: () => this.room,
-      player: () => this.player,
-      fogAt: (x, y) => { const t = this.fogLayer.getTileAt(x, y); return !t ? 0 : t.index === FOG_FULL ? 2 : 1; },
-      light: () => ({ tint: this.lastTint, dark: this.darkAlpha, weather: this.weather || 'none' }),
-      lightSpots: () => this.lightSpots,
-      zoom: () => this.cameras.main.zoom,
-    };
-  }
-
-  private setView(mode: '2d' | '3d') {
-    if (mode === '3d' && !this.view3d) {
-      try { this.view3d = new World3D(this.host3d(), document.getElementById('game')!); }
-      catch (e) {
-        console.warn('3D view unavailable', e);
-        this.hud.toast(L({ tr: '3D görünüm bu cihazda açılamadı; 2D devam ediyor.', en: "The 3D view couldn't start on this device; staying in 2D." }));
-        mode = '2d';
-      }
-    }
-    if (mode === '2d' && this.view3d) { this.view3d.dispose(); this.view3d = null; }
-    try { localStorage.setItem('dacka.view', mode); } catch { /* private mode */ }
-    document.body.classList.toggle('view-3d-on', mode === '3d');
-    this.cameras.main.setVisible(mode === '2d');
-    this.hud.setViewMode(mode);
   }
 
   /** 2.5D buildings: a ground shadow, the painted building and its windows, which light up at night.
@@ -1750,7 +1884,6 @@ export class CampusScene extends Phaser.Scene {
       tint = this.skyTint(this.save.clock.minutes);
       if (this.isRaining()) tint = tint.map((v) => Math.round(v * 0.82)) as [number, number, number];
     }
-    this.lastTint = tint;
     const lum = (tint[0] + tint[1] + tint[2]) / 765;
     const a = 1 - lum;
     this.darkAlpha = a;
@@ -1933,8 +2066,13 @@ export class CampusScene extends Phaser.Scene {
     this.hud.setDiscovery(this.discovered.size, LOCATIONS.length);
     this.updatePrompt(true);
     if (!silent) { this.hud.toast(t('discovered_toast', { name: L(loc.name) }), 'good'); sfx.discover(); }
-    if (this.discovered.size === LOCATIONS.length) this.time.delayedCall(900, () => this.hud.toast(t('all_found'), 'good'));
     if (!silent) this.save.state.xp += 20;
+    // nobody makes you explore, but finding every corner of the campus is worth something
+    if (LOCATIONS.every((l) => this.discovered.has(l.id)) && !this.save.state.once.exploredAll) {
+      this.save.state.once.exploredAll = true;
+      this.save.character.respect += 5;
+      this.time.delayedCall(900, () => { this.gain({ xp: 150, mood: 10 }); sfx.success(); this.hud.toast(t('all_found'), 'good'); });
+    }
     this.checkMissions();
     this.persist();
   }
@@ -1983,7 +2121,7 @@ export class CampusScene extends Phaser.Scene {
     const npc = this.findNearNpc();
     if (npc) {
       this.nearDoor = null;
-      this.hud.setPrompt(L({ tr: `E — ${npc.name} ile konuş`, en: `E — talk to ${npc.name}` }));
+      this.hud.setPrompt(L({ tr: `E — ${this.tagged(npc)} ile konuş`, en: `E — talk to ${this.tagged(npc)}` }));
       return;
     }
     const spot = this.outdoorSpot();
@@ -2082,14 +2220,17 @@ export class CampusScene extends Phaser.Scene {
       st.xp += 30;
       this.save.character.respect += 10;
       this.hud.toast(L({ tr: '🌙 Yakalanmadan geri döndün! +30 XP · +10 saygınlık', en: '🌙 You made it back unseen! +30 XP · +10 respect' }), 'good');
+      this.lastDoor = this.nearestStand(loc);
       this.enterDorm();
       return;
     }
+    if (loc.id === ownDorm || loc.id === 'egitim' || (loc.id === 'yemekhane' && diningOpen(this.save.clock.minutes))) this.lastDoor = this.nearestStand(loc);
     if (loc.id === ownDorm) { this.enterDorm(); return; }
     if (loc.id === 'egitim') { this.enterClass(); return; }
-    if (loc.id === 'yemekhane') { this.enterDining(); return; }
-    // in the evening only your own dorm is reachable anyway; outside study hours other doors stay shut
-    if (phaseOf(this.save.clock.minutes, this.save.clock.day) !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && this.save.state.missionsDone.includes('kayit')) {
+    // the dining hall is open only while something is being served
+    if (loc.id === 'yemekhane') { if (diningOpen(this.save.clock.minutes)) this.enterDining(); else this.panel.open(() => yemekhaneClosed(ctx)); return; }
+    // in the evening only your own dorm is reachable anyway; outside study hours other doors stay shut (the Revir never does)
+    if (phaseOf(this.save.clock.minutes, this.save.clock.day) !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && this.settled()) {
       this.hud.toast(L({ tr: 'Bu saatte kapalı.', en: 'Closed at this hour.' }));
       return;
     }
@@ -2121,8 +2262,32 @@ export class CampusScene extends Phaser.Scene {
       leaveDorm: () => this.leaveDorm(),
       goHome: (summary) => this.goHome(summary),
       callFriends: (sport) => this.callFriends(sport),
+      place: () => (this.room === 'class' ? 'class' : this.room === 'dining' ? 'dining' : this.room === 'dorm' ? 'dorm' : 'out'),
+      rush: () => this.rushOn(),
+      dress: () => this.dress(),
+      killTime: (until) => this.killTime(until),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** you changed clothes: repaint the player's sprite sheet (and the walk cycles cut from it) */
+  private dress() {
+    makeCharacterTexture(this, 'player', wornLook(this.save.character.look, this.save.state));
+    for (const n of ['down', 'left', 'right', 'up']) this.anims.remove(`player-walk-${n}`);
+    this.createAnims();
+    this.player.setTexture('player', this.dir * 3);
+    this.persist();
+  }
+
+  /** stay where you are while the clock runs fast until `until` (minutes of the day): nothing gained, just time gone */
+  private killTime(until: number) {
+    const left = until - this.save.clock.minutes;
+    if (left <= 0 || this.sleepRun) return;
+    this.sleeping = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    if (this.room === 'dorm') { this.player.setPosition((ROOM_OX + MY_DESK[0] + 0.5) * TILE, (MY_DESK[1] + 1.35) * TILE); this.dir = 3; }
+    this.sleepRun = { kind: 'idle', msPerMin: Math.min(90, 8000 / left), acc: 0, left, total: left, busy: false, events: [] };
   }
 
   private penalize(points: number, why: string) {
@@ -2169,7 +2334,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.blocked() || this.sleeping) return;
     const st = this.save.state;
     const c = this.save.clock;
-    if (!st.once.luggage || !st.missionsDone.includes('kayit')) return; // the rules start once you're settled in
+    if (!this.settled()) return; // the rules start once you're settled in
     const day = c.day;
     if ((this.save.character.boarding ?? 'daimi') === 'evci' && isFriday(day) && c.minutes >= BUS_LEAVES && st.daily.busMissed !== day && st.daily.weekendHome !== day) {
       st.daily.busMissed = day;
@@ -2235,18 +2400,31 @@ export class CampusScene extends Phaser.Scene {
 
   // ---------- belletmens out looking for you ----------
 
-  /** settled in, study time or after lights out, and not in your dorm (sneaking out is Selim Bey's patrol's business) */
-  private outOfPlace(): boolean {
+  /** settled in, and not where you should be: out of your dorm at study time or after lights out (sneaking out
+   *  is Selim Bey's patrol's business), or not in class while a lesson is on */
+  private outOfPlace(): 'curfew' | 'truant' | null {
     const st = this.save.state;
-    if (!st.once.luggage || !st.missionsDone.includes('kayit') || st.escaped || this.sleeping || this.room === 'dorm') return false;
+    if (!this.settled() || st.escaped || this.sleeping) return null;
     const phase = phaseOf(this.save.clock.minutes, this.save.clock.day);
-    return phase === 'etut' || phase === 'night';
+    if (phase === 'etut' || phase === 'night') return this.room === 'dorm' ? null : 'curfew';
+    return this.skipping() && this.room !== 'class' ? 'truant' : null;
+  }
+
+  /** a lesson is on that you should be in and haven't been to (the sick are excused: they belong in the infirmary) */
+  private skipping(): { p: { id: string; start: number; end: number }; subject: SubjectId } | null {
+    const st = this.save.state;
+    if (!this.lessonsOn() || st.sick) return null;
+    const les = this.currentLesson();
+    if (!les || st.school.attended.includes(`${this.save.clock.day}-${les.p.id}`)) return null;
+    return les;
   }
 
   /** minutes since study time started / the lights went out */
   private minutesLate(): number {
     const m = this.save.clock.minutes;
-    if (phaseOf(m, this.save.clock.day) === 'etut') return m - ETUT_START;
+    const phase = phaseOf(m, this.save.clock.day);
+    if (phase === 'day') { const les = this.currentLesson(); return les ? m - les.p.start : 0; }
+    if (phase === 'etut') return m - ETUT_START;
     return m >= LIGHTS_OUT ? m - LIGHTS_OUT : m + 24 * 60 - LIGHTS_OUT;
   }
 
@@ -2260,18 +2438,19 @@ export class CampusScene extends Phaser.Scene {
 
   private updateHunt(delta: number) {
     if (this.escort) { if (this.escort.walking) this.escort.t += delta; return; }
-    if (!this.outOfPlace()) { if (this.hunt) this.endHunt(); this.outFor = 0; return; }
+    const why = this.outOfPlace();
+    if (!why || (this.hunt && this.hunt.kind !== why)) { if (this.hunt) this.endHunt(); this.outFor = 0; if (!why) return; }
     if (this.blocked()) return;
     this.outFor += delta;
     if (!this.hunt) {
-      // a short grace period: the 5 minutes the countdown gives you, and a few real seconds on top
-      if (this.minutesLate() >= 5 && this.outFor > 4000) this.startHunt();
+      // a short grace period: the few minutes the countdown gives you, and a few real seconds on top
+      if (this.minutesLate() >= (why === 'truant' ? TRUANT_AFTER : 5) && this.outFor > 4000) this.startHunt(why);
       return;
     }
     const h = this.hunt;
     h.t += delta;
-    // Selim Bey joins in at night, or once study time has gone on a while
-    if (h.npcs.length < 2 && (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night' || h.t > 20_000)) {
+    // Selim Bey joins in at night, or once study time has gone on a while (lessons are the deputy head's business alone)
+    if (h.kind === 'curfew' && h.npcs.length < 2 && (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night' || h.t > 20_000)) {
       const selim = this.npcs.find((n) => (n.getData('def') as NpcDef).id === 'bel-selim');
       if (selim && !h.npcs.includes(selim)) {
         h.npcs.push(selim);
@@ -2284,13 +2463,18 @@ export class CampusScene extends Phaser.Scene {
     if (h.t >= h.cutAt) { h.cutAt = h.t + 15_000; this.cutOff(); }
   }
 
-  private startHunt() {
-    const belId = this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet';
+  private startHunt(kind: 'curfew' | 'truant') {
+    const belId = kind === 'truant' ? DEPUTY.id : this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet';
     const own = this.npcs.find((n) => (n.getData('def') as NpcDef).id === belId);
     if (!own) return;
-    this.hunt = { t: 0, npcs: [own], seen: this.playerSpot(), tipAt: 6000, cutAt: 60_000, spotted: false };
+    this.hunt = { kind, t: 0, npcs: [own], seen: this.playerSpot(), tipAt: 6000, cutAt: kind === 'truant' ? 35_000 : 60_000, spotted: false };
     const name = (own.getData('def') as NpcDef).name;
     sfx.warn();
+    if (kind === 'truant') {
+      const sub = L(SUBJECTS.find((x) => x.id === this.currentLesson()!.subject)!.name);
+      this.hud.toast(L({ tr: `🔎 Yoklamada yoksun! Müdür yardımcısı ${name} seni aramaya çıktı (${sub} dersi).`, en: `🔎 You're missing from the register! ${name}, the deputy head, has come out to look for you (${sub}).` }));
+      return;
+    }
     this.hud.toast(phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night'
       ? L({ tr: `🔦 ${name} boş yatağını fark etti ve seni aramaya çıktı!`, en: `🔦 ${name} found your bed empty and has come looking for you!` })
       : L({ tr: `🔦 ${name} etütte yokluğunu fark etti ve seni aramaya çıktı!`, en: `🔦 ${name} noticed you're missing from study time and has come looking for you!` }));
@@ -2307,11 +2491,13 @@ export class CampusScene extends Phaser.Scene {
     const e = this.escort;
     if (e?.npc === npc) {
       if (!e.walking) { stop(); return; }
-      const door = doorStandTile(this.ownDormLoc().doors![0]);
+      // back to your dorm, or (caught skipping a lesson) to the nearest door of the Eğitim Binası
+      const stands = (e.kind === 'truant' ? LOCATIONS.find((l) => l.id === 'egitim')! : this.ownDormLoc()).doors!.map(doorStandTile).filter((d) => this.npcReach[d.y * MAP_W + d.x]);
+      const door = stands.reduce((a, b) => (Math.hypot((a.x + 0.5) * TILE - npc.x, (a.y + 0.5) * TILE - npc.y) <= Math.hypot((b.x + 0.5) * TILE - npc.x, (b.y + 0.5) * TILE - npc.y) ? a : b));
       const there = this.steerNpc(npc, ...this.npcSpot(door.x, door.y), ESCORT_SPEED);
       // a long walk ends in a fade; so does getting wedged apart
       const apart = Phaser.Math.Distance.Between(npc.x, npc.y, this.player.x, this.player.y) > 5 * TILE;
-      if (there || e.t > 9000 || apart) this.finishEscort();
+      if (there || e.t > (e.kind === 'truant' ? 12_000 : 9000) || apart) this.finishEscort();
       return;
     }
     const h = this.hunt!;
@@ -2372,18 +2558,44 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** a belletmen has you: a telling-off, discipline points, then they walk you back to your dorm (no arguing) */
+  /** a belletmen has you: a telling-off, discipline points, then they walk you back to your dorm (no arguing).
+   *  The deputy head does the same for a skipped lesson, and marches you into class */
   private caught(npc: Phaser.Physics.Arcade.Sprite, points = 10, why?: string) {
     const st = this.save.state;
     const def = npc.getData('def') as NpcDef;
+    const kind = this.hunt?.kind ?? 'curfew';
     const night = phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night';
     if (this.hunt) this.endHunt();
     this.outFor = 0;
     st.escaped = false;
-    shape(st, { rules: 2 });
-    this.escort = { npc, t: 0, walking: false, done: false };
+    this.escort = { kind, npc, t: 0, walking: false, done: false };
     this.player.setVelocity(0, 0);
     npc.setVelocity(0, 0).setData('path', undefined);
+    if (kind === 'truant') {
+      // skipping lessons says something about you: more of a rule-breaker, less of a striver
+      shape(st, { rules: 3, ambition: -1 });
+      st.daily.truant = this.save.clock.day;
+      st.once.truantCount = true;
+      this.penalize(6, L({ tr: `${def.name} seni ders saatinde dışarıda yakaladı!`, en: `${def.name} caught you out of class during a lesson!` }));
+      this.save.character.attributes.discipline = Math.max(0, this.save.character.attributes.discipline - 1);
+      this.changeMood(-6);
+      const lines = [
+        { tr: '"Ders saatinde burada ne işin var? Herkes sınıfta, sen ortalıkta! Yürü bakalım, doğru sınıfına."', en: '"What are you doing out here during a lesson? Everyone is in class and you\'re wandering about! Come on, straight to your classroom."' },
+        { tr: '"Yoklamada adın okundu, sen yoktun. Bu, defterine yazıldı. Önüme düş, sınıfa gidiyoruz."', en: '"Your name was called at the register and you weren\'t there. That has gone in your record. In front of me: we\'re going to class."' },
+      ];
+      this.hud.showModal({
+        title: L({ tr: '🔎 Yakalandın!', en: '🔎 Caught!' }), sub: `${def.name} · ${L(def.role)}`,
+        body: L(lines[Math.floor(Math.random() * lines.length)]),
+        note: L({ tr: 'Seni sınıfına kadar götürüyor. Derse girmemek disiplin puanı getirir ve karakterine işler: "Haylaz" yönüne kayıyorsun.', en: 'He is walking you to your classroom. Skipping lessons costs discipline points and it shapes who you are: you lean towards "Mischievous".' }),
+        button: L({ tr: 'Sınıfa', en: 'To class' }),
+        onClose: () => {
+          if (!this.escort) return;
+          if (this.room) this.finishEscort(); else this.escort.walking = true;
+        },
+      });
+      return;
+    }
+    shape(st, { rules: 2 });
     this.penalize(points, why ?? (night
       ? L({ tr: `${def.name} seni ışıklar söndükten sonra dışarıda yakaladı!`, en: `${def.name} caught you outside after lights out!` })
       : L({ tr: `${def.name} seni etüt saatinde dışarıda yakaladı!`, en: `${def.name} caught you outside during study time!` })));
@@ -2426,12 +2638,33 @@ export class CampusScene extends Phaser.Scene {
     this.screenFade(() => {
       this.escort = null;
       e.npc.setData('path', undefined).setData('wander', undefined);
-      this.tray = null;
-      this.enterDorm(name);
+      this.tray = null; this.trayAt = null;
+      if (e.kind === 'truant') this.marchedToClass(name); else this.enterDorm(name);
     });
   }
 
-  /** a quick fade to black and back, over both the 2D and the 3D view */
+  /** the deputy head sits you down in class: the lesson counts, with a poor performance mark and nothing learnt */
+  private marchedToClass(name: string) {
+    const les = this.currentLesson();
+    this.lastDoor = doorStandTile(LOCATIONS.find((l) => l.id === 'egitim')!.doors![0]);
+    this.enterClass();
+    this.player.setPosition((CLASS_OX + MY_CLASS_DESK[0] + 0.5) * TILE, (MY_CLASS_DESK[1] + 1.35) * TILE);
+    this.dir = 3;
+    if (!les) return; // the bell went on the way: nothing left to sit through
+    const ctx = this.gameCtx();
+    const sname = L(SUBJECTS.find((x) => x.id === les.subject)!.name);
+    attendLesson(ctx, `${this.save.clock.day}-${les.p.id}`, les.subject, 30);
+    this.gain({ energy: -8 });
+    this.advance(Math.max(0, les.p.end - this.save.clock.minutes));
+    this.hud.showModal({
+      title: L({ tr: `${sname} dersi`, en: sname }), sub: les.teacher.name,
+      body: L({ tr: `${name} seni kapıdan içeri soktu: "Öğretmenim, bu öğrenci dersten kaçıyordu." Bütün sınıf sana baktı. Dersin kalanını kıpırdamadan dinledin.`, en: `${name} put you through the door: "This one was skipping your lesson." The whole class stared at you. You sat through the rest of it without moving a muscle.` }),
+      note: L({ tr: 'Performans notu: 30/100 · ödevin akşam etütte.', en: 'Performance mark: 30/100 · your homework is due at evening study.' }),
+      button: L({ tr: 'Tamam', en: 'OK' }),
+    });
+  }
+
+  /** a quick fade to black and back */
   private screenFade(mid: () => void) {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;background:#0a0e14;opacity:0;transition:opacity 0.35s;pointer-events:none;z-index:1';
@@ -2466,7 +2699,8 @@ export class CampusScene extends Phaser.Scene {
       this.hud.setCountdown(L({ tr: `🚌 Servis 17:00'de Ana Kapı'dan kalkıyor · ${BUS_LEAVES - m} dk`, en: `🚌 The bus leaves the main gate at 17:00 · ${BUS_LEAVES - m} min` }), m >= BUS_LEAVES - 20);
       return;
     }
-    if (this.room === 'dorm' || st.escaped || !st.once.luggage || !st.missionsDone.includes('kayit')) { this.hud.setCountdown(null); return; }
+    if (this.rushOn()) { this.rushCountdown(); return; }
+    if (this.room === 'dorm' || st.escaped || !this.settled()) { this.hud.setCountdown(null); return; }
     const phase = phaseOf(m, this.save.clock.day);
     if (phase === 'day' && m >= 17 * 60 + 30 && !hasEtut(this.save.clock.day)) {
       this.hud.setCountdown(L({ tr: `🌙 Bugün etüt yok · 18:00'den sonra yalnızca yurtların çevresi serbest · ${18 * 60 - m} dk`, en: `🌙 No study tonight · from 18:00 it's free time around the dorms only · ${18 * 60 - m} min` }), false);
@@ -2485,6 +2719,141 @@ export class CampusScene extends Phaser.Scene {
         ? L({ tr: `🌙 Işıklar söndü! ${5 - late} dk içinde yurdunda ol`, en: `🌙 Lights are out! Be in your dorm within ${5 - late} min` })
         : L({ tr: `⚠ Işıklar söneli ${late} dk oldu · hemen yurduna dön`, en: `⚠ Lights went out ${late} min ago · get back to your dorm` }), true);
     } else this.hud.setCountdown(null);
+  }
+
+  // ---------- the registration weekend ("kayıt dönemi") ----------
+
+  /** the four desks, and how many are done */
+  private rushTasks() {
+    const st = this.save.state;
+    return [
+      { done: st.school.registered, name: L({ tr: 'Kayıt', en: 'Enrol' }) },
+      { done: !!st.once.healthCheck, name: L({ tr: 'Sağlık', en: 'Health check' }) },
+      { done: st.school.kit, name: L({ tr: 'Kıyafet', en: 'Clothes' }) },
+      { done: st.school.books, name: L({ tr: 'Kitap', en: 'Books' }) },
+    ];
+  }
+
+  private rushCountdown() {
+    const c = this.save.clock;
+    const left = rushLeft(c.day, c.minutes);
+    const tasks = this.rushTasks();
+    const done = tasks.filter((t) => t.done).length;
+    const hh = Math.floor(left / 60), mm = left % 60;
+    const day = L(c.day === 1 ? { tr: 'Cumartesi', en: 'Saturday' } : { tr: 'Pazar', en: 'Sunday' });
+    const list = tasks.map((t) => `${t.done ? '✓' : '○'} ${t.name}`).join(' · ');
+    const all = done === tasks.length;
+    if (left <= 0) { this.hud.setCountdown(L({ tr: '📋 Kayıt dönemi bitti · Pazartesi geliyor…', en: '📋 Registration weekend is over · Monday is coming…' }), false, 0); return; }
+    this.hud.setCountdown(all
+      ? L({ tr: `📋 Kayıt dönemi · işlemlerin tamam! · Pazartesiye ${hh} sa ${mm} dk`, en: `📋 Registration weekend · you're all done! · ${hh} h ${mm} min to Monday` })
+      : L({ tr: `📋 Kayıt dönemi · ${day} · kalan süre ${hh} sa ${mm} dk · ${list}`, en: `📋 Registration weekend · ${day} · ${hh} h ${mm} min left · ${list}` }),
+    !all && left < 120, left / RUSH_TOTAL,
+    all ? { label: L({ tr: 'Pazartesiye geç ⏭', en: 'Skip to Monday ⏭' }), onClick: () => { if (!this.blocked()) this.rushDue = 'end'; } } : undefined);
+  }
+
+  /** the weekend's checkpoints: Saturday night (the desks shut until Sunday morning), every desk done (the class
+   *  draw), and the end (whatever is left gets done for you, then it's Monday) */
+  private updateRush() {
+    if (!this.rushOn() || this.blocked() || this.sleeping || this.drawing) return;
+    const st = this.save.state;
+    if (this.rushTasks().every((t) => t.done) && !st.once.classDrawn) { this.classDraw(false); return; }
+    if (this.rushDue === 'night') {
+      this.rushDue = null;
+      const c = this.save.clock;
+      if (c.day !== 1) return;
+      this.screenFade(() => {
+        c.day = 2; c.minutes = RUSH_MORNING;
+        st.energy = 100; st.hunger = Math.max(st.hunger, 60);
+        this.npcClock = -1;
+        this.lastDoor = this.nearestStand(this.ownDormLoc());
+        this.room = null; this.enterDorm();
+        this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
+        this.refreshClockAndNeeds();
+        this.hud.showModal({
+          title: L({ tr: '🌙 Kayıt dönemi · ilk gün bitti', en: '🌙 Registration weekend · day one is over' }), sub: L({ tr: 'Pazar 08:00', en: 'Sunday 08:00' }),
+          body: L({ tr: 'Cumartesi akşamı masalar kapandı; yorgun ama heyecanlı uyudun. Bugün Pazar: kalan işlerini akşam 18:00\'e kadar bitir. Süre dolarsa görevliler eksikleri tamamlar.', en: "On Saturday evening the desks closed, and you fell asleep tired but excited. It's Sunday: finish what's left by 18:00. If time runs out the staff finish the rest for you." }),
+          note: this.rushTasks().filter((t) => !t.done).map((t) => `○ ${t.name}`).join(' · ') || L({ tr: 'Her şey tamam!', en: 'All done!' }),
+          button: L({ tr: 'Güne başla', en: 'Start the day' }),
+        });
+      });
+      return;
+    }
+    if (this.rushDue === 'end') { this.rushDue = null; this.endRush(); }
+  }
+
+  /** time's up (or you asked to skip ahead): the staff finish your paperwork, the class is drawn, and it's Monday morning */
+  private endRush() {
+    const st = this.save.state;
+    const missing = this.rushTasks().filter((t) => !t.done).map((t) => t.name);
+    if (!st.school.registered) st.school.registered = true;
+    if (!st.once.healthCheck) st.once.healthCheck = true;
+    if (!st.school.kit) { st.school.kit = true; if (st.wardrobe.wearing === 'sivil') st.wardrobe.wearing = 'uniforma'; }
+    if (!st.school.books) st.school.books = true;
+    if (!st.once.luggage) st.once.luggage = true;
+    const goMonday = () => {
+      this.drawing = false;
+      this.screenFade(() => {
+        const c = this.save.clock;
+        // to Monday morning (an older save already in the middle of a week just carries on)
+        const wd = weekdayOf(c.day);
+        if (wd >= 5) { c.day += 7 - wd; c.minutes = WAKE_UP; }
+        st.once.rushDone = true;
+        st.energy = 100; st.hunger = Math.max(st.hunger, 60);
+        if (st.wardrobe.wearing === 'pijama' || st.wardrobe.wearing === 'sivil') st.wardrobe.wearing = 'uniforma';
+        this.dress();
+        this.npcClock = -1;
+        this.lastDoor = this.nearestStand(this.ownDormLoc());
+        this.room = null; this.enterDorm();
+        this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
+        this.checkMissions();
+        this.refreshClockAndNeeds();
+        this.persist();
+        this.hud.showModal({
+          title: L({ tr: '☀️ Pazartesi · okul başlıyor!', en: '☀️ Monday · school begins!' }), sub: `${this.save.state.school.classLabel} · ${L({ tr: 'Kahvaltı 07:00–08:30 · ilk ders 08:30', en: 'Breakfast 07:00–08:30 · first lesson 08:30' })}`,
+          body: missing.length
+            ? L({ tr: `Kayıt dönemi bitti. Yetişemediğin işleri (${missing.join(', ')}) görevliler senin yerine tamamladı. Bugün dersler başlıyor: zil 08:30'da. Geç kalırsan müdür yardımcısından geç kâğıdı alman gerekir.`, en: `Registration weekend is over. The staff finished what you didn't get to (${missing.join(', ')}). Lessons start today: the bell goes at 08:30. If you're late you'll need a late slip from the deputy head.` })
+            : L({ tr: 'Kayıt dönemi bitti; her şeyi kendin halletin. Bugün dersler başlıyor: zil 08:30\'da. Geç kalırsan müdür yardımcısından geç kâğıdı alman gerekir.', en: "Registration weekend is over, and you did it all yourself. Lessons start today: the bell goes at 08:30. If you're late you'll need a late slip from the deputy head." }),
+          note: L({ tr: 'Üzerinde pijama varsa dolabından üniformanı giymeyi unutma.', en: "If you're still in your pyjamas, don't forget to put your uniform on at your locker." }),
+          button: L({ tr: 'Günaydın!', en: 'Good morning!' }),
+        });
+      });
+    };
+    if (!st.once.classDrawn) this.classDraw(true, goMonday); else goMonday();
+  }
+
+  /** your registration is complete: a popup spins through the classes and lands on yours */
+  private classDraw(auto: boolean, then?: () => void) {
+    const st = this.save.state;
+    this.drawing = true;
+    this.player.setVelocity(0, 0);
+    const g = grade(st.year);
+    const classes = CLASS_LETTERS.map((l) => `${g}-${l}`);
+    const pick = classes[Math.floor(Math.random() * classes.length)];
+    const el = document.createElement('div');
+    el.className = 'card draw-card';
+    el.innerHTML = `
+      <div class="m-label">${L({ tr: 'Kayıt tamam · sınıf kurası', en: 'Registration complete · the class draw' })}</div>
+      <h2>${L({ tr: 'Hangi sınıftasın?', en: 'Which class are you in?' })}</h2>
+      <p class="modal-body">${L(auto ? { tr: 'Kayıt dönemi bitti; sıra sınıf kurasında. Torbadan senin adına bir kâğıt çekiliyor…', en: 'Registration weekend is over; time for the class draw. A slip is drawn from the bag for you…' } : { tr: 'Bütün kayıt işlemlerin tamam! Müdür yardımcısı torbadan senin adına bir kâğıt çekiyor…', en: 'All your registration is done! The deputy head draws a slip from the bag for you…' })}</p>
+      <div class="roulette">?</div>
+      <p class="modal-note hidden"></p>
+      <div style="text-align:right"><button type="button" class="primary hidden">${L({ tr: 'Harika!', en: 'Great!' })}</button></div>`;
+    const box = el.querySelector('.roulette') as HTMLElement, btn = el.querySelector('button') as HTMLButtonElement, note = el.querySelector('.modal-note') as HTMLElement;
+    let i = 0, delay = 60;
+    const spin = () => {
+      box.textContent = classes[i++ % classes.length];
+      delay *= 1.12;
+      if (delay < 420) { setTimeout(spin, delay); return; }
+      box.textContent = pick; box.classList.add('landed');
+      st.school.classLabel = pick;
+      st.once.classDrawn = true;
+      this.gain({ xp: 10, mood: 5 });
+      sfx.success();
+      note.textContent = L({ tr: `Sınıfın ${pick}! Sınıf arkadaşlarının isimlerinin önünde ★ var. Onlarla tanış: her biri sana kendini anlatacak.`, en: `You're in ${pick}! Your classmates have a ★ by their names. Go and meet them: each one will tell you about themselves.` });
+      note.classList.remove('hidden'); btn.classList.remove('hidden');
+    };
+    this.hud.openCard(el, [], () => { if (then) then(); else { this.drawing = false; this.checkMissions(); this.persist(); } });
+    spin();
   }
 
   private showRelationships() {
@@ -2578,7 +2947,7 @@ export class CampusScene extends Phaser.Scene {
   /** the evening dilemma moments: the payphone queue in the dorm, and what you see behind the dorm */
   private checkDilemmas() {
     const st = this.save.state, c = this.save.clock;
-    if (this.blocked() || this.sleeping || !st.once.luggage || !st.missionsDone.includes('kayit')) return;
+    if (this.blocked() || this.sleeping || !this.settled()) return;
     const now = c.day * 1440 + c.minutes;
     if (now < this.dilemmaWait || st.memories.some((m) => m.day === c.day)) return; // one a day
     const m = c.minutes;
@@ -2720,7 +3089,9 @@ export class CampusScene extends Phaser.Scene {
     if (this.panel.isOpen) return; // time stands still while you're inside a menu (single-player prototype)
     const c = this.save.clock;
     const night = c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP;
-    const msPerMin = (night ? MS_PER_MIN_NIGHT : MS_PER_MIN_DAY) / (this.fast ? 6 : 1);
+    const phase = phaseOf(c.minutes, c.day);
+    const speed = (this.fast ? 6 : 1) * (this.rushOn() && !night ? RUSH_SPEED : phase === 'etut' ? ETUT_SPEED : 1);
+    const msPerMin = (night ? MS_PER_MIN_NIGHT : MS_PER_MIN_DAY) / speed;
     this.minuteAcc += delta;
     let changed = false;
     while (this.minuteAcc >= msPerMin) {
@@ -2748,10 +3119,10 @@ export class CampusScene extends Phaser.Scene {
     }
     if (before < CARSI_START && c.minutes >= CARSI_START && isWednesday(c.day)) {
       const guardian = L(GUARDIANS.find((g) => g.id === this.save.character.guardian)!.your);
-      this.hud.toast(L({ tr: `📅 Çarşı izni! ${guardian} kantinde seni bekliyor (Yemekhane).`, en: `📅 Wednesday visit! ${guardian} is waiting for you at the canteen (dining hall).` }), 'good');
+      this.hud.toast(L({ tr: `📅 Çarşı izni! ${guardian} kantinde seni bekliyor (Spor Salonu).`, en: `📅 Wednesday visit! ${guardian} is waiting for you at the canteen (in the Spor Salonu).` }), 'good');
     }
     // the school bell rings at the start of every lesson
-    if (PERIODS.some((p) => p.kind === 'lesson' && p.start === c.minutes) && !isWeekend(c.day) && reached('derse_gir', this.mc()) && this.time.now - this.lastBell > 2000) {
+    if (PERIODS.some((p) => p.kind === 'lesson' && p.start === c.minutes) && !isWeekend(c.day) && this.lessonsOn() && this.time.now - this.lastBell > 2000) {
       this.lastBell = this.time.now;
       sfx.bell();
     }
@@ -2778,9 +3149,14 @@ export class CampusScene extends Phaser.Scene {
       this.hud.toast(L({ tr: '🤒 Açlıktan hastalandın! Hemen Revir\'e git (Kız Yurdu, −1. kat).', en: "🤒 You got sick from hunger! Go to the infirmary now (girls' dorm, floor −1)." }));
       this.checkMissions();
     }
-    if (st.hunger < 15 && Math.floor(c.minutes / 60) !== this.hungerWarnedAt) {
+    if (this.rushOn()) {
+      if (c.day === 1 && c.minutes >= RUSH_NIGHT) this.rushDue ??= 'night';
+      if (c.day > RUSH_DAYS || (c.day === RUSH_DAYS && c.minutes >= RUSH_END)) this.rushDue = 'end';
+    }
+    // (no growling stomach notices while you're asleep)
+    if (st.hunger < 15 && !asleep && Math.floor(c.minutes / 60) !== this.hungerWarnedAt) {
       this.hungerWarnedAt = Math.floor(c.minutes / 60);
-      this.hud.toast(L({ tr: 'Karnın gurulduyor… Yemekhane\'ye ya da kantine git.', en: 'Your stomach is growling… head to the dining hall or canteen.' }));
+      this.hud.toast(L({ tr: 'Karnın gurulduyor… Yemekhane\'ye git, kantine uğra ya da dolabındaki atıştırmalıklardan ye.', en: 'Your stomach is growling… head to the dining hall, the canteen or the snacks in your locker.' }));
     }
   }
 
@@ -2809,10 +3185,20 @@ export class CampusScene extends Phaser.Scene {
     this.hud.toast(t('morning'), 'good');
     this.peeGossip();
     if (this.isRaining()) this.hud.toast(L({ tr: '🌧 Bugün yağmurlu. Montun yanında olsun!', en: '🌧 It\'s rainy today. Keep your coat handy!' }));
-    if (this.room !== 'dorm' && !st.escaped && st.once.luggage && st.missionsDone.includes('kayit')) {
+    if (this.room !== 'dorm' && !st.escaped && this.settled() && !this.sleepRun) {
       this.penalize(10, L({ tr: 'Sabah yoklamasında yatağında değildin!', en: "You weren't in bed at the morning roll call!" }));
       this.befriend(this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet', -10);
     }
+    // a borrowed outfit goes back to its owner first thing
+    const w = st.wardrobe;
+    if (w.borrowed && w.borrowed.day < c.day) {
+      const owner = NPCS.find((n) => n.id === w.borrowed!.from);
+      this.hud.toast(L({ tr: `${owner?.name ?? 'Arkadaşın'} ödünç verdiği kıyafeti geri aldı: "Sağ ol, iyi bakmışsın!"`, en: `${owner?.name ?? 'Your friend'} took back the clothes they lent you: "Thanks, you looked after them!"` }));
+      if (w.wearing === BORROWED) w.wearing = st.school.kit ? 'uniforma' : 'sivil';
+      w.borrowed = null;
+      this.dress();
+    }
+    this.followIds = null;
     for (const npc of this.npcs) {
       const def = npc.getData('def') as NpcDef;
       if (def.kind !== 'belletmen' && def.kind !== 'teacher' && !def.fixed) this.pickDayHome(npc);
@@ -2841,8 +3227,8 @@ export class CampusScene extends Phaser.Scene {
     const shield = myGroup(st) ? 0.5 : 1;
     if (foes.length && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
     // weekly pocket money every Monday
-    const week = Math.floor((c.day - 1) / 7) + 1;
-    if ((c.day - 1) % 7 === 0 && st.lastAllowanceWeek < week) {
+    const week = weekOf(c.day);
+    if (weekdayOf(c.day) === 0 && st.lastAllowanceWeek < week) {
       st.lastAllowanceWeek = week;
       st.money += 25;
       this.hud.toast(L({ tr: 'Haftalık harçlık: +25 ₺', en: 'Weekly pocket money: +25 ₺' }), 'good');
@@ -2866,7 +3252,9 @@ export class CampusScene extends Phaser.Scene {
     this.player.setFrame(0);
     this.player.body!.enable = false;
     if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 0.45) * TILE).setAngle(-90);
-    this.sleepRun = { msPerMin: Math.min(100, 40_000 / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
+    // into your pyjamas, if you have them
+    if (this.save.state.school.kit && this.save.state.wardrobe.wearing !== 'pijama' && this.save.state.wardrobe.wearing !== BORROWED) { this.save.state.wardrobe.wearing = 'pijama'; this.dress(); }
+    this.sleepRun = { kind: 'sleep', msPerMin: Math.min(50, SLEEP_MS / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
     this.hud.toast(L({ tr: '😴 İyi geceler…', en: '😴 Good night…' }));
   }
 
@@ -2931,7 +3319,9 @@ export class CampusScene extends Phaser.Scene {
     if (changed) this.refreshClockAndNeeds();
     const c = this.save.clock;
     const pct = Math.round(((s.total - s.left) / s.total) * 100);
-    this.hud.setBanner(L({ tr: `😴 Uyuyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `😴 Sleeping… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Uyan', en: 'Wake up' }), onClick: () => this.wakeUp(true) });
+    if (s.kind === 'sleep') this.hud.setBanner(L({ tr: `😴 Uyuyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `😴 Sleeping… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Uyan', en: 'Wake up' }), onClick: () => this.wakeUp(true) });
+    else if (s.kind === 'idle') this.hud.setBanner(L({ tr: `⏳ Vakit öldürüyorsun… ${fmtTime(c.minutes)} · ${pct}%`, en: `⏳ Killing time… ${fmtTime(c.minutes)} · ${pct}%` }), { label: L({ tr: 'Bırak', en: 'Stop' }), onClick: () => this.wakeUp(true) });
+    else this.hud.setBanner(L({ tr: `🍽 Yemek yiyorsun… ${s.left} dk`, en: `🍽 Eating… ${s.left} min` }));
     if (s.left <= 0) this.wakeUp(false);
   }
 
@@ -2940,8 +3330,16 @@ export class CampusScene extends Phaser.Scene {
     if (!s || s.busy) return;
     const st = this.save.state;
     this.sleepRun = null;
-    this.sleeping = false;
     this.hud.setBanner(null);
+    if (s.kind !== 'sleep') {
+      this.sleeping = false;
+      if (s.kind === 'eat' && early) return;
+      s.onDone?.();
+      if (s.kind === 'idle' && !early) this.hud.toast(L({ tr: 'Etüt bitti. Hiçbir şey yapmadan zaman geçti.', en: 'Study time is over. The time went by and you did nothing at all.' }));
+      this.refreshClockAndNeeds();
+      return;
+    }
+    this.sleeping = false;
     this.player.setAngle(0);
     this.player.body!.enable = true;
     if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
@@ -2957,7 +3355,7 @@ export class CampusScene extends Phaser.Scene {
   private refreshClockAndNeeds() {
     const c = this.save.clock;
     const p = currentPeriod(c.day, c.minutes);
-    const lessonsLocked = !reached('derse_gir', this.mc());
+    const lessonsLocked = !this.lessonsOn();
     const label = ceremonyNow(c.day, c.minutes) && !this.isRaining() ? L(CEREMONY) : p?.kind === 'lesson' && lessonsLocked
       ? L({ tr: 'Okulun ilk günleri · dersler henüz başlamadı', en: 'First days · lessons have not started yet' })
       : L(periodLabel(c.day, c.minutes));
@@ -3012,6 +3410,7 @@ export class CampusScene extends Phaser.Scene {
     this.suitcase.setVisible(carrying);
     if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.player.y + (this.dir === 3 ? 15 : 17));
     this.showNextAnnouncement();
+    this.updateRush();
     this.checkDilemmas();
     this.enforceCurfew();
     this.updateHunt(delta);
@@ -3024,7 +3423,7 @@ export class CampusScene extends Phaser.Scene {
     this.updatePeers(time);
     this.emoteTimer += delta;
     if (this.emoteTimer > 1400) { this.emoteTimer = 0; this.showEmote(); }
-    this.updateRoom(time);
+    this.updateRoom(time, delta);
     this.updateClass(time, delta);
     this.updateDining(time);
     this.revealAround();
@@ -3040,7 +3439,6 @@ export class CampusScene extends Phaser.Scene {
     if (this.mapTimer > 200) { this.mapTimer = 0; this.updateMaps(); }
     this.saveTimer += delta;
     if (this.saveTimer > 5000) { this.saveTimer = 0; this.persist(); }
-    this.view3d?.update(time, delta);
   }
 
   private updateMaps() {
@@ -3048,11 +3446,12 @@ export class CampusScene extends Phaser.Scene {
       revealed: this.revealed, seen: this.seen, discovered: this.discovered,
       player: this.campusPos(),
       target: this.target,
+      friends: this.npcs.filter((n) => n.visible && this.isFriend(n.getData('def') as NpcDef)).map((n) => ({ x: n.x / TILE, y: (n.y + 10) / TILE, name: (n.getData('def') as NpcDef).name })),
     });
   }
 
   private persist() {
-    this.save.player = { x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, inside: this.room ?? undefined };
+    this.save.player = { x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, inside: this.room ?? undefined, door: this.lastDoor ? [this.lastDoor.x, this.lastDoor.y] : undefined };
     this.save.fog = encodeFog(this.revealed);
     this.save.seen = [...this.seen];
     this.save.discovered = [...this.discovered];

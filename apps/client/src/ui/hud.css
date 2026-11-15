@@ -326,8 +326,6 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .chat-form input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
 
 /* HD-2D view: the Three.js canvas sits over Phaser's (which still takes the input) */
-#game canvas.view-3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; image-rendering: pixelated; }
-body.view-3d-on .night-layer { display: none; }
 
 /* "hold it!" night game */
 .bladder { position: relative; height: 84px; width: 60px; margin: 0 auto; border: 3px solid var(--ink); border-radius: 18px 18px 30px 30px; overflow: hidden; background: #f4f1ea; }
@@ -347,3 +345,78 @@ body.view-3d-on .night-layer { display: none; }
 
 /* minigames need room even when the menu behind them is short */
 .panel-card:has(.stage) { min-height: 330px; }
+
+/* countdown with a time bar (registration weekend) */
+.hud-countdown.with-bar { border-radius: 14px; padding: 8px 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; white-space: normal; text-align: center; max-width: min(720px, calc(100vw - 480px)); min-width: 320px; pointer-events: auto; }
+.hud-countdown .cd-bar { display: none; }
+.hud-countdown.with-bar .cd-bar { display: block; width: 100%; height: 7px; background: rgba(255,255,255,0.18); border-radius: 4px; overflow: hidden; }
+.hud-countdown .cd-bar i { display: block; height: 100%; background: linear-gradient(90deg, #f2c14e, #8fcf7a); transition: width 0.4s linear; }
+.hud-countdown.urgent .cd-bar i { background: #fff; }
+.hud-countdown .cd-btn { padding: 4px 12px; font-size: 13px; }
+@media (max-width: 900px) { .hud-countdown.with-bar { max-width: calc(100vw - 24px); min-width: 0; top: auto; bottom: 64px; } }
+
+/* wardrobe pictures in the action list */
+button.action.with-look { flex-direction: row; align-items: center; gap: 12px; }
+button.action .act-text { display: flex; flex-direction: column; gap: 2px; }
+button.action .act-look { width: 48px; height: 48px; image-rendering: pixelated; background: #efe8db; border-radius: 8px; flex: none; }
+
+/* the teacher's question */
+.quiz-q { font-size: 19px; font-weight: 800; line-height: 1.35; margin: 4px 0; }
+.quiz-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quiz-opts button { font: inherit; font-size: 15px; text-align: left; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; display: flex; gap: 10px; align-items: center; }
+.quiz-opts button i { font-style: normal; font-weight: 800; font-size: 12px; width: 24px; height: 24px; border-radius: 50%; background: #ece6da; display: grid; place-items: center; flex: none; }
+.quiz-opts button:hover:not(:disabled) { border-color: var(--accent-dark); background: #fbf5ec; }
+.quiz-opts button.right { background: #e3f1dc; border-color: var(--good); }
+.quiz-opts button.wrong { background: #f7e1dc; border-color: #c0392b; }
+@media (max-width: 560px) { .quiz-opts { grid-template-columns: 1fr; } }
+
+/* putting the anthem's words back in order */
+.arr-line { min-height: 54px; padding: 10px; border-radius: 10px; border: 2px dashed #cdbfa8; background: #fffdf8; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-family: Georgia, "Times New Roman", serif; }
+.arr-empty { color: #9a9488; font-family: system-ui, sans-serif; font-size: 13px; }
+.arr-pool { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-family: Georgia, "Times New Roman", serif; font-size: 16px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; box-shadow: 0 2px 0 rgba(0,0,0,0.08); }
+.arr-pool .chip { transform: rotate(var(--tilt, 0deg)); }
+.arr-pool .chip:nth-child(3n) { --tilt: -2deg; } .arr-pool .chip:nth-child(3n+1) { --tilt: 1.5deg; }
+.chip:hover:not(:disabled) { border-color: var(--accent-dark); background: #fbf5ec; }
+.arr-line .chip { background: #f4ecdc; }
+.arr-line .chip.bad { background: #f7e1dc; border-color: #c0392b; }
+.arr-line .chip.shown { background: #e3f1dc; border-color: var(--good); cursor: default; }
+.arr-foot { display: flex; justify-content: space-between; }
+
+/* dilemma moments: a card of its own, the situation on top and every choice underneath */
+.dilemma-wrap { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(20, 14, 40, 0.55), rgba(8, 6, 18, 0.88)); animation: dl-fade 0.3s ease-out; }
+.dilemma-card { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px 24px 20px; border-radius: 16px; background: linear-gradient(180deg, #2b2346 0%, #1f1a33 100%); color: #f4eefc; border: 1px solid rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.12), 0 18px 48px rgba(0,0,0,0.5); animation: dl-pop 0.35s cubic-bezier(.2,1.4,.4,1); }
+.dl-tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #1f1a33; background: var(--gold); padding: 3px 10px; border-radius: 999px; }
+.dilemma-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; font-size: 28px; margin: 10px 0 8px; color: #fff; }
+.dl-intro { line-height: 1.6; font-size: 15.5px; margin: 0 0 12px; color: #e6def5; }
+.dl-shape { font-size: 13px; font-weight: 700; color: var(--gold); background: rgba(242, 193, 78, 0.1); border-left: 3px solid var(--gold); padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; }
+.dl-q { font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+.dl-choices { display: flex; flex-direction: column; gap: 8px; }
+.dl-choices button { font: inherit; text-align: left; display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color: #fff; cursor: pointer; animation: dl-up 0.35s ease-out both; transition: background 0.15s, border-color 0.15s, transform 0.15s; }
+.dl-choices button:hover { background: rgba(242, 193, 78, 0.16); border-color: var(--gold); transform: translateX(3px); }
+.dl-choices button i { font-style: normal; font-weight: 800; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: #1f1a33; display: grid; place-items: center; flex: none; }
+.dl-later { margin-top: 12px; font: inherit; font-size: 13px; background: none; border: none; color: #b8acd3; cursor: pointer; text-decoration: underline; }
+.dl-sub { margin: 14px 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); }
+.dl-shifts { display: flex; flex-direction: column; gap: 8px; }
+.dl-shift { display: grid; grid-template-columns: 110px 1fr 150px; gap: 10px; align-items: center; animation: dl-up 0.4s ease-out both; }
+.dl-shift .from { font-size: 13px; color: #b8acd3; text-align: right; }
+.dl-shift .track { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.dl-shift .track i { display: block; height: 100%; background: linear-gradient(90deg, rgba(242,193,78,0.3), var(--gold)); animation: dl-grow 0.8s ease-out both; }
+.dl-shift b { font-size: 14px; color: #fff; }
+.dl-effects { display: flex; flex-wrap: wrap; gap: 6px; }
+.dl-effects span { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.dl-effects .good { background: rgba(120, 200, 120, 0.18); color: #b8f0b0; }
+.dl-effects .bad { background: rgba(230, 100, 90, 0.18); color: #ffb9ae; }
+.dilemma-card.outcome button.primary { margin-top: 16px; float: right; background: var(--gold); color: #1f1a33; }
+@keyframes dl-fade { from { opacity: 0; } }
+@keyframes dl-pop { from { opacity: 0; transform: scale(0.92) translateY(10px); } }
+@keyframes dl-up { from { opacity: 0; transform: translateY(8px); } }
+@keyframes dl-grow { from { width: 0; } }
+@media (max-width: 560px) { .dl-shift { grid-template-columns: 1fr; gap: 2px; } .dl-shift .from { text-align: left; } }
+
+/* the class draw popup */
+.draw-card { width: min(460px, 100%); padding: 22px; border-top: 6px solid var(--gold); }
+.draw-card .m-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-dark); }
+.draw-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0; }
+
+button.primary:disabled { opacity: 0.45; cursor: not-allowed; }

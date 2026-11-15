@@ -1,8 +1,7 @@
 // The way in from Ana Kapı: the big green gate with the guards' cabin beside it, the steps up the slope and
-// the Roman-style aqueduct between Eğitim and the Cemiyet that you walk through. 2D sprites, painted once;
-// the 3D view builds its own meshes from the same rects (World3D).
+// the Roman-style aqueduct between Eğitim and the Cemiyet that you walk through. 2D sprites, painted once.
 import Phaser from 'phaser';
-import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, STAIRS, TILE } from '../content/campus';
+import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_STAIRS, PYRAMID, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS } from '../content/campus';
 import { shade, wallColor } from './buildings3d';
 
 type Ctx = CanvasRenderingContext2D;
@@ -29,6 +28,14 @@ export const GATE_LEAF_SIZE = { w: 26, h: 94 };
 export const WALL_FACE = 46;
 export const WALL_HEIGHT_3D = 2.1;
 export const WALL_STONE = '#a89f8e';
+/** the steps down from the Eğitim corridor to the Merkez Meydan */
+export const MEYDAN_STAIRS_SIZE = { w: Math.round(MEYDAN_STAIRS.w * TILE), h: MEYDAN_STAIRS.h * TILE + 8 };
+/** the pyramid on the Merkez Meydan: its picture, and how much of the bottom is its footprint on the ground */
+export const PYRAMID_SIZE = { w: PYRAMID.w * TILE, h: 92, foot: 26 };
+/** the grandstand: each row sits this many pixels higher than the one in front of it */
+export const TRIBUNE_STEP = 4;
+export const TRIBUNE_LIFT = TRIBUNE_STEP * (TRIBUNE_ROWS - 1);
+export const tribuneKey = (i: number) => `tribune-${i}`;
 
 export function makeGatewayTextures(scene: Phaser.Scene) {
   const canvas = (key: string, w: number, h: number, draw: (c: Ctx) => void) => {
@@ -40,7 +47,11 @@ export function makeGatewayTextures(scene: Phaser.Scene) {
   canvas('aqueduct', AQUEDUCT_SIZE.w, AQUEDUCT_SIZE.h, paintAqueduct);
   canvas('stairs', STAIRS_SIZE.w, STAIRS_SIZE.h, paintStairs);
   canvas('cabin', CABIN_SIZE.w, CABIN_SIZE.h, paintCabin);
-  canvas('gatearch', GATE_ARCH_SIZE.w, GATE_ARCH_SIZE.h, paintGateArch);
+  canvas('gatearch', GATE_ARCH_SIZE.w, GATE_ARCH_SIZE.h, (c) => paintGateArch(c, 'DARÜŞŞAFAKA'));
+  canvas('gatearch-tim', GATE_ARCH_SIZE.w, GATE_ARCH_SIZE.h, (c) => paintGateArch(c, 'TIM GÖSTERİ'));
+  canvas('stairs-ew', MEYDAN_STAIRS_SIZE.w, MEYDAN_STAIRS_SIZE.h, paintMeydanStairs);
+  canvas('pyramid', PYRAMID_SIZE.w, PYRAMID_SIZE.h, paintPyramid);
+  TRIBUNE.forEach((r, i) => canvas(tribuneKey(i), Math.round(r.w * TILE), Math.round(r.h * TILE) + TRIBUNE_LIFT, (c) => paintTribune(c, Math.round(r.w * TILE), Math.round(r.h * TILE), i)));
   canvas('gateleaf', GATE_LEAF_SIZE.w, GATE_LEAF_SIZE.h, paintGateLeaf);
   canvas('wallblock', TILE, TILE + WALL_FACE, (c) => paintWall(c, true));
   canvas('walltop', TILE, TILE, (c) => paintWall(c, false));
@@ -144,7 +155,7 @@ function paintCabin(c: Ctx) {
 }
 
 /** the green iron arch over the gateway, with the school's name in gold */
-function paintGateArch(c: Ctx) {
+function paintGateArch(c: Ctx, name: string) {
   const { w: W, h: H } = GATE_ARCH_SIZE;
   c.fillStyle = GATE_GREEN;
   c.beginPath(); c.moveTo(0, H - 4); c.lineTo(0, 12); c.quadraticCurveTo(W / 2, -6, W, 12); c.lineTo(W, H - 4); c.closePath(); c.fill();
@@ -154,7 +165,7 @@ function paintGateArch(c: Ctx) {
   // a dark name board with gold letters, and scrolls either side
   c.fillStyle = '#1f3d24'; c.fillRect(W / 2 - 46, 12, 92, 14);
   c.fillStyle = '#f2c14e'; c.font = 'bold 10px "Pixelify Sans", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText('DARÜŞŞAFAKA', W / 2, 19.5);
+  c.fillText(name, W / 2, 19.5);
   c.strokeStyle = '#d9b44a'; c.lineWidth = 1.5;
   for (const sx of [-1, 1]) {
     const x = W / 2 + sx * 60;
@@ -207,4 +218,88 @@ function paintWall(c: Ctx, face: boolean) {
   for (let i = 0; i < 14; i++) { c.fillStyle = i % 2 ? shade(s, 1.08) : shade(s, 0.92); c.fillRect((i * 13) % 30, y0 + 4 + ((i * 17) % (WALL_FACE - 8)), 2, 1); }
   c.fillStyle = shade(s, 0.78); c.fillRect(0, y0 + WALL_FACE - 6, TILE, 6);   // plinth
   c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(0, y0 + WALL_FACE - 2, TILE, 2);
+}
+
+/** a flight of steps running down to the east (the corridor is a floor above the square): each tread a little
+ *  darker and lower than the last, a line of shade under every nosing, stone cheek walls along both sides */
+function paintMeydanStairs(c: Ctx) {
+  const { w: W, h: H } = MEYDAN_STAIRS_SIZE;
+  const s = BRIDGE_STONE, n = 9, step = W / n, drop = 8 / (n - 1);
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(i * step), w = Math.round((i + 1) * step) - x, y = Math.round(i * drop);
+    c.fillStyle = shade(s, 1.16 - i * 0.03); c.fillRect(x, y + 5, w, H - 8 - 10);
+    c.fillStyle = shade(s, 1.24 - i * 0.03); c.fillRect(x, y + 5, 2, H - 8 - 10);       // worn nosing
+    c.fillStyle = shade(s, 0.66); c.fillRect(x + w - 2, y + 5, 2, H - 8 - 10);          // the drop to the next tread
+    for (let k = 0; k < 4; k++) { c.fillStyle = shade(s, 0.96); c.fillRect(x + 3 + ((k * 7 + i * 3) % Math.max(1, w - 6)), y + 9 + ((k * 19 + i * 11) % (H - 30)), 1, 3); }
+    // cheek walls, stepping down with the flight
+    for (const top of [y, y + H - 8 - 5]) {
+      c.fillStyle = shade(s, 0.8); c.fillRect(x, top, w, 5);
+      c.fillStyle = shade(s, 1.12); c.fillRect(x, top, w, 2);
+    }
+  }
+  c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(0, H - 3, W, 3);
+}
+
+/** a three-sided pyramid seen from the south: the sunlit west face and the shaded east face meet on the front edge,
+ *  glazed in panels like a skylight, on a low stone plinth */
+function paintPyramid(c: Ctx) {
+  const { w: W, h: H, foot } = PYRAMID_SIZE;
+  const apex: [number, number] = [W / 2, 3], left: [number, number] = [3, H - foot + 4], right: [number, number] = [W - 3, H - foot + 4], front: [number, number] = [W / 2 - 4, H - 6];
+  const tri = (a: [number, number], b: [number, number], d: [number, number], col: string) => { c.fillStyle = col; c.beginPath(); c.moveTo(...a); c.lineTo(...b); c.lineTo(...d); c.closePath(); c.fill(); };
+  // its shadow, falling east, and the plinth
+  c.fillStyle = 'rgba(0,0,0,0.2)'; c.beginPath(); c.ellipse(W / 2 + 6, H - 8, W / 2 - 4, 8, 0, 0, Math.PI * 2); c.fill();
+  tri([0, H - foot + 4], [W, H - foot + 4], [W / 2 - 4, H - 1], '#b9b2a3');
+  tri([2, H - foot + 3], [W - 2, H - foot + 3], [W / 2 - 4, H - 4], '#d8d2c4');
+  // the two faces
+  tri(apex, left, front, '#9fd0e6');
+  tri(apex, front, right, '#4f86a6');
+  // glazing bars: lines fanning from the apex, and bands parallel to the base
+  const lerp = (a: [number, number], b: [number, number], t: number): [number, number] => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const line = (a: [number, number], b: [number, number], col: string, w = 1) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(...a); c.lineTo(...b); c.stroke(); };
+  for (const [a, b, col] of [[left, front, 'rgba(255,255,255,0.55)'], [front, right, 'rgba(20,40,60,0.35)']] as const) {
+    for (let k = 1; k < 4; k++) line(apex, lerp(a, b, k / 4), col);
+    for (let k = 1; k < 5; k++) line(lerp(apex, a, k / 5), lerp(apex, b, k / 5), col);
+  }
+  // a sheen on the lit face, and the bright edges
+  tri(lerp(apex, left, 0.15), lerp(apex, left, 0.55), lerp(apex, front, 0.35), 'rgba(255,255,255,0.22)');
+  line(apex, front, '#f4fbff', 2); line(apex, left, '#e8f6fc', 1.5); line(apex, right, '#2f5d7a', 1.5);
+  line(left, front, '#e8f6fc', 1.5); line(front, right, '#2f5d7a', 1.5);
+  c.fillStyle = '#f2c14e'; c.fillRect(W / 2 - 1, 0, 2, 5);
+}
+
+/** one block of the grandstand, facing east: ten rows of seats running north–south, each row a step higher than the
+ *  one in front, so every row is drawn a little further up the picture and the block's south end shows its stepped side */
+function paintTribune(c: Ctx, W: number, D: number, block: number) {
+  const rows = TRIBUNE_ROWS, rw = W / rows;
+  const concrete = '#c9ccd0';
+  for (let i = 0; i < rows; i++) {
+    // row 0 is the top row against the hall (west), the last row is down at the pitch
+    const x = Math.round(i * rw), w = Math.round((i + 1) * rw) - x;
+    const up = TRIBUNE_STEP * (rows - 1 - i), y = TRIBUNE_LIFT - up;
+    // the tread, then the seats on it: green, with a gold block in the middle of each stand
+    c.fillStyle = shade(concrete, 1.06 - i * 0.012); c.fillRect(x, y, w, D);
+    c.fillStyle = shade(concrete, 0.72); c.fillRect(x + w - 1, y, 1, D);
+    for (let sy = 3; sy < D - 5; sy += 7) {
+      const gold = Math.abs(sy - D / 2) < 22 && i >= 2 && i <= 7;
+      const seat = gold ? '#e6b93f' : (i + block) % 2 ? '#2f7a45' : '#2a6d3d';
+      c.fillStyle = shade(seat, 0.7); c.fillRect(x + 1, y + sy, w - 3, 5);
+      c.fillStyle = seat; c.fillRect(x + 1, y + sy, w - 4, 4);
+      c.fillStyle = shade(seat, 1.3); c.fillRect(x + 1, y + sy, 2, 4);              // the seat back, catching the light
+    }
+    // the stepped south end: the side wall under this row
+    c.fillStyle = shade(concrete, 0.82); c.fillRect(x, y + D, w, up);
+    c.fillStyle = shade(concrete, 0.62); c.fillRect(x, y + D, w, 1);
+    if (up > 6) { c.fillStyle = shade(concrete, 0.74); for (let ly = y + D + 6; ly < y + D + up; ly += 6) c.fillRect(x, ly, w, 1); }
+  }
+  // aisles: two flights of steps cutting across the rows, painted yellow at the nosings
+  for (const ay of [Math.round(D * 0.28), Math.round(D * 0.72)]) {
+    for (let i = 0; i < rows; i++) {
+      const x = Math.round(i * rw), w = Math.round((i + 1) * rw) - x, y = TRIBUNE_LIFT - TRIBUNE_STEP * (rows - 1 - i);
+      c.fillStyle = '#aeb3b8'; c.fillRect(x, y + ay - 4, w, 8);
+      c.fillStyle = '#e6b93f'; c.fillRect(x + w - 2, y + ay - 4, 1, 8);
+    }
+  }
+  // a handrail along the top row and the front rail down at the pitch
+  c.fillStyle = '#5b6168'; c.fillRect(0, 0, 2, D); c.fillRect(W - 2, TRIBUNE_LIFT, 2, D);
+  c.fillStyle = '#8f979e'; for (let py = 0; py < D; py += 16) { c.fillRect(W - 2, TRIBUNE_LIFT + py, 2, 2); }
 }

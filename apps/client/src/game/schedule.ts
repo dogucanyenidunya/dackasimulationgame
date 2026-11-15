@@ -15,6 +15,25 @@ export interface Period {
 
 const h = (hh: number, mm = 0) => hh * 60 + mm;
 
+/** 0 = Monday … 6 = Sunday. The story starts on a Saturday: day 1 and 2 are the registration weekend, day 3 the first Monday */
+export const weekday = (day: number) => (((day + 4) % 7) + 7) % 7;
+/** 1 on the first Monday, 2 a week later… (0 during the registration weekend) */
+export const weekOf = (day: number) => Math.floor((day + 4) / 7);
+
+/** the registration weekend ("kayıt dönemi"): Saturday morning to Sunday evening, with the clock running fast */
+export const RUSH_START = h(9);
+export const RUSH_NIGHT = h(20);
+export const RUSH_MORNING = h(8);
+export const RUSH_END = h(18);
+export const RUSH_DAYS = 2;
+/** game minutes of registration time left (the Saturday night in between doesn't count) */
+export function rushLeft(day: number, minutes: number): number {
+  if (day > RUSH_DAYS || (day === RUSH_DAYS && minutes >= RUSH_END)) return 0;
+  const today = day === 1 ? Math.max(0, RUSH_NIGHT - Math.max(minutes, RUSH_START)) : Math.max(0, RUSH_END - Math.max(minutes, RUSH_MORNING));
+  return today + (day === 1 ? RUSH_END - RUSH_MORNING : 0);
+}
+export const RUSH_TOTAL = RUSH_NIGHT - RUSH_START + RUSH_END - RUSH_MORNING;
+
 export const PERIODS: Period[] = [
   { id: 'breakfast', kind: 'meal', meal: 'breakfast', start: h(7), end: h(8, 30), name: { tr: 'Kahvaltı', en: 'Breakfast' } },
   { id: 'p1', kind: 'lesson', start: h(8, 30), end: h(9, 20), name: { tr: '1. ders', en: 'Lesson 1' } },
@@ -36,7 +55,7 @@ export const PLAZA_START = h(20);
 export const LIGHTS_OUT = h(22);
 export const WAKE_UP = h(7);
 /** no evening study on Fridays and Saturdays: 18:00–22:00 is all free time around the dorms */
-export const hasEtut = (day: number) => ((day - 1) % 7) < 4 || ((day - 1) % 7) === 6;
+export const hasEtut = (day: number) => weekday(day) < 4 || weekday(day) === 6;
 export type DayPhase = 'day' | 'etut' | 'plaza' | 'night';
 export function phaseOf(minutes: number, day: number): DayPhase {
   if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return 'night';
@@ -50,10 +69,14 @@ const NO_ETUT_EVENING: Period = { id: 'plaza', kind: 'plaza', start: ETUT_START,
 export const SNACK_START = h(16);
 export const SNACK_END = h(17);
 export const isSnackTime = (minutes: number) => minutes >= SNACK_START && minutes < SNACK_END;
+/** the dining hall is only open while something is being served (meals and the afternoon snack) */
+export const diningOpen = (minutes: number) => isSnackTime(minutes) || PERIODS.some((p) => p.kind === 'meal' && minutes >= p.start && minutes < p.end);
+/** a lesson you walk into this many minutes after the bell needs a late slip from the deputy head */
+export const LATE_AFTER = 5;
 
 /** flag ceremony on the Merkez Meydan: Monday before the first lesson, Friday after the last; [start, end, the anthem] */
 export function ceremonyWindow(day: number): [number, number, number] | null {
-  const wd = (day - 1) % 7;
+  const wd = weekday(day);
   return wd === 0 ? [h(8, 10), h(8, 25), h(8, 15)] : wd === 4 ? [h(15, 22), h(15, 40), h(15, 30)] : null;
 }
 export const ceremonyNow = (day: number, minutes: number) => { const w = ceremonyWindow(day); return !!w && minutes >= w[0] && minutes < w[1]; };
@@ -63,7 +86,7 @@ export const BREAK: Text = { tr: 'Teneffüs', en: 'Break' };
 export const NIGHT: Text = { tr: 'Gece · ışıklar kapalı', en: 'Night · lights out' };
 export const WEEKEND_FREE: Text = { tr: 'Hafta sonu', en: 'Weekend' };
 
-export const isWeekend = (day: number) => ((day - 1) % 7) >= 5;
+export const isWeekend = (day: number) => weekday(day) >= 5;
 
 export function currentPeriod(day: number, minutes: number): Period | null {
   const p = PERIODS.find((x) => minutes >= x.start && minutes < x.end) ?? null;
@@ -87,7 +110,7 @@ export function classBreak(day: number, minutes: number): ClassBreak | null {
 /** which subject a lesson period teaches on a given day (rotates through the week) */
 export function subjectFor(day: number, periodId: string): SubjectId {
   const idx = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].indexOf(periodId);
-  return SUBJECTS[((day - 1) * 6 + idx) % SUBJECTS.length].id;
+  return SUBJECTS[(((day - 1) * 6 + idx) % SUBJECTS.length + SUBJECTS.length) % SUBJECTS.length].id;
 }
 
 export function periodLabel(day: number, minutes: number): Text {

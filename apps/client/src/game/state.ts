@@ -1,7 +1,7 @@
 // Player progress for the prototype (needs, money, school). Lives inside SaveData.
 import type { Text } from '../i18n';
 
-export type SubjectId = 'turkce' | 'matematik' | 'fen' | 'sosyal' | 'ingilizce';
+export type SubjectId = 'turkce' | 'matematik' | 'fen' | 'sosyal' | 'ingilizce' | 'muzik' | 'beden' | 'din' | 'teknoloji';
 export type SportId = 'basketball' | 'volleyball' | 'football' | 'tennis' | 'swimming' | 'fencing' | 'athletics' | 'tabletennis' | 'chess';
 export type MealId = 'breakfast' | 'lunch' | 'dinner';
 export type BookId = 'kucuk_prens' | 'pal_sokagi' | 'nasreddin';
@@ -12,7 +12,16 @@ export const SUBJECTS: Array<{ id: SubjectId; name: Text }> = [
   { id: 'fen', name: { tr: 'Fen Bilimleri', en: 'Science' } },
   { id: 'sosyal', name: { tr: 'Sosyal Bilgiler', en: 'Social Studies' } },
   { id: 'ingilizce', name: { tr: 'İngilizce', en: 'English' } },
+  { id: 'muzik', name: { tr: 'Müzik', en: 'Music' } },
+  { id: 'beden', name: { tr: 'Beden Eğitimi', en: 'Physical Education' } },
+  { id: 'din', name: { tr: 'Din Kültürü ve Ahlak Bilgisi', en: 'Religious Culture and Ethics' } },
+  { id: 'teknoloji', name: { tr: 'Teknoloji ve Tasarım', en: 'Technology and Design' } },
 ];
+const emptyScores = (): Record<SubjectId, number[]> => Object.fromEntries(SUBJECTS.map((s) => [s.id, []])) as unknown as Record<SubjectId, number[]>;
+const zeroLessons = (): Record<SubjectId, number> => Object.fromEntries(SUBJECTS.map((s) => [s.id, 0])) as unknown as Record<SubjectId, number>;
+/** the year-end exam opens once you've sat in on every subject this many times */
+export const LESSONS_PER_SUBJECT = 3;
+export const lessonsLeft = (st: PlayerState) => SUBJECTS.reduce((n, s) => n + Math.max(0, LESSONS_PER_SUBJECT - (st.school.lessons[s.id] ?? 0)), 0);
 
 export interface PlayerState {
   energy: number;
@@ -29,7 +38,10 @@ export interface PlayerState {
     section: number;
     /** lesson keys attended, `${day}-${periodId}` */
     attended: string[];
+    /** performance marks: one for every lesson you sat in on and every homework you handed in */
     scores: Record<SubjectId, number[]>;
+    /** how many lessons of each subject you've attended */
+    lessons: Record<SubjectId, number>;
     /** pending homework and the day it was given (due by the next morning) */
     homework: Array<{ s: SubjectId; day: number }>;
   };
@@ -89,6 +101,10 @@ export interface PlayerState {
   temper: Record<AxisId, number>;
   /** the choices you made at dilemma moments, kept so later years can call back to them */
   memories: Memory[];
+  /** what you're wearing (see content/wardrobe.ts); `borrowed` is a friend's outfit, handed back the next morning */
+  wardrobe: { wearing: string; borrowed: { from: string; name: string; top: string; bottom: string; day: number } | null };
+  /** snacks: in your pockets, and put away in your locker */
+  food: { bag: string[]; locker: string[] };
 }
 
 export type AxisId = 'rules' | 'ambition' | 'presence' | 'warmth' | 'loyalty' | 'heart';
@@ -114,7 +130,7 @@ export function defaultState(): PlayerState {
     energy: 90, hunger: 70, mood: 60, money: 50, xp: 0,
     school: {
       registered: false, kit: false, books: false, classLabel: '4-A', section: 1 + Math.floor(Math.random() * DORM_SECTIONS),
-      attended: [], scores: { turkce: [], matematik: [], fen: [], sosyal: [], ingilizce: [] }, homework: [],
+      attended: [], scores: emptyScores(), lessons: zeroLessons(), homework: [],
     },
     sport: null, trainings: 0,
     reading: { book: null, sessions: 0, finished: [] },
@@ -131,6 +147,8 @@ export function defaultState(): PlayerState {
     council: { year: 0, stage: 'none', day: 0, support: 0, titles: [] },
     temper: { rules: 0, ambition: 0, presence: 0, warmth: 0, loyalty: 0, heart: 0 },
     memories: [],
+    wardrobe: { wearing: 'sivil', borrowed: null },
+    food: { bag: [], locker: [] },
   };
 }
 
@@ -140,7 +158,7 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
   if (!s) return d;
   const merged: PlayerState = {
     ...d, ...s,
-    school: { ...d.school, ...s.school, scores: { ...d.school.scores, ...s.school?.scores } },
+    school: { ...d.school, ...s.school, scores: { ...d.school.scores, ...s.school?.scores }, lessons: { ...d.school.lessons, ...s.school?.lessons } },
     reading: { ...d.reading, ...s.reading },
     favor: { ...d.favor, ...s.favor },
     skills: { ...d.skills, ...s.skills },
@@ -150,7 +168,13 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     council: { ...d.council, ...s.council },
     temper: { ...d.temper, ...s.temper },
     memories: s.memories ?? [],
+    wardrobe: { ...d.wardrobe, ...s.wardrobe },
+    food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
   };
+  // saves from before the registration weekend: whoever had registered is past it, and already in uniform
+  if (!s.wardrobe && merged.school.kit) merged.wardrobe.wearing = 'uniforma';
+  if (merged.missionsDone.includes('kayit')) merged.once.rushDone = true;
+  if (!s.school?.lessons) for (const sub of SUBJECTS) merged.school.lessons[sub.id] = Math.min(LESSONS_PER_SUBJECT, Math.floor(merged.school.scores[sub.id].length / 2));
   // older saves stored homework as plain subject ids
   merged.school.homework = (merged.school.homework as unknown[]).map((h) => (typeof h === 'string' ? { s: h as SubjectId, day: 1 } : h as { s: SubjectId; day: number }));
   // meals eaten before they started counting (older versions) are still in the daily log: credit them
@@ -199,6 +223,5 @@ export function dormPlace(year: number): { block: 'A1' | 'A2' | 'A3'; floor: num
   const i = Math.max(0, Math.min(11, year - 1)); // Y1–4: A1 floors 1–4 · Y5–8: A2 floors 1–4 · Y9–10: A3 floors 1–2
   return { block: (['A1', 'A2', 'A3'] as const)[Math.floor(i / 4)], floor: (i % 4) + 1 };
 }
-export const LESSONS_FOR_EXAM = 6;
 export const FRIEND_AT = 40;
 

@@ -2,9 +2,10 @@
 // mixed with the few lines of their own.
 import type { Text } from '../i18n';
 import type { NpcDef, NpcLine } from './npcs';
+import { weekday } from '../game/schedule';
 
 /** where and when you caught them */
-export type Moment = 'first' | 'morning' | 'class' | 'meal' | 'break' | 'afternoon' | 'evening' | 'study' | 'weekend';
+export type Moment = 'rush' | 'first' | 'morning' | 'class' | 'meal' | 'break' | 'afternoon' | 'evening' | 'study' | 'weekend';
 
 export interface LineCtx {
   moment: Moment;
@@ -19,6 +20,14 @@ export interface LineCtx {
 }
 
 const KIDS: Record<Moment, Text[]> = {
+  rush: [
+    { tr: 'Depoda sıra çok uzun! Kıyafetlerini aldın mı?', en: 'The queue at the stores is huge! Have you got your clothes yet?' },
+    { tr: 'Sağlık kontrolünde boyumu ölçtüler. Sen gittin mi Revir\'e?', en: 'They measured my height at the health check. Have you been to the infirmary?' },
+    { tr: 'Kitaplar çok ağır, kütüphaneden yurda zor taşıdım.', en: 'The books are so heavy, I could hardly carry them from the library to the dorm.' },
+    { tr: 'Pazartesi dersler başlıyormuş. Hangi sınıfa düşeceğiz acaba?', en: "Lessons start on Monday. I wonder which class we'll be in?" },
+    { tr: 'Daha bavulumu dolaba yerleştirmedim, vakit yetişecek mi?', en: "I haven't even put my suitcase in my locker yet. Will there be time?" },
+    { tr: 'Kayıt kâğıdımı kaybettim sandım, cebimdeymiş!', en: 'I thought I had lost my registration form. It was in my pocket!' },
+  ],
   first: [
     { tr: 'Sen de yeni mi geldin? Ben de her yeri yeni öğreniyorum.', en: "Are you new too? I'm still finding my way around." },
     { tr: 'Dersler başlamadan kampüsü gezelim mi?', en: 'Shall we look round the campus before lessons start?' },
@@ -76,6 +85,10 @@ const KIDS: Record<Moment, Text[]> = {
 
 /** the older students talk down to you a little, kindly */
 const OLDER: Partial<Record<Moment, Text[]>> = {
+  rush: [
+    { tr: 'Kayıt haftası hep böyle koşturmaca. Pazar akşamına kadar her şeyi bitir.', en: "Registration weekend is always a scramble. Get everything done by Sunday evening." },
+    { tr: 'Yeni kitaplarımı aldım. Sen önce Cemiyet\'e git, kaydını yaptır.', en: 'I have my new books. You go to the Cemiyet first and get registered.' },
+  ],
   first: [{ tr: 'Hoş geldin ufaklık! Bir şeye ihtiyacın olursa söyle.', en: 'Welcome, little one! Tell me if you need anything.' }],
   morning: [{ tr: 'Günaydın ufaklık! Kahvaltını atlamadın, değil mi?', en: "Morning, little one! You didn't skip breakfast, did you?" }],
   class: [{ tr: 'Derse geç kalıyorum, sonra konuşalım.', en: "I'm late for class. Let's talk later." }],
@@ -109,6 +122,7 @@ const TEACHER: Partial<Record<Moment, Text[]>> = {
     { tr: 'Bugün derste iyiydin. Böyle devam et.', en: 'You did well in class today. Keep it up.' },
   ],
   first: [{ tr: 'Hoş geldin! Kayıt işlerini bitirince derslere başlıyoruz.', en: 'Welcome! Lessons start as soon as you have registered.' }],
+  rush: [{ tr: 'Hoş geldin! Pazartesi sabahı ilk zilde sınıfta ol.', en: 'Welcome! Be in class at the first bell on Monday morning.' }],
 };
 
 const WET: Text[] = [
@@ -131,7 +145,7 @@ function pick(key: string, n: number): number {
 
 /** is one of their own lines right for now? */
 function fits(l: NpcLine, c: LineCtx): boolean {
-  const weekend = (c.day - 1) % 7 >= 5;
+  const weekend = weekday(c.day) >= 5;
   if (l.when === 'first') return c.moment === 'first';
   if (l.when === 'day') return !weekend && (c.moment === 'break' || c.moment === 'afternoon');
   if (l.when === 'weekdays') return !weekend;
@@ -146,7 +160,7 @@ export function lineFor(npc: NpcDef, c: LineCtx): Text {
   else {
     const mine = npc.lines.filter((l) => fits(l, c));
     pool.push(...(npc.kind === 'abi' ? OLDER[c.moment] ?? OLDER.break! : KIDS[c.moment]), ...mine);
-    const wd = (c.day - 1) % 7;
+    const wd = weekday(c.day);
     if (c.wet) pool.push(...WET, ...WET);
     if (c.evci && (wd === 3 || wd === 4) && c.moment !== 'class' && c.moment !== 'study') pool.push(GOING_HOME, GOING_HOME);
     if (c.evci && c.day > 5 && (wd === 0 || (wd === 6 && c.minutes > 17 * 60)) && c.moment !== 'class') pool.push(BACK_FROM_HOME, BACK_FROM_HOME);

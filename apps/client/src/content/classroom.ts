@@ -41,4 +41,8 @@ export const TEACHERS: Record<SubjectId, { name: string; look: Partial<Character
   fen: { name: 'Murat Bey', look: { skin: '#c68e63', hair: '#120c09', hairStyle: 0, skirt: false, top: '#f4f4f0', bottom: '#2d3238', glasses: true } },
   sosyal: { name: 'Leyla Hanım', look: { skin: '#f1c9a5', hair: '#2b1d14', hairStyle: 2, skirt: true, top: '#2f5d6b', bottom: '#3a3a3a' } },
   ingilizce: { name: 'Elif Hanım', look: { skin: '#f6d7bd', hair: '#a8682e', hairStyle: 3, skirt: true, top: '#6b5a2f', bottom: '#3a3a3a' } },
+  muzik: { name: 'Nevin Hanım', look: { skin: '#e8b98f', hair: '#120c09', hairStyle: 2, skirt: true, top: '#8a3f5a', bottom: '#3a3a3a' } },
+  beden: { name: 'Kemal Bey', look: { skin: '#c68e63', hair: '#2b1d14', hairStyle: 1, skirt: false, top: '#2f7a45', bottom: '#23262b' } },
+  din: { name: 'Hasan Bey', look: { skin: '#d9a77d', hair: '#cfcfcf', hairStyle: 0, skirt: false, top: '#5a4a3a', bottom: '#2d3238', glasses: true } },
+  teknoloji: { name: 'Sevgi Hanım', look: { skin: '#f1c9a5', hair: '#7a4a24', hairStyle: 3, skirt: true, top: '#3f6f7a', bottom: '#3a3a3a', glasses: true } },
 };

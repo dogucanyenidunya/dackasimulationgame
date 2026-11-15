@@ -1,10 +1,9 @@
 // Year 1 missions (GDD §9). Main missions form a chain: each one is locked until its requirements are done,
 // and finishing it unlocks the next part of school life.
 import type { Text } from '../i18n';
-import { LOCATIONS } from '../content/campus';
 import { NPCS } from '../content/npcs';
 import type { CharacterData } from '../content/character';
-import { FRIEND_AT, LESSONS_FOR_EXAM, YEAR1_XP, type PlayerState } from './state';
+import { FRIEND_AT, LESSONS_PER_SUBJECT, SUBJECTS, YEAR1_XP, lessonsLeft, type PlayerState } from './state';
 
 export interface MissionCtx {
   st: PlayerState;
@@ -38,7 +37,7 @@ export interface Mission {
 
 const classmates = NPCS.filter((n) => n.kind === 'classmate');
 const friendCount = (c: MissionCtx) => classmates.filter((n) => (c.st.friends[n.id] ?? 0) >= FRIEND_AT).length;
-const exploreIds = LOCATIONS.map((l) => l.id);
+const LESSONS_TOTAL = SUBJECTS.length * LESSONS_PER_SUBJECT;
 const at = (...ids: string[]) => () => ids;
 const ownDorm = (c: MissionCtx) => [c.ch.gender === 'girl' ? 'kiz_yurdu' : 'erkek_yurdu'];
 const mealDone = (c: MissionCtx, m: string) => c.st.meals.includes(m as never);
@@ -46,69 +45,46 @@ const mealDone = (c: MissionCtx, m: string) => c.st.meals.includes(m as never);
 export const MISSIONS: Mission[] = [
   {
     id: 'bavul', kind: 'main',
-    title: { tr: 'Bavulunu Yerleştir', en: 'Drop Off Your Bag' },
-    desc: { tr: 'Bavulunu yurduna götür. Belletmen sana yatağını gösterecek.', en: 'Carry your suitcase to your dorm. The duty teacher will show you your bed.' },
+    title: { tr: 'Bavulunu Yerleştir', en: 'Unpack Your Suitcase' },
+    desc: { tr: 'Bavulunu yurduna götür ve yatakhanedeki dolabına yerleştir. Belletmen sana yatağını ve dolabını gösterecek.', en: 'Carry your suitcase to your dorm and unpack it into your locker in the sleeping room. The duty teacher will show you your bed and your locker.' },
     requires: [],
-    unlocks: { tr: 'Yatağın ve dolabın (uyumak, hatıran)', en: 'Your bed and locker (sleep, your keepsake)' },
-    objectives: [{ id: 'drop', text: { tr: 'Bavulunu yurduna bırak', en: 'Leave your suitcase at your dorm' }, done: (c) => c.st.once.luggage === true, targets: ownDorm }],
+    unlocks: { tr: 'Yatağın ve dolabın (uyumak, kıyafetlerin, atıştırmalıkların)', en: 'Your bed and locker (sleep, your clothes, your snacks)' },
+    objectives: [{ id: 'drop', text: { tr: 'Bavulunu dolabına yerleştir', en: 'Unpack your suitcase into your locker' }, done: (c) => c.st.once.luggage === true, targets: ownDorm }],
     reward: { xp: 30 },
   },
   {
-    id: 'kesfet', kind: 'main',
-    title: { tr: 'Kampüsü Keşfet', en: 'Explore the Campus' },
-    desc: { tr: 'Kampüsteki her binayı ve alanı keşfet: kapılarına git ve E\'ye bas. Kilitli yerleri dışarıdan keşfetmen yeterli. Kütüphane, Eğitim Binası\'nın içinde.', en: 'Discover every building and area: go to each door and press E. Locked places count from outside. The library is inside the academic building.' },
-    requires: ['bavul'],
-    unlocks: { tr: 'Kayıt', en: 'Registration' },
-    objectives: [{
-      id: 'all', text: { tr: 'Tüm yerleri keşfet', en: 'Discover every place' },
-      done: (c) => exploreIds.every((id) => c.discovered.has(id)),
-      progress: (c) => `${exploreIds.filter((id) => c.discovered.has(id)).length}/${exploreIds.length}`,
-      targets: (c) => exploreIds.filter((id) => !c.discovered.has(id)),
-    }],
-    reward: { xp: 150 },
-  },
-  {
     id: 'kayit', kind: 'main',
-    title: { tr: 'Kayıt', en: 'Registration' },
-    desc: { tr: 'Okula resmen kaydol, Revir\'de sağlık kontrolünden geç; kıyafetlerini, ayakkabılarını ve kitaplarını al.', en: 'Officially enrol, pass the health check at the infirmary, then collect your clothes, shoes and books.' },
-    requires: ['kesfet'],
-    unlocks: { tr: 'Yemek kartın (yemekhane) ve sınıf kurası', en: 'Your meal card (dining hall) and the class draw' },
+    title: { tr: 'Kayıt Dönemi', en: 'Registration Weekend' },
+    desc: { tr: 'Cumartesi ve Pazar, bütün okul için kayıt dönemi. Pazar akşamına kadar okula kaydol, Revir\'de sağlık kontrolünden geç, Spor Salonu\'ndaki depodan kıyafetlerini ve Kütüphane\'den kitaplarını al. Süre dolunca kalan işlerini görevliler tamamlar; Pazartesi dersler başlar.', en: "Saturday and Sunday are registration weekend for the whole school. By Sunday evening, enrol, pass the health check at the infirmary, and collect your clothes from the stores in the Spor Salonu and your books at the library. When time runs out the staff finish whatever is left; lessons start on Monday." },
+    requires: [],
+    unlocks: { tr: 'Sınıf kurası ve Pazartesi günü dersler', en: 'The class draw, and lessons on Monday' },
     objectives: [
       { id: 'register', text: { tr: 'Cemiyet Binası danışmasında kayıt ol', en: 'Register at the Cemiyet building reception' }, done: (c) => c.st.school.registered, targets: at('cemiyet') },
       { id: 'health', text: { tr: 'Revir\'de sağlık kontrolünden geç (Kız Yurdu, −1. kat)', en: "Pass the health check at the infirmary (girls' dorm, floor −1)" }, done: (c) => c.st.once.healthCheck === true, targets: at('revir') },
-      { id: 'kit', text: { tr: 'Ambar\'dan kıyafet ve ayakkabılarını al', en: 'Collect your clothes and shoes from the Ambar' }, done: (c) => c.st.school.kit, targets: at('cemiyet') },
+      { id: 'kit', text: { tr: 'Spor Salonu\'ndaki depodan kıyafet ve ayakkabılarını al', en: 'Collect your clothes and shoes from the stores in the Spor Salonu' }, done: (c) => c.st.school.kit, targets: at('spor') },
       { id: 'books', text: { tr: 'Kütüphane\'den ders kitaplarını al', en: 'Collect your textbooks at the library' }, done: (c) => c.st.school.books, targets: at('kutuphane') },
     ],
     reward: { xp: 100 },
   },
   {
-    id: 'sinif', kind: 'main',
-    title: { tr: 'Sınıf Kurası', en: 'The Class Draw' },
-    desc: { tr: 'Cemiyet Binası\'nda kura çek ve hangi sınıfta okuyacağını öğren.', en: 'Draw lots at the Cemiyet building to find out which class you\'re in.' },
+    id: 'derse_gir', kind: 'main',
+    title: { tr: 'İlk Ders', en: 'First Lesson' },
+    desc: { tr: 'Ders saatinde Eğitim Binası\'ndaki sınıfına git ve derse katıl. Zil çaldıktan sonra beş dakikadan fazla gecikirsen müdür yardımcısından geç kâğıdı alman gerekir; derse hiç girmezsen seni bulup sınıfa götürür.', en: "Go to your classroom in the Eğitim building during a lesson and take part. More than five minutes after the bell you need a late slip from the deputy head; skip the lesson altogether and he comes to find you and takes you to class." },
     requires: ['kayit'],
-    unlocks: { tr: 'Sınıf arkadaşlarınla tanışmak', en: 'Meeting your classmates' },
-    objectives: [{ id: 'draw', text: { tr: 'Danışmada sınıf kurası çek', en: 'Draw your class at the reception' }, done: (c) => c.st.once.classDrawn === true, targets: at('cemiyet') }],
-    reward: { xp: 40 },
+    unlocks: { tr: 'Ödevler ve etüt', en: 'Homework and study hall' },
+    objectives: [{ id: 'attend', text: { tr: 'Bir derse gir (hafta içi 08:30–15:20)', en: 'Attend a lesson (weekdays 08:30–15:20)' }, done: (c) => c.st.school.attended.length >= 1, targets: at('egitim') }],
+    reward: { xp: 60 },
   },
   {
     id: 'ilk_arkadas', kind: 'main',
     title: { tr: 'İlk Arkadaş', en: 'First Friend' },
-    desc: { tr: 'Sınıf arkadaşlarından biriyle arkadaş ol: sohbet et, tanış. Onları meydanlarda bulabilirsin.', en: 'Make friends with one classmate: chat and get to know each other. You\'ll find them on the plazas.' },
-    requires: ['sinif'],
-    unlocks: { tr: 'Dersler başlıyor', en: 'Lessons begin' },
+    desc: { tr: 'Sınıf arkadaşlarından biriyle arkadaş ol: önce tanış, sonra sohbet et. Onları sınıfta, yemekhanede ve meydanlarda bulabilirsin (isimlerinin başında ★ var).', en: 'Make friends with one classmate: get to know them first, then chat. You\'ll find them in class, in the dining hall and on the plazas (a ★ by their name).' },
+    requires: ['kayit'],
+    unlocks: { tr: 'Arkadaşların yanına gelir ve haritada görünür', en: 'Your friends come to find you and show on the map' },
     objectives: [{
       id: 'one', text: { tr: 'Bir sınıf arkadaşınla "Arkadaş" ol', en: 'Become "Friends" with one classmate' },
       done: (c) => friendCount(c) >= 1, progress: (c) => `${Math.min(1, friendCount(c))}/1`, targets: at('merkez_meydan', 'yurt_meydani'),
     }],
-    reward: { xp: 60 },
-  },
-  {
-    id: 'derse_gir', kind: 'main',
-    title: { tr: 'İlk Ders', en: 'First Lesson' },
-    desc: { tr: 'Ders saatinde Eğitim Binası\'ndaki sınıfına git ve derse katıl.', en: 'Go to your classroom in the academic building during a lesson and take part.' },
-    requires: ['ilk_arkadas'],
-    unlocks: { tr: 'Ödevler ve etüt', en: 'Homework and study hall' },
-    objectives: [{ id: 'attend', text: { tr: 'Bir derse gir (hafta içi 08:30–15:20)', en: 'Attend a lesson (weekdays 08:30–15:20)' }, done: (c) => c.st.school.attended.length >= 1, targets: at('egitim') }],
     reward: { xp: 60 },
   },
   {
@@ -181,10 +157,10 @@ export const MISSIONS: Mission[] = [
   {
     id: 'sinavlar', kind: 'main',
     title: { tr: 'Sınavları Geç', en: 'Pass the Exams' },
-    desc: { tr: 'Derslere gir, ödevlerini yap ve yıl sonu sınavını geç (en az %50).', en: 'Attend lessons, do your homework and pass the year-end exam (at least 50%).' },
+    desc: { tr: `Dokuz dersin her birine en az ${LESSONS_PER_SUBJECT} kere gir (Müzik, Beden Eğitimi, Din Kültürü ve Teknoloji ve Tasarım dahil), ödevlerini yap ve yıl sonu sınavını geç (en az %50).`, en: `Sit in on each of the nine subjects at least ${LESSONS_PER_SUBJECT} times (Music, PE, Religious Culture and Technology and Design included), do your homework and pass the year-end exam (at least 50%).` },
     requires: ['uc_ogun'],
     objectives: [
-      { id: 'lessons', text: { tr: `En az ${LESSONS_FOR_EXAM} derse gir`, en: `Attend at least ${LESSONS_FOR_EXAM} lessons` }, done: (c) => c.st.school.attended.length >= LESSONS_FOR_EXAM, progress: (c) => `${Math.min(c.st.school.attended.length, LESSONS_FOR_EXAM)}/${LESSONS_FOR_EXAM}`, targets: at('egitim') },
+      { id: 'lessons', text: { tr: `Her dersten en az ${LESSONS_PER_SUBJECT} derse gir`, en: `Attend at least ${LESSONS_PER_SUBJECT} lessons of every subject` }, done: (c) => lessonsLeft(c.st) === 0, progress: (c) => `${LESSONS_TOTAL - lessonsLeft(c.st)}/${LESSONS_TOTAL}`, targets: at('egitim') },
       { id: 'exam', text: { tr: 'Yıl sonu sınavını geç (sınıfında)', en: 'Pass the year-end exam (in your classroom)' }, done: (c) => c.st.examPassed, targets: at('egitim') },
     ],
     reward: { xp: 200 },
@@ -205,7 +181,7 @@ export const MISSIONS: Mission[] = [
     id: 'cemil_cis', kind: 'challenge',
     title: { tr: 'Cemil Emmi\'nin Görevi: Çişini Tut', en: "Cemil Emmi's Task: Hold Your Pee" },
     desc: { tr: 'Erkek Yurdu\'nun hademesi Cemil Emmi\'nin ilk görevi. Bir gece yataktan kalkmadan sabaha kadar dayan. Başaramazsan her gece yeniden denersin; ne kadar çok başarısız olursan o kadar çok dalga geçilir ve saygınlığın düşer.', en: "The first task from Cemil Emmi, the boys' dorm caretaker. Last one night until morning without getting out of bed. Fail and you try again every night; the more you fail, the more you get teased and the more respect you lose." },
-    requires: ['bavul'],
+    requires: ['kayit'],
     objectives: [
       { id: 'meet', text: { tr: 'Erkek Yurdu önünde Cemil Emmi ile konuş (08:00–18:00)', en: "Talk to Cemil Emmi outside the boys' dorm (08:00–18:00)" }, done: (c) => c.st.cemil.pee !== 'none', targets: at('erkek_yurdu') },
       { id: 'hold', text: { tr: 'Yurdunda uyu ve gece sabaha kadar tut', en: 'Sleep in your dorm and hold it until morning' }, done: (c) => c.st.cemil.pee === 'held' || c.st.cemil.pee === 'rewarded', targets: ownDorm },
@@ -236,12 +212,15 @@ export function statusOf(m: Mission, c: MissionCtx): MissionStatus {
 }
 
 export function isActive(id: string, c: MissionCtx) {
-  return statusOf(MISSIONS.find((m) => m.id === id)!, c) === 'active';
+  const m = MISSIONS.find((x) => x.id === id);
+  return !!m && statusOf(m, c) === 'active';
 }
 
 /** reached = active or already done (i.e. the feature it gates is open) */
 export function reached(id: string, c: MissionCtx) {
-  const s = statusOf(MISSIONS.find((m) => m.id === id)!, c);
+  const m = MISSIONS.find((x) => x.id === id);
+  if (!m) return true; // a mission from an older version: whatever it gated is open
+  const s = statusOf(m, c);
   return s === 'active' || s === 'done';
 }
 

@@ -1,4 +1,4 @@
-// The dining hall (Yemekhane) as a walkable room: serving counter, long tables, sinks and the canteen.
+// The dining hall (Yemekhane) as a walkable room: serving counter, long tables and sinks.
 import { RT } from './dormroom';
 import { CLASS_OX, CLASS_W } from './classroom';
 
@@ -18,7 +18,6 @@ for (const [tx, ty, len] of TABLES) for (let x = tx; x < tx + len; x++) { SEATS.
 export const COUNTER_TILES: Array<[number, number]> = [];
 for (let x = 6; x <= 15; x++) COUNTER_TILES.push([x, 3]);
 export const SINKS: Array<[number, number]> = [[1, 9], [1, 10]];
-export const KANTIN_TILES: Array<[number, number]> = [[18, 12], [19, 12], [20, 12]];
 export const DINING_EXIT: Array<[number, number]> = [[10, 13], [11, 13]];
 export const DINING_SPAWN: [number, number] = [10.9, 12.2];
 export const COOKS: Array<[number, number]> = [[8, 2.4], [13, 2.4]];
@@ -39,10 +38,7 @@ export function buildDining(): number[][] {
   for (const [x, y] of COUNTER_TILES) set(x, y, DT.COUNTER);
   for (const [tx, ty, len] of TABLES) for (let x = tx; x < tx + len; x++) set(x, ty, DT.TABLE);
   for (const [x, y] of SINKS) set(x, y, DT.SINK);
-  for (const [x, y] of KANTIN_TILES) set(x, y, DT.KANTIN);
   for (const [x, y] of DINING_EXIT) set(x, y, RT.DOOR);
   return m;
 }
 
-/** where your family waits on Wednesday afternoons, by the canteen (dining tiles) */
-export const VISITOR_SPOT: [number, number] = [16.5, 11.4];

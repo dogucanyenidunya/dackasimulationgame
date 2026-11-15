@@ -1,6 +1,7 @@
 // Building interiors (as menus) and minigames. Interiors become walkable maps later (GDD §4).
 import { L, type Text } from '../i18n';
 import { sfx } from '../audio';
+import { drawCharacter, type CharacterLook } from '../art/textures';
 
 export interface ActionView {
   id: string;
@@ -9,8 +10,15 @@ export interface ActionView {
   hint?: string;
   /** when set, the button is disabled and shows this reason */
   locked?: string;
+  /** a little picture of someone dressed like this, shown beside the label (the wardrobe) */
+  look?: CharacterLook;
   run: () => Promise<void> | void;
 }
+
+/** a dilemma moment: the situation on top, the choices underneath, all at once */
+export interface DilemmaView { title: string; intro: string; question: string; choices: Array<{ id: string; label: string }>; later: string }
+/** what came of it: the story, how it shaped you (which way each trait moved) and what you gained or lost */
+export interface OutcomeView { title: string; body: string; shifts: Array<{ towards: string; from: string; amount: number }>; effects: Array<{ text: string; good: boolean }> }
 
 export interface RoomView { id: string; name: string; note?: string; actions: ActionView[]; locked?: string }
 
@@ -111,11 +119,16 @@ export class Panel {
         <div class="room">
           ${room.note ? `<p class="room-note">${esc(room.note)}</p>` : ''}
           ${room.locked ? `<p class="room-locked">🔒 ${esc(room.locked)}</p>` : `<div class="actions">${room.actions.map((a, i) => `
-            <button type="button" class="action" data-action="${i}" ${a.locked ? 'disabled' : ''}>
-              <b>${esc(a.label)}</b>${a.hint ? `<span class="hint">${esc(a.hint)}</span>` : ''}${a.locked ? `<span class="why">${esc(a.locked)}</span>` : ''}
+            <button type="button" class="action ${a.look ? 'with-look' : ''}" data-action="${i}" ${a.locked ? 'disabled' : ''}>
+              ${a.look ? `<canvas class="act-look" width="32" height="32" data-look="${i}"></canvas>` : ''}
+              <span class="act-text"><b>${esc(a.label)}</b>${a.hint ? `<span class="hint">${esc(a.hint)}</span>` : ''}${a.locked ? `<span class="why">${esc(a.locked)}</span>` : ''}</span>
             </button>`).join('')}</div>`}
         </div>
       </div>`;
+    this.el.querySelectorAll<HTMLCanvasElement>('canvas[data-look]').forEach((cv) => {
+      const look = room.actions[Number(cv.dataset.look)]?.look;
+      if (look) drawCharacter(cv.getContext('2d')!, 0, 0, look, 0, 0);
+    });
     this.el.querySelector('.close-btn')!.addEventListener('click', () => this.tryClose());
     this.el.querySelectorAll<HTMLButtonElement>('[data-room]').forEach((b) => b.addEventListener('click', () => {
       sfx.click();
@@ -402,6 +415,138 @@ export class Panel {
       };
       spin();
       btn.addEventListener('click', () => { stage.remove(); resolve(); });
+    });
+  }
+
+  /** a multiple-choice question (the teacher's question, the exam): true if you picked the right answer */
+  quiz(title: string, prompt: string, options: string[], answer: number, note = ''): Promise<boolean> {
+    const stage = this.stage();
+    return new Promise((resolve) => {
+      stage.innerHTML = `
+        <div class="stage-card quiz">
+          <div class="stage-top"><b>${esc(title)}</b>${note ? `<span>${esc(note)}</span>` : ''}</div>
+          <p class="quiz-q">${esc(prompt)}</p>
+          <div class="quiz-opts">${options.map((o, i) => `<button type="button" data-i="${i}"><i>${'ABCD'[i] ?? i + 1}</i><span>${esc(o)}</span></button>`).join('')}</div>
+          <div class="feedback"></div>
+        </div>`;
+      const buttons = [...stage.querySelectorAll<HTMLButtonElement>('[data-i]')];
+      let done = false;
+      const pick = async (i: number) => {
+        if (done) return;
+        done = true;
+        this.listenKeys(null);
+        const ok = i === answer;
+        buttons.forEach((b, k) => { b.disabled = true; if (k === answer) b.classList.add('right'); else if (k === i) b.classList.add('wrong'); });
+        const fb = stage.querySelector('.feedback') as HTMLElement;
+        fb.textContent = ok ? L(UI.correct) : fill(L(UI.wrong), { a: options[answer] });
+        fb.className = `feedback ${ok ? 'good' : 'bad'}`;
+        (ok ? sfx.success : sfx.warn)();
+        await wait(ok ? 1100 : 1900);
+        stage.remove();
+        this.listenKeys((e) => { if (e.key === 'Escape' && !this.busy) this.tryClose(); });
+        resolve(ok);
+      };
+      buttons.forEach((b) => b.addEventListener('click', () => void pick(Number(b.dataset.i))));
+      this.listenKeys((e) => { const i = 'abcd1234'.indexOf(e.key.toLowerCase()); if (i >= 0 && i % 4 < options.length) { e.preventDefault(); void pick(i % 4); } });
+    });
+  }
+
+  /**
+   * Put the scattered words of a sentence back in order: click a word to add it to the line, click it on the
+   * line to take it back. Resolves with how many checks it took (0 = you ran out of tries and were shown it).
+   */
+  arrange(title: string, prompt: string, words: string[], tries = 3, note = ''): Promise<number> {
+    const stage = this.stage();
+    const key = (w: string) => w.toLocaleLowerCase('tr-TR');
+    // (never hand the sentence over already in order)
+    let order = words.map((_, i) => i);
+    for (let n = 0; n < 8; n++) {
+      order = order.sort(() => Math.random() - 0.5);
+      if (words.length < 2 || order.some((w, i) => key(words[w]) !== key(words[i]))) break;
+    }
+    const placed: number[] = [];
+    let used = 0;
+    return new Promise((resolve) => {
+      const finish = async (ok: boolean) => {
+        stage.querySelectorAll<HTMLButtonElement>('button').forEach((b) => { b.disabled = true; });
+        const fb = stage.querySelector('.feedback') as HTMLElement;
+        fb.textContent = ok ? L(UI.correct) : L({ tr: 'Doğrusu yukarıda. Bir dahaki sefere!', en: 'The right order is above. Next time!' });
+        fb.className = `feedback ${ok ? 'good' : 'bad'}`;
+        if (!ok) (stage.querySelector('.arr-line') as HTMLElement).innerHTML = words.map((w) => `<span class="chip shown">${esc(w)}</span>`).join('');
+        (ok ? sfx.success : sfx.warn)();
+        await wait(ok ? 1000 : 2600);
+        stage.remove();
+        resolve(ok ? used : 0);
+      };
+      const render = (wrongAt = -1) => {
+        const pool = order.filter((i) => !placed.includes(i));
+        stage.innerHTML = `
+          <div class="stage-card arrange">
+            <div class="stage-top"><b>${esc(title)}</b><span>${note ? `${esc(note)} · ` : ''}${fill(L(UI.triesLeft), { n: tries - used })}</span></div>
+            <p class="stage-help">${esc(prompt)}</p>
+            <div class="arr-line">${placed.length ? placed.map((i, k) => `<button type="button" class="chip ${wrongAt >= 0 && k >= wrongAt ? 'bad' : ''}" data-back="${k}">${esc(words[i])}</button>`).join('') : `<span class="arr-empty">${esc(L({ tr: 'Kelimeleri sırayla buraya diz…', en: 'Line the words up here in order…' }))}</span>`}</div>
+            <div class="arr-pool">${pool.map((i) => `<button type="button" class="chip" data-word="${i}">${esc(words[i])}</button>`).join('')}</div>
+            <div class="arr-foot"><button type="button" class="secondary" data-clear>${esc(L({ tr: 'Temizle', en: 'Clear' }))}</button><button type="button" class="primary" data-check ${pool.length ? 'disabled' : ''}>${esc(L({ tr: 'Kontrol et', en: 'Check' }))}</button></div>
+            <div class="feedback">${wrongAt >= 0 ? esc(L({ tr: 'Tam olmadı: kırmızı kelimelerin yeri yanlış.', en: 'Not quite: the red words are out of place.' })) : ''}</div>
+          </div>`;
+        if (wrongAt >= 0) (stage.querySelector('.feedback') as HTMLElement).className = 'feedback bad';
+        stage.querySelectorAll<HTMLButtonElement>('[data-word]').forEach((b) => b.addEventListener('click', () => { sfx.click(); placed.push(Number(b.dataset.word)); render(); }));
+        stage.querySelectorAll<HTMLButtonElement>('[data-back]').forEach((b) => b.addEventListener('click', () => { placed.splice(Number(b.dataset.back), 1); render(); }));
+        stage.querySelector('[data-clear]')!.addEventListener('click', () => { placed.length = 0; render(); });
+        stage.querySelector('[data-check]')!.addEventListener('click', () => {
+          used++;
+          const firstWrong = placed.findIndex((i, k) => key(words[i]) !== key(words[k]));
+          if (firstWrong < 0) { void finish(true); return; }
+          if (used >= tries) { void finish(false); return; }
+          sfx.warn();
+          render(firstWrong);
+        });
+      };
+      render();
+    });
+  }
+
+  /** a dilemma moment, on a card of its own over everything: the situation and all the choices at once */
+  dilemma(v: DilemmaView): Promise<string | null> {
+    const wrap = document.createElement('div');
+    wrap.className = 'dilemma-wrap';
+    this.el.appendChild(wrap);
+    return new Promise((resolve) => {
+      wrap.innerHTML = `
+        <div class="dilemma-card">
+          <div class="dl-tag">${esc(L({ tr: 'İkilem anı', en: 'A dilemma' }))}</div>
+          <h2>${esc(v.title)}</h2>
+          <p class="dl-intro">${esc(v.intro)}</p>
+          <div class="dl-shape">✦ ${esc(L({ tr: 'Doğru cevap yok. Vereceğin karar, kim olacağını şekillendirecek ve hatırlanacak.', en: 'There is no right answer. What you decide will shape who you become, and it will be remembered.' }))}</div>
+          <div class="dl-q">${esc(v.question)}</div>
+          <div class="dl-choices">${v.choices.map((c, i) => `<button type="button" data-id="${esc(c.id)}" style="animation-delay:${0.15 + i * 0.08}s"><i>${i + 1}</i><span>${esc(c.label)}</span></button>`).join('')}</div>
+          <button type="button" class="dl-later">${esc(v.later)}</button>
+        </div>`;
+      sfx.discover();
+      const done = (id: string | null) => { wrap.remove(); resolve(id); };
+      wrap.querySelectorAll<HTMLButtonElement>('[data-id]').forEach((b) => b.addEventListener('click', () => { sfx.click(); done(b.dataset.id!); }));
+      wrap.querySelector('.dl-later')!.addEventListener('click', () => done(null));
+    });
+  }
+
+  /** what your choice led to, and which way it moved you */
+  outcome(v: OutcomeView): Promise<void> {
+    const wrap = document.createElement('div');
+    wrap.className = 'dilemma-wrap';
+    this.el.appendChild(wrap);
+    return new Promise((resolve) => {
+      wrap.innerHTML = `
+        <div class="dilemma-card outcome">
+          <div class="dl-tag">${esc(L({ tr: 'Kararının sonucu', en: 'What came of it' }))}</div>
+          <h2>${esc(v.title)}</h2>
+          <p class="dl-intro">${esc(v.body)}</p>
+          ${v.shifts.length ? `<div class="dl-sub">${esc(L({ tr: 'Karakterin bu yöne evriliyor', en: 'Your character is leaning this way' }))}</div>
+          <div class="dl-shifts">${v.shifts.map((s, i) => `<div class="dl-shift" style="animation-delay:${0.2 + i * 0.12}s"><span class="from">${esc(s.from)}</span><div class="track"><i style="width:${Math.min(100, 30 + s.amount * 7)}%"></i></div><b>${esc(s.towards)} ${'▲'.repeat(s.amount >= 8 ? 3 : s.amount >= 5 ? 2 : 1)}</b></div>`).join('')}</div>` : ''}
+          ${v.effects.length ? `<div class="dl-sub">${esc(L({ tr: 'Kazandıkların ve kaybettiklerin', en: 'What you gained and lost' }))}</div>
+          <div class="dl-effects">${v.effects.map((e) => `<span class="${e.good ? 'good' : 'bad'}">${esc(e.text)}</span>`).join('')}</div>` : ''}
+          <button type="button" class="primary">${esc(L(UI.continue))}</button>
+        </div>`;
+      wrap.querySelector('button.primary')!.addEventListener('click', () => { wrap.remove(); resolve(); });
     });
   }
 

@@ -2,7 +2,7 @@
 // Each choice nudges who you are becoming (six hidden axes) and is remembered for later years.
 import { L, type Text } from '../i18n';
 import { GUARDIANS } from '../content/character';
-import { NPCS, genitiveTr, type NpcDef } from '../content/npcs';
+import { BELLETMENS, NPCS, dativeTr, genitiveTr, type NpcDef } from '../content/npcs';
 import { myGroup } from './social';
 import { FRIEND_AT, type AxisId, type PlayerState } from './state';
 import type { GameCtx } from './buildings';
@@ -57,32 +57,32 @@ function telefon(ctx: GameCtx): Dilemma {
   const card = st.phoneUnits >= 10;
   const choices: Choice[] = card ? [
     {
-      id: 'give', label: { tr: 'Sıranı ona ver', en: 'Give them your turn' },
+      id: 'give', label: { tr: `Sıranı ${dativeTr(kid.name)} ver; sen bu akşam arama`, en: `Give ${kid.name} your turn and go without a call tonight` },
       run: () => {
         markCall(ctx); shape(st, { warmth: -8, ambition: -2 }); ctx.befriend(kid.id, 20); ctx.gain({ mood: 3 });
         return { tr: `${kid.name} telefona sarıldı. "Anne, ben iyiyim…" derken sesi titriyordu. Sen bu akşam aramadan yattın ama içinde garip bir sıcaklık var.`, en: `${kid.name} grabbed the phone. Their voice shook as they said "Mum, I'm fine…". You go to bed without calling tonight, with an odd warm feeling inside.` };
       },
     },
     {
-      id: 'call', label: { tr: 'Kendi aramanı yap', en: 'Make your call' },
+      id: 'call', label: { tr: 'Sıra senin: kendi aramanı yap', en: "It's your turn: make your call" },
       run: () => {
         markCall(ctx); st.phoneUnits -= 10; shape(st, { warmth: 5 }); ctx.befriend(kid.id, -3); ctx.advance(10); ctx.gain({ mood: 12 });
-        return { tr: `${g} sesini duyunca çok sevindi. Arkandaki burun çekmeleri gittikçe yükseldi; telefonu kapattığında ${kid.name} çoktan yatağına dönmüştü.`, en: `${g} was so happy to hear you. Behind you the sniffles got louder; by the time you hung up, ${kid.name} had already gone back to bed.` };
+        return { tr: `${g} sesini duyunca çok sevindi. Arkandaki burun çekmeleri gittikçe yükseldi; telefonu kapattığında ışıklar sönmek üzereydi ve ${kid.name} arayamadan yatağına dönmüştü.`, en: `${g} was so happy to hear you. Behind you the sniffles got louder; by the time you hung up the lights were about to go out, and ${kid.name} had gone back to bed without calling.` };
       },
     },
     {
-      id: 'share', label: st.phoneUnits >= 20 ? { tr: 'Kısa konuş, sonra kartını ona ver', en: 'Keep it short, then lend them your card' } : { tr: 'Kısa konuş, kalan kontörü ona ver', en: 'Keep it short, then give them what is left' },
+      id: 'share', label: { tr: 'Çok kısa konuş: bir dakikada kapat ki o da arayabilsin', en: 'Keep it very short: hang up after a minute so they can call too' },
       run: () => {
-        markCall(ctx); const left = st.phoneUnits; st.phoneUnits = Math.max(0, left - 20);
+        markCall(ctx); st.phoneUnits -= 5;
         shape(st, { warmth: -5, loyalty: 5 }); ctx.befriend(kid.id, 15); ctx.advance(10); ctx.gain({ mood: 6 });
-        return { tr: `${g.toLowerCase()} ile bir dakika konuştun, sonra kartını ${kid.name} ile paylaştın. "Sağ ol… yarın sana simit alırım."`, en: `You had a minute with ${g.toLowerCase()} and handed your card to ${kid.name}. "Thanks… I'll get you a simit tomorrow."` };
+        return { tr: `${g.toLowerCase()} ile yalnızca bir dakika konuştun: "İyiyim, seni seviyorum, arkamda sıra var!" Ahizeyi ${dativeTr(kid.name)} uzattın; ışıklar sönmeden o da evini aradı. "Sağ ol… yarın sana simit alırım."`, en: `You had just one minute with ${g.toLowerCase()}: "I'm fine, I love you, there's a queue!" You handed the receiver to ${kid.name}, who got through to home before lights out. "Thanks… I'll get you a simit tomorrow."` };
       },
     },
     {
-      id: 'sit', label: { tr: 'Ara, sonra yanına otur', en: 'Call, then sit with them' },
+      id: 'sit', label: { tr: `Aramanı yap; telefonu kapatınca ${kid.name}'i teselli et`, en: `Make your call, then go and comfort ${kid.name}` },
       run: () => {
         markCall(ctx); st.phoneUnits -= 10; shape(st, { heart: 8, warmth: -3 }); ctx.befriend(kid.id, 12); ctx.advance(25); ctx.gain({ mood: 10 });
-        return { tr: `Aramandan sonra koridorda ${genitiveTr(kid.name)} yanına çöktün. Bir süre konuşmadınız; sonra evlerinizi, köpeklerinizi, en sevdiğiniz yemekleri anlattınız.`, en: `After your call you sat down next to ${kid.name} in the corridor. For a while neither of you spoke; then you talked about home, your dogs and your favourite food.` };
+        return { tr: `Aramanı yaptın; ${kid.name} bu akşam arayamadı. Telefonu kapatınca yanına gidip koridorda yere oturdun. Bir süre konuşmadınız; sonra evlerinizi, köpeklerinizi, en sevdiğiniz yemekleri anlattınız. Ağlaması geçti.`, en: `You made your call; ${kid.name} didn't get to ring home tonight. When you hung up you went and sat on the corridor floor beside them. For a while neither of you spoke; then you talked about home, your dogs and your favourite food. The crying stopped.` };
       },
     },
   ] : [
@@ -97,7 +97,9 @@ function telefon(ctx: GameCtx): Dilemma {
   ];
   return {
     title: { tr: '📞 Telefon sırası', en: '📞 The phone queue' },
-    intro: { tr: `Işıklar sönmeden önce koridordaki telefonun önünde uzun bir sıra var. Sonunda sıra sana geldi. Arkandaki ${kid.name} ağlıyor; ailesini çok özlemiş. Işıklar sönmeden yalnızca bir kişi daha arayabilir.`, en: `Before lights out there's a long queue at the corridor payphone. At last it's your turn. ${kid.name}, behind you, is crying; they miss their family terribly. There's only time for one more call before lights out.` },
+    intro: card
+      ? { tr: `Işıklar sönmeden önce koridordaki telefonun önünde uzun bir sıra var. Sonunda sıra sana geldi. Arkandaki ${kid.name} ağlıyor; ailesini çok özlemiş. Işıklar sönmeden yalnızca bir kişinin rahatça konuşacağı kadar vakit kaldı.`, en: `Before lights out there's a long queue at the corridor payphone. At last it's your turn. ${kid.name}, behind you, is crying; they miss their family terribly. There's only time left for one proper call before lights out.` }
+      : { tr: `Işıklar sönmeden önce koridordaki telefonun önünde uzun bir sıra var. Senin kartında kontör kalmamış. Sıranın sonundaki ${kid.name} ağlıyor; ailesini çok özlemiş.`, en: `Before lights out there's a long queue at the corridor payphone. Your card has run out. ${kid.name}, at the back of the queue, is crying; they miss their family terribly.` },
     question: { tr: 'Ne yaparsın?', en: 'What do you do?' },
     who: kid,
     choices,
@@ -204,16 +206,46 @@ function parti(ctx: GameCtx): Dilemma {
 
 const BUILD: Record<DilemmaId, (ctx: GameCtx) => Dilemma> = { telefon, arka, parti };
 
-/** shows the dilemma inside the open panel; false if it was set aside (it comes back later) */
+/** what a choice changed, read off the state before and after it ran */
+function snapshot(ctx: GameCtx) {
+  const st = ctx.st;
+  return { temper: { ...st.temper }, friends: { ...st.friends }, mood: st.mood, money: st.money, units: st.phoneUnits, hunger: st.hunger, respect: ctx.ch.respect, discipline: st.discipline };
+}
+
+/** shows the dilemma over the open panel: the situation and the choices together, then what came of it;
+ *  false if it was set aside (it comes back later) */
 export async function runDilemma(ctx: GameCtx, id: DilemmaId): Promise<boolean> {
   if (dilemmaDone(ctx.st, id)) return true;
   const d = BUILD[id](ctx);
-  await ctx.panel.message(L(d.title), L(d.intro));
-  const pick = await ctx.panel.choose(L(d.question), d.choices.map((c) => ({ id: c.id, label: L(c.label) })));
+  const pick = await ctx.panel.dilemma({
+    title: L(d.title), intro: L(d.intro), question: L(d.question),
+    choices: d.choices.map((c) => ({ id: c.id, label: L(c.label) })),
+    later: T('Şimdi karar veremiyorum', "I can't decide right now"),
+  });
   const c = d.choices.find((x) => x.id === pick);
   if (!c) return false;
+  const before = snapshot(ctx);
   const outcome = c.run();
   ctx.st.memories.push({ id, choice: c.id, day: ctx.clock.day, year: ctx.st.year, who: d.who?.id });
-  await ctx.panel.message(L(d.title), L(outcome));
+  const after = snapshot(ctx);
+  const shifts = AXES.map((a) => ({ a, d: after.temper[a.id] - before.temper[a.id] })).filter((x) => x.d !== 0)
+    .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))
+    .map(({ a, d: delta }) => ({ towards: L(delta < 0 ? a.lo : a.hi), from: L(delta < 0 ? a.hi : a.lo), amount: Math.abs(delta) }));
+  const effects: Array<{ text: string; good: boolean }> = [];
+  const num = (label: string, delta: number, unit = '', flip = false) => {
+    const r = Math.round(delta);
+    if (r) effects.push({ text: `${label} ${r > 0 ? '+' : '−'}${Math.abs(r)}${unit}`, good: flip ? r < 0 : r > 0 });
+  };
+  for (const n of [...NPCS, ...BELLETMENS]) {
+    const df = (after.friends[n.id] ?? 0) - (before.friends[n.id] ?? 0);
+    if (df) num(`${df > 0 ? '🤝' : '💔'} ${n.name}`, df);
+  }
+  num(T('🙂 Moral', '🙂 Mood'), after.mood - before.mood);
+  num(T('🍽 Tokluk', '🍽 Fullness'), after.hunger - before.hunger);
+  num(T('☎️ Kontör', '☎️ Phone units'), after.units - before.units);
+  num(T('💰 Para', '💰 Money'), after.money - before.money, ' ₺');
+  num(T('⭐ Saygınlık', '⭐ Respect'), after.respect - before.respect);
+  num(T('⚠ Disiplin puanı', '⚠ Discipline points'), after.discipline - before.discipline, '', true);
+  await ctx.panel.outcome({ title: L(d.title), body: L(outcome), shifts, effects });
   return true;
 }

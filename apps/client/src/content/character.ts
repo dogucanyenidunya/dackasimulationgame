@@ -155,21 +155,6 @@ export const MEMORY_OPTIONS: Array<{ id: MemoryScenes; name: Text }> = [
   { id: 'off', name: { tr: 'Kapalı', en: 'Off' } },
 ];
 
-/** keepsake name, lowercase-first in Turkish so it fits mid-sentence */
-export function keepsakeName(cause: CauseId, loss: Loss): string {
-  const tr = getLang() === 'tr';
-  const whoTr = loss === 'mother' ? 'annenin' : loss === 'father' ? 'babanın' : 'annenle babanın';
-  const whoEn = loss === 'mother' ? "your mother's" : loss === 'father' ? "your father's" : "your parents'";
-  switch (cause) {
-    case 'illness': return tr ? `${whoTr} atkısı` : `${whoEn} scarf`;
-    case 'accident': return tr ? `${whoTr} saati` : `${whoEn} watch`;
-    case 'disaster': return tr ? 'evden kurtarılan bir fotoğraf' : 'a photo saved from home';
-    case 'work': return tr ? `${whoTr} iş kartı` : `${whoEn} work badge`;
-    case 'service': return tr ? `${whoTr} madalyası` : `${whoEn} medal`;
-    case 'private': return tr ? 'küçük bir defter' : 'a small notebook';
-  }
-}
-
 export function capitalize(s: string): string {
   return s.charAt(0).toLocaleUpperCase(getLang() === 'tr' ? 'tr-TR' : 'en-US') + s.slice(1);
 }

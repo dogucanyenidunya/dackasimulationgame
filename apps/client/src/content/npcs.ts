@@ -65,6 +65,20 @@ export function genitiveTr(name: string): string {
   return `${name}'${endsVowel ? 'n' : ''}${v}n`;
 }
 
+const lastVowel = (name: string) => [...name].reverse().find((ch) => 'aıoueiöüAIOUEİÖÜ'.includes(ch))?.toLocaleLowerCase('tr-TR') ?? 'e';
+const endsInVowel = (name: string) => 'aıoueiöüAIOUEİÖÜ'.includes(name[name.length - 1]);
+/** Turkish dative: Zeynep'e, Ayşe'ye, Mert'e, Burak Abi'ye */
+export function dativeTr(name: string): string {
+  const v = 'aıou'.includes(lastVowel(name)) ? 'a' : 'e';
+  return `${name}'${endsInVowel(name) ? 'y' : ''}${v}`;
+}
+/** Turkish ablative: Zeynep'ten, Ayşe'den, Can'dan */
+export function ablativeTr(name: string): string {
+  const v = 'aıou'.includes(lastVowel(name)) ? 'a' : 'e';
+  const hard = 'çfhkpsştÇFHKPSŞT'.includes(name[name.length - 1]);
+  return `${name}'${hard ? 't' : 'd'}${v}n`;
+}
+
 export const HAND_GROUPS: Record<string, GroupId> = { zeynep: 'kitap', mert: 'kortcular', defne: 'sanat', emre: 'haylaz', ayse: 'kortcular', can: 'kitap' };
 
 // ---- generated students (deterministic so everyone keeps the same name and look between sessions) ----
@@ -122,13 +136,13 @@ function generate(): NpcDef[] {
   for (let i = 0; i < 20; i++) out.push(make('student', i));
   for (let i = 0; i < 4; i++) out.push(make('abi', i));
   // everyone is still generated (so the ones kept look and are named as in older saves), but only some show up
-  const keep: Record<string, number> = { classmate: 4, student: 6, abi: 1 };
+  const keep: Record<string, number> = { classmate: 6, student: 12, abi: 3 };
   return out.filter((n) => Number(n.id.split('-')[1]) < keep[n.kind]);
 }
 
 const withGender = (h: Omit<NpcDef, 'gender'>): NpcDef => ({ ...h, group: HAND_GROUPS[h.id], grade: h.kind === 'abi' ? (h.id === 'burak' ? 11 : 10) : 4, fixed: h.kind === 'abi', gender: h.look.skirt || h.look.hairStyle === 2 || h.look.hairStyle === 3 ? 'girl' : 'boy' });
 
-/** about 20 students: the handmade cast plus a few generated classmates, students from other classes and older students */
+/** about 30 students: the handmade cast plus generated classmates, students from other classes and older students */
 export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];
 
 /** night teachers: on duty from 18:00 to 07:00 */
@@ -141,7 +155,7 @@ export const BELLETMENS: NpcDef[] = [
     lines: [{ tr: 'Gece nöbetindeyim. Fenerim her yeri görür!', en: "I'm on night patrol. My torch sees everything!" }] },
 ];
 
-/** the five subject teachers, seen around the school on weekdays (their lessons are in the classroom) */
+/** the subject teachers, seen around the school on weekdays (their lessons are in the classroom) */
 export const TEACHER_NPCS: NpcDef[] = SUBJECTS.map((s, i) => {
   const t = TEACHERS[s.id];
   return {
@@ -149,6 +163,12 @@ export const TEACHER_NPCS: NpcDef[] = SUBJECTS.map((s, i) => {
     role: { tr: `${s.name.tr} öğretmeni`, en: `${s.name.en} teacher` }, look: t.look, home: [42 + i, 46], roam: 2, lines: [],
   };
 });
+
+/** the deputy head: hands out late slips in his office, and comes looking for anyone who skips a lesson */
+export const DEPUTY: NpcDef = {
+  id: 'mdr-yrd', name: 'Kenan Bey', kind: 'teacher', gender: 'boy', role: { tr: 'Müdür yardımcısı', en: 'Deputy head' },
+  look: { skin: '#d9a77d', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#2d3238', bottom: '#2d3238', glasses: true }, home: [40, 30], roam: 1, lines: [],
+};
 
 export function friendLevel(v: number): Text {
   if (v >= 90) return { tr: 'En iyi arkadaş', en: 'Best friend' };

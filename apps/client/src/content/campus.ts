@@ -1,10 +1,11 @@
-// Daçka campus layout in tiles (layout v6, from the annotated satellite map; north is up).
+// Daçka campus layout in tiles (layout v7, from the annotated satellite map; north is up).
 // West: Erkek Yurdu (top, with the basketball court and the Kapalı Saha on the lawn east of it) and Kız Yurdu + Revir (bottom) facing each other across the
-// Yurt Meydanı; TIM Gösteri Merkezi (round) beside the girls' dorm; Eğitim Binası + Kütüphane (one
-// building, the library in its long east wing). Middle: Yemekhane (Teknik Alan behind it, on Ayaz Cd)
-// and the Merkez Meydan with the Atatürk bust. East: Spor Salonu and the football pitch. South:
-// Cemiyet + Müze, the Kantin with a small court and the basketball court; Ana Kapı opens onto
-// Darüşşafaka Cd. Buildings have true outlines (polygons and circles) instead of tile rectangles.
+// Yurt Meydanı; Eğitim Binası + Kütüphane (one building, the library in its long east wing). South-west: the
+// TIM Gösteri Merkezi (round) in its own walled yard, reached only from the street through its own gate.
+// Middle: Yemekhane (Teknik Alan behind it, on Ayaz Cd) and the Merkez Meydan, with the pyramid in its centre
+// and the Atatürk bust in its south-west corner. East: Spor Salonu (canteen and stores inside, the grandstand
+// along its east wall) and the football pitch. South: Cemiyet + Müze, a small court and the basketball court;
+// Ana Kapı opens onto Darüşşafaka Cd. Buildings have true outlines (polygons and circles) instead of tile rectangles.
 
 import type { Text } from '../i18n';
 
@@ -12,7 +13,7 @@ export const TILE = 32;
 export const MAP_W = 96;
 export const MAP_H = 56;
 /** bump when buildings move: old saves get their fog and position reset */
-export const LAYOUT = 6;
+export const LAYOUT = 7;
 
 export const T = {
   FOREST: 0,
@@ -160,14 +161,18 @@ const bld = (b: Omit<Building, 'rect'>): Building => ({ ...b, shape: clockwise(b
 // ---------- the campus ----------
 
 /** the walkable campus inside the fence (the fence runs just outside it) */
-export const GROUND_SHAPE: Pt[] = [[4, 4], [30, 4], [39, 13], [92, 13], [92, 52], [35, 52], [4, 39]];
+export const GROUND_SHAPE: Pt[] = [[4, 4], [30, 4], [39, 13], [92, 13], [92, 52], [30, 52], [4, 39]];
 /** outside the fence: Ayaz Cd along the north, Darüşşafaka Cd along the south-west and south */
 const ROADS: Pt[][] = [
   [[33, 9], [96, 9], [96, 12.5], [36.5, 12.5]],
-  [[0, 39.6], [35, 52.6], [96, 52.6], [96, 56], [0, 56]],
+  [[0, 37.6], [30, 52.6], [96, 52.6], [96, 56], [0, 56]],
 ];
 /** the neighbourhood north of Ayaz Cd */
 const HOUSES: Pt[] = [[30, 0], [96, 0], [96, 9], [33, 9], [30, 5]];
+
+/** the TIM Gösteri Merkezi: a round hall in its own walled yard in the south-west corner */
+const TIM_C: Pt = [27, 41.5];
+const TIM_R = 5.2;
 
 export const BUILDINGS: Building[] = [
   bld({
@@ -175,7 +180,7 @@ export const BUILDINGS: Building[] = [
     courtyard: [[11, 8.5], [25.5, 8.5], [25.5, 14.8], [11, 17.8]],
   }),
   bld({ id: 'kiz_yurdu', shape: [[7, 25.5], [18.5, 31], [14.5, 40], [5.5, 35.5]], roof: 'grey', courtyard: circlePts(11.2, 34, 1.7, 14) }),
-  bld({ id: 'tim', shape: circlePts(25.5, 35.5, 5.2, 32), roof: 'white', roofStyle: 'dome' }),
+  bld({ id: 'tim', shape: circlePts(TIM_C[0], TIM_C[1], TIM_R, 32), roof: 'white', roofStyle: 'dome' }),
   bld({
     id: 'egitim', shape: [[26.5, 23.5], [28.5, 19.5], [39, 21.5], [39, 44], [36, 44], [35.5, 34], [34, 27.5]], roof: 'grey',
     skylights: [{ x: 30, y: 21.6, w: 6, h: 1 }, { x: 36.5, y: 29, w: 1, h: 6.5 }],
@@ -184,11 +189,10 @@ export const BUILDINGS: Building[] = [
     passages: [{ x: 29, y: 25, w: 11, h: 2 }],
   }),
   bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], greenPatches: [{ x: 43, y: 18.8, w: 10.5, h: 2 }] }),
-  bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [70, 15], [71.5, 16.5], [71.5, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
+  bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [68.5, 15], [70, 16.5], [70, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
   bld({ id: 'cemiyet', shape: rectPts({ x: 42, y: 40, w: 14, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
   // the indoor court between the boys' dorm and Eğitim, against the garden wall
   bld({ id: 'kapali_saha', shape: rectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }), roof: 'white', skylights: [{ x: 31.2, y: 15.6, w: 5.6, h: 0.7 }, { x: 31.2, y: 16.9, w: 5.6, h: 0.7 }] }),
-  bld({ id: 'kantin', shape: rectPts({ x: 58, y: 41, w: 5, h: 6 }), roof: 'green' }),
 ];
 
 export const PLAZAS: Pt[][] = [
@@ -202,28 +206,32 @@ export const PATHS: Rect[] = [
   { x: 41, y: 13, w: 51, h: 1 },   // service road behind the Yemekhane (Teknik Alan door)
   { x: 41, y: 23, w: 14, h: 1 },   // in front of the Yemekhane
   { x: 55, y: 14, w: 3, h: 26 },   // between the Meydan and the Spor Salonu
-  { x: 72, y: 14, w: 2, h: 24 },   // between the Spor Salonu and the football pitch
+  { x: 73, y: 14, w: 2, h: 26 },   // between the grandstand and the football pitch
+  { x: 70, y: 27, w: 3, h: 2 },    // the way through the grandstand to the Spor Salonu's pitch-side door
   { x: 41, y: 38, w: 51, h: 2 },   // the south street, to the courts
-  { x: 56, y: 40, w: 16, h: 1 },   // in front of the Kantin
+  { x: 56, y: 40, w: 16, h: 1 },   // the wide stretch of the south street
   { x: 41, y: 49, w: 17, h: 2 },   // behind the Cemiyet
-  { x: 30, y: 26, w: 3, h: 20 },   // Eğitim door ↔ TIM door
-  { x: 27, y: 44, w: 8, h: 2 },    // south of TIM (the garden wall stops it at the Eğitim wing)
+  { x: 29, y: 26, w: 4, h: 4 },    // the corridor's west mouth ↔ Yurt Meydanı
+  { x: 26, y: 47, w: 2, h: 2 },    // TIM door…
+  { x: 26, y: 48, w: 8, h: 2 },    // …across its yard…
+  { x: 31, y: 48, w: 3, h: 4 },    // …to its own gate
+  { x: 30, y: 53, w: 13, h: 1 },   // the pavement on Darüşşafaka Cd, from Ana Kapı to the TIM gate
   { x: 36, y: 44, w: 3, h: 2 },    // behind the Eğitim wing, off the main street
-  { x: 20, y: 28, w: 11, h: 2 },   // Yurt Meydanı → TIM
+  { x: 20, y: 28, w: 11, h: 2 },   // Yurt Meydanı → the corridor through Eğitim
   { x: 19, y: 19, w: 2, h: 2 },    // boys' dorm door → Yurt Meydanı
   { x: 27, y: 19, w: 10, h: 1 },   // Yurt Meydanı → Kapalı Saha door, along Eğitim
   { x: 29, y: 10, w: 1, h: 9 },    // up the dorm's east side to the basketball court
   { x: 12, y: 26, w: 2, h: 2 },    // girls' dorm door → Yurt Meydanı
-  { x: 56, y: 40, w: 2, h: 11 },   // Müze door, between the Cemiyet and the Kantin
+  { x: 56, y: 40, w: 2, h: 11 },   // round the Cemiyet's east end to the Müze door at the back
 ];
 
 export const COURTS = {
   basketball: { x: 75, y: 42, w: 10, h: 5 },
-  football: { x: 74, y: 16, w: 16, h: 21 },
+  football: { x: 75, y: 16, w: 16, h: 21 },
 };
 /** the basketball court on the lawn east of the boys' dorm */
 export const DORM_COURT: Rect = { x: 30, y: 10, w: 6, h: 4 };
-/** courts drawn besides the main two: the small one next to the Kantin (just for show) and the dorm court */
+/** courts drawn besides the main two: the small one on the south lawn (just for show) and the dorm court */
 export const EXTRA_COURTS: Rect[] = [{ x: 64, y: 42, w: 6, h: 4 }, DORM_COURT];
 /** where you can call friends over for a pick-up game */
 export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }> = [
@@ -233,11 +241,17 @@ export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }
 /** garden walls closing off the dorm side: one from the north fence to Eğitim (between it and the Yemekhane),
  *  one from the end of the Eğitim wing to the south fence. The corridor through Eğitim is the way across. */
 export const CAMPUS_WALLS: Rect[] = [{ x: 38, y: 12, w: 1, h: 10 }, { x: 35, y: 43, w: 1, h: 9 }];
+/** the tall walls round the TIM Gösteri Merkezi's yard (the perimeter wall, the Eğitim wing and the garden wall
+ *  close its other sides): there is no way in from the campus, only from the street through its own gate */
+export const TIM_WALLS: Rect[] = [{ x: 20, y: 33, w: 15, h: 1 }, { x: 20, y: 33, w: 1, h: 14 }];
 
 /** Ana Kapı, in the south fence on Darüşşafaka Cd */
 export const GATE: Rect = { x: 39, y: 52, w: 3, h: 1 };
 /** the tile just inside the gate */
 export const GATE_IN: Pt = [40, 51];
+/** the TIM Gösteri Merkezi's own gate on the street, a little west of Ana Kapı */
+export const TIM_GATE: Rect = { x: 31, y: 52, w: 3, h: 1 };
+export const GATES: Rect[] = [GATE, TIM_GATE];
 
 /** player spawn (tile coords, can be fractional) */
 export const SPAWN = { x: 40.5, y: 50.5 };
@@ -247,7 +261,7 @@ export const CABIN: Rect = { x: 42.9, y: 51, w: 2.4, h: 2 };
  *  and the gatehouse stand */
 export function wallAt(m: number[][], x: number, y: number): boolean {
   if (m[y]?.[x] !== T.FENCE) return false;
-  if (y === GATE.y && (x === GATE.x - 1 || x === GATE.x + GATE.w)) return false;
+  if (GATES.some((g) => y === g.y && (x === g.x - 1 || x === g.x + g.w))) return false;
   return !(x + 0.5 > CABIN.x && x + 0.5 < CABIN.x + CABIN.w && y + 0.5 > CABIN.y && y + 0.5 < CABIN.y + CABIN.h);
 }
 
@@ -257,46 +271,55 @@ export const AQUEDUCT: Rect = { x: 39, y: 41.8, w: 3, h: 0.8 };
 export const AQUEDUCT_PIER = 0.55;
 /** the steps up from the Cemiyet door to the aqueduct's arch */
 export const STAIRS: Rect = { x: 39, y: 43.2, w: 3, h: 2.5 };
+/** the corridor through Eğitim is the building's first floor: at its east mouth a flight of steps runs down to the Merkez Meydan */
+export const MEYDAN_STAIRS: Rect = { x: 39.6, y: 25, w: 2.6, h: 2 };
+/** the grandstand built onto the Spor Salonu's east wall, facing the football pitch: ten rows along the whole hall,
+ *  in two blocks either side of the way through to the hall's pitch-side door */
+export const TRIBUNE_ROWS = 10;
+export const TRIBUNE: Rect[] = [{ x: 70, y: 17, w: 3, h: 9.7 }, { x: 70, y: 29.3, w: 3, h: 9.7 }];
 
 export const TREES: Array<[number, number]> = [
   [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
-  [9, 40], [19, 42], [24, 43], [28, 46], [34, 48],
-  [90, 40], [73, 48], [87, 49], [70, 48], [90, 31], [90, 20], [60, 50],
+  [9, 40], [18, 43], [22, 36], [33, 37], [23, 47], [34, 46],
+  [90, 40], [73, 48], [87, 49], [70, 48], [60, 50], [59, 44], [62, 46],
 ];
 
 export const BENCHES: Array<[number, number]> = [
-  [12, 23], [23, 20], [16, 27], [43, 27], [43, 34], [52, 27], [52, 34], [33, 42],
+  [12, 23], [23, 20], [16, 27], [43, 27], [46, 36], [52, 27], [52, 34], [33, 43], [60, 42],
 ];
 
 /** street lamps: they light up at night */
 export const LAMPS: Array<[number, number]> = [
-  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [37.4, 50.6], [33, 33], [72, 40], [54, 30], [86, 40],
+  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [37.4, 50.6], [32, 31], [30, 47], [72, 40], [54, 30], [86, 40],
 ];
 
 export const FLOWERS: Array<[number, number]> = [
   [11, 24], [22, 22], [44, 25], [51, 25], [34, 40], [60, 48], [28, 30],
 ];
 
-/** landmarks: the fountain in the Yurt Meydanı; the Atatürk bust in the middle of the Merkez Meydan, with the flag beside it */
+/** landmarks: the fountain in the Yurt Meydanı; on the Merkez Meydan the three-sided pyramid in the very centre,
+ *  the Atatürk bust in the south-west corner and the flag on the north side */
 export const FOUNTAIN: [number, number] = [17, 24];
-export const BUST: [number, number] = [47.5, 31];
-export const FLAGPOLE: [number, number] = [50, 29];
+export const BUST: [number, number] = [43.6, 35];
+export const FLAGPOLE: [number, number] = [50, 26];
+/** the pyramid's centre and the width of its base (tiles) */
+export const PYRAMID = { x: 47.75, y: 31.4, w: 3 };
 
 /** daytime hangouts for students: [x, y, roam] */
 export const HANGOUTS: Array<[number, number, number]> = [
-  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [33, 40, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [5, 15, 2],
+  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [24, 26, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [5, 15, 2],
 ];
 
 /** where each age group hangs out by day (lawns between the buildings and the campus walls) */
 export type AgeGroup = 'g4' | 'g56' | 'g78' | 'lise';
 export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
   // 4th graders: the lawns west of the boys' dorm and south of the girls' dorm
-  g4: [{ x: 4, y: 9, w: 3, h: 12 }, { x: 13, y: 41, w: 8, h: 2 }],
+  g4: [{ x: 4, y: 9, w: 3, h: 12 }, { x: 13, y: 41, w: 5, h: 2 }],
   // 5th–6th graders: the dorm basketball court north of Eğitim, and beside the girls' dorm
   g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 4, y: 26, w: 2, h: 8 }],
-  // 7th–8th graders: round the Kantin court and the big court
+  // 7th–8th graders: round the small court and the big court
   g78: [{ x: 64, y: 47, w: 7, h: 3 }, { x: 84, y: 40, w: 7, h: 2 }],
-  // high schoolers: east of the basketball court and behind the Kantin
+  // high schoolers: east of the basketball court and on the south lawn
   lise: [{ x: 86, y: 42, w: 5, h: 8 }, { x: 57, y: 49, w: 14, h: 2 }],
 };
 /** the plazas: everyone mixes here */
@@ -306,7 +329,9 @@ export const SCHOOL_FRONT: Rect = { x: 41, y: 24, w: 4, h: 8 };
 
 /** 20:00–22:00 you may be anywhere around the dorms: the Yurt Meydanı and the lawns round both dorms */
 export const PLAZA_EVENING: Rect = { x: 4, y: 4, w: 33, h: 28 };
-export const PLAZA_ALLOWED: Rect[] = [PLAZA_EVENING];
+/** …and the way down the girls' dorm's east side to the Revir's own door, which never shuts */
+export const REVIR_WAY: Rect = { x: 4, y: 30, w: 16, h: 9 };
+export const PLAZA_ALLOWED: Rect[] = [PLAZA_EVENING, REVIR_WAY];
 
 /** evening (20:00–22:00) spots around the dorms, one per grade; the Yurt Meydanı in the middle is the mixed crowd */
 export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> = {
@@ -317,10 +342,10 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
   '8': { x: 4, y: 26, w: 2, h: 5 },       // beside the girls' dorm
   lise: { x: 29, y: 19, w: 8, h: 1 },     // along Eğitim, in front of the Kapalı Saha
 };
-export const EVENING_CENTER: Rect = { x: 11, y: 22, w: 12, h: 4 };
+export const EVENING_CENTER: Rect = { x: 10, y: 21, w: 15, h: 6 };
 
 /** Selim Bey's night patrol loop */
-export const PATROL_ROUTE: Array<[number, number]> = [[16, 25], [31, 30], [31, 44], [40, 46], [40, 30], [47, 24], [56, 24], [56, 38], [40, 38], [40, 20], [30, 18], [20, 21]];
+export const PATROL_ROUTE: Array<[number, number]> = [[16, 25], [30, 29], [34, 26], [40, 26], [40, 46], [40, 30], [47, 24], [56, 24], [56, 38], [40, 38], [40, 20], [40, 26], [31, 27], [20, 21]];
 
 export const LOCATIONS: Location[] = [
   {
@@ -333,16 +358,16 @@ export const LOCATIONS: Location[] = [
     id: 'cemiyet', kind: 'building',
     name: { tr: 'Cemiyet Binası', en: 'Cemiyet Binası' }, sub: { tr: 'Yönetim · kayıt', en: 'Administration · registration' },
     info: {
-      tr: 'İlk durağın: kayıt burada yapılır. Müdür, rehber öğretmen ve ziyaretçi odası buradadır. Ambar (−1. kat) üniforma, ayakkabı ve eşofman dağıtır.',
-      en: 'Your first stop: registration happens here. The principal, the guidance counselor and the visitors\' room are here. The Ambar (floor −1) hands out uniforms, shoes and tracksuits.',
+      tr: 'İlk durağın: kayıt burada yapılır. Müdür ve ziyaretçi odası buradadır.',
+      en: 'Your first stop: registration happens here. The principal and the visitors\' room are here.',
     },
     rect: { x: 42, y: 40, w: 14, h: 9 }, label: { x: 46.5, y: 44.5 }, doors: [{ x: 42, y: 46, side: 'w' }, { x: 42, y: 47, side: 'w' }], minimapColor: '#b9c0c6',
   },
   {
     id: 'muze', kind: 'building',
     name: { tr: 'Müze', en: 'Müze' }, sub: { tr: 'Okulun tarihi', en: "The school's history" },
-    info: { tr: 'Okulun 1863\'ten bu yana hikâyesi. Her yıl yeni bir bölüm açılır.', en: "The school's story since 1863. A new chapter opens every year." },
-    rect: { x: 51, y: 42, w: 5, h: 6 }, doors: [{ x: 55, y: 45, side: 'e' }, { x: 55, y: 46, side: 'e' }],
+    info: { tr: 'Okulun 1863\'ten bu yana hikâyesi. Her yıl yeni bir bölüm açılır. Girişi binanın güney yüzünde.', en: "The school's story since 1863. A new chapter opens every year. Its entrance is on the south side of the building." },
+    rect: { x: 51, y: 42, w: 5, h: 6 }, doors: [{ x: 53, y: 48, side: 's' }, { x: 54, y: 48, side: 's' }],
     label: { x: 53.2, y: 46.6 }, revealRect: { x: 42, y: 40, w: 14, h: 9 }, minimapColor: '#7a4e2a',
   },
   {
@@ -372,21 +397,21 @@ export const LOCATIONS: Location[] = [
   },
   {
     id: 'merkez_meydan', kind: 'zone',
-    name: { tr: 'Merkez Meydan', en: 'Merkez Meydan' }, sub: { tr: 'Atatürk büstü · tören alanı', en: 'Atatürk bust · ceremonies' },
-    info: { tr: 'Kampüsün tam ortası. Atatürk büstünün önünde törenler yapılır; yemekhane, kütüphane ve spor salonu arasındaki günlük geçit.', en: 'The very centre of the campus. Ceremonies are held in front of the Atatürk bust; the daily crossing between the dining hall, the library and the sports hall.' },
+    name: { tr: 'Merkez Meydan', en: 'Merkez Meydan' }, sub: { tr: 'Piramit · Atatürk büstü · tören alanı', en: 'Pyramid · Atatürk bust · ceremonies' },
+    info: { tr: 'Kampüsün tam ortası: ortasında üçgen piramit, güneybatı köşesinde Atatürk büstü. Bayrak törenleri burada yapılır; yemekhane, kütüphane ve spor salonu arasındaki günlük geçit.', en: 'The very centre of the campus: the three-sided pyramid in the middle, the Atatürk bust in the south-west corner. Flag ceremonies are held here; the daily crossing between the dining hall, the library and the sports hall.' },
     rect: { x: 41, y: 24, w: 14, h: 14 }, label: { x: 47.5, y: 36.4 }, minimapColor: '#a9cf95',
   },
   {
     id: 'tim', kind: 'building',
     name: { tr: 'TIM Gösteri Merkezi', en: 'TIM Gösteri Merkezi' }, sub: { tr: 'Konferans salonu · sahne', en: 'Auditorium · stage' },
-    info: { tr: 'Kırmızı koltuklar ve büyük bir sahne. Törenler, seçimler ve tiyatro gösterileri burada yapılır.', en: 'Red seats and a big stage. Ceremonies, elections and plays happen here.' },
-    rect: { x: 20.3, y: 30.3, w: 10.4, h: 10.4 }, doors: [{ x: 30, y: 34, side: 'e' }, { x: 30, y: 35, side: 'e' }], minimapColor: '#e2c48f',
+    info: { tr: 'Kırmızı koltuklar ve büyük bir sahne. Törenler, seçimler ve tiyatro gösterileri burada yapılır. Duvarlarla çevrili kendi bahçesinde durur: kampüsten geçiş yoktur, yalnızca sokaktaki kendi kapısından girilir (Ana Kapı\'nın biraz batısında).', en: 'Red seats and a big stage. Ceremonies, elections and plays happen here. It stands in its own walled yard: there is no way in from the campus, only through its own gate on the street, a little west of Ana Kapı.' },
+    rect: { x: TIM_C[0] - TIM_R, y: TIM_C[1] - TIM_R, w: TIM_R * 2, h: TIM_R * 2 }, doors: [{ x: 26, y: 46, side: 's' }, { x: 27, y: 46, side: 's' }], minimapColor: '#e2c48f',
   },
   {
     id: 'egitim', kind: 'building',
     name: { tr: 'Eğitim Binası', en: 'Eğitim Binası' }, sub: { tr: 'Sınıflar · öğretmenler odası', en: 'Classrooms · teachers\' room' },
-    info: { tr: 'Sınıflar ve öğretmenler odası, binanın güney ve doğu kanadında. Girişi, binanın içinden geçen koridorda: koridor yurt tarafını Merkez Meydan\'a bağlar.', en: 'Classrooms and the teachers\' room, in the south and east wings. You go in from the corridor that runs through the building, linking the dorm side to the Merkez Meydan.' },
-    rect: { x: 35.5, y: 27, w: 3.5, h: 17 }, label: { x: 37.3, y: 34 }, doors: [{ x: 36, y: 27, side: 'n' }, { x: 37, y: 27, side: 'n' }], minimapColor: '#c9a46a',
+    info: { tr: 'Sınıflar, öğretmenler odası, müdür yardımcısı ve rehber öğretmen, binanın güney ve doğu kanadında. İki girişi var: biri Merkez Meydan\'a bakar; öteki binanın içinden geçen birinci kat koridorundadır. Koridor yurt tarafını merdivenlerle Merkez Meydan\'a bağlar.', en: 'Classrooms, the teachers\' room, the deputy head and the counselor, in the south and east wings. It has two entrances: one faces the Merkez Meydan; the other is in the first-floor corridor that runs through the building, linking the dorm side to the Merkez Meydan down a flight of steps.' },
+    rect: { x: 35.5, y: 27, w: 3.5, h: 17 }, label: { x: 37.3, y: 34 }, doors: [{ x: 36, y: 27, side: 'n' }, { x: 37, y: 27, side: 'n' }, { x: 38, y: 31, side: 'e' }, { x: 38, y: 32, side: 'e' }], minimapColor: '#c9a46a',
   },
   {
     id: 'kutuphane', kind: 'building',
@@ -409,9 +434,9 @@ export const LOCATIONS: Location[] = [
   },
   {
     id: 'spor', kind: 'building',
-    name: { tr: 'Spor Salonu', en: 'Spor Salonu' }, sub: { tr: 'Havuz · eskrim · basketbol', en: 'Pool · fencing · basketball' },
-    info: { tr: 'Basketbol, voleybol, futsal, yüzme havuzu ve eskrim salonu. Antrenörlerin odası da burada.', en: "Basketball, volleyball, futsal, the swimming pool and the fencing room. The coaches' office is here too." },
-    rect: { x: 58, y: 15, w: 13.5, h: 24.5 }, doors: [{ x: 58, y: 30, side: 'w' }, { x: 58, y: 31, side: 'w' }], minimapColor: '#dfe3e6',
+    name: { tr: 'Spor Salonu', en: 'Spor Salonu' }, sub: { tr: 'Salon · havuz · kantin · depo', en: 'Hall · pool · canteen · stores' },
+    info: { tr: 'Basketbol, voleybol, futsal, yüzme havuzu ve eskrim salonu; Şakir Abi\'nin kantini ve kıyafetlerin dağıtıldığı depo da içeride. Doğu duvarı boyunca futbol sahasına bakan on sıralı tribün uzanır; o taraftaki kapıdan sahaya çıkılır.', en: "Basketball, volleyball, futsal, the swimming pool and the fencing room; Şakir's canteen and the stores that hand out your clothes are inside too. A ten-row grandstand runs along its east wall, facing the football pitch, with a door out to the pitch on that side." },
+    rect: { x: 58, y: 15, w: 12, h: 24.5 }, doors: [{ x: 58, y: 30, side: 'w' }, { x: 58, y: 31, side: 'w' }, { x: 69, y: 27, side: 'e' }, { x: 69, y: 28, side: 'e' }], minimapColor: '#dfe3e6',
   },
   {
     id: 'kapali_saha', kind: 'building',
@@ -420,16 +445,10 @@ export const LOCATIONS: Location[] = [
     rect: { x: 30, y: 14.8, w: 8, h: 3.8 }, label: { x: 34, y: 16.4 }, doors: [{ x: 33, y: 18, side: 's' }, { x: 34, y: 18, side: 's' }], minimapColor: '#c8d6e0',
   },
   {
-    id: 'kantin', kind: 'building',
-    name: { tr: 'Kantin', en: 'Kantin' }, sub: { tr: 'Şakir Abi\'nin kantini', en: "Şakir's canteen" },
-    info: { tr: 'Tost, ayran ve telefon kartı. Yanında küçük bir basketbol sahası var.', en: 'Toasties, ayran and phone cards. There\'s a small basketball court next to it.' },
-    rect: { x: 58, y: 41, w: 5, h: 6 }, doors: [{ x: 60, y: 41, side: 'n' }, { x: 61, y: 41, side: 'n' }], minimapColor: '#93c477',
-  },
-  {
     id: 'kortlar', kind: 'zone',
     name: { tr: 'Açık Sahalar', en: 'Açık Sahalar' }, sub: { tr: 'Futbol · basketbol', en: 'Outdoor pitches' },
-    info: { tr: 'Futbol sahası ve basketbol sahası. Teneffüste herkes burada.', en: 'The football pitch and the basketball court. Everyone is here at break time.' },
-    rect: { x: 73, y: 15, w: 18, h: 36 }, label: { x: 82, y: 39.4 }, minimapColor: '#a8483e',
+    info: { tr: 'Futbol sahası (Spor Salonu\'nun tribünü ona bakar) ve basketbol sahası. Teneffüste herkes burada.', en: 'The football pitch (the Spor Salonu\'s grandstand looks onto it) and the basketball court. Everyone is here at break time.' },
+    rect: { x: 74, y: 15, w: 18, h: 36 }, label: { x: 82, y: 39.4 }, minimapColor: '#a8483e',
   },
 ];
 
@@ -460,7 +479,7 @@ export function buildMap(): number[][] {
   for (const p of PATHS) fillPoly(m, rectPts(p), T.PATH);
   fillPoly(m, rectPts(COURTS.basketball), T.COURT_RED);
   for (const c of EXTRA_COURTS) fillPoly(m, rectPts(c), T.COURT_RED);
-  fillPoly(m, rectPts(GATE), T.GATE);
+  for (const g of GATES) fillPoly(m, rectPts(g), T.GATE);
 
   for (const b of BUILDINGS) {
     const roofTile = b.roof === 'green' ? T.GREEN_ROOF : T.ROOF;
@@ -482,6 +501,7 @@ export function buildMap(): number[][] {
   // corridors through buildings are walkable floor; garden walls go up last
   for (const b of BUILDINGS) for (const p of b.passages ?? []) fillPoly(m, rectPts(p), (x, y) => (m[y][x] === T.FENCE || m[y][x] === T.FOREST ? null : T.PATH));
   for (const w of CAMPUS_WALLS) fillPoly(m, rectPts(w), T.CAMPUS_WALL);
+  for (const w of TIM_WALLS) fillPoly(m, rectPts(w), (x, y) => (m[y][x] === T.FOREST || m[y][x] === T.ROAD ? null : T.FENCE));
   return m;
 }
 

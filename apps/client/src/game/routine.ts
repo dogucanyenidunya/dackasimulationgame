@@ -2,11 +2,11 @@
 // It is a pure function of the clock, so the campus, the dining hall, the classroom and the dorm room
 // all agree about who is where. Each student runs a few minutes early or late, so nobody moves in step.
 import type { NpcDef } from '../content/npcs';
-import { ETUT_START, PLAZA_START, ceremonyWindow, hasEtut } from './schedule';
+import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, hasEtut } from './schedule';
 import { BACK_ON_SUNDAY, BUS_BOARDING, CARSI_START, VISIT_START, npcIsEvci, weekday } from './weekend';
 
 /** inside a building (`dorm` = their own dorm) or off campus (`away`: they leave by the main gate) */
-export type Indoors = 'dorm' | 'yemekhane' | 'egitim' | 'spor' | 'kantin' | 'kutuphane' | 'away';
+export type Indoors = 'dorm' | 'yemekhane' | 'egitim' | 'spor' | 'kutuphane' | 'cemiyet' | 'revir' | 'away';
 /** outdoors: their age group's lawn, the square in front of the school, their evening spot around the dorms, or lined up at the flag */
 export type Outdoors = 'lawn' | 'school' | 'plaza' | 'ceremony';
 export interface Activity { in?: Indoors; out?: Outdoors }
@@ -17,6 +17,8 @@ export interface RoutineClock {
   /** lessons only start once the player has settled in (the "first days" of the year) */
   lessonsOn: boolean;
   raining: boolean;
+  /** the registration weekend: the whole school is queueing at the Cemiyet, the infirmary, the stores and the library */
+  rush?: boolean;
 }
 
 const H = (h: number, m = 0) => h * 60 + m;
@@ -40,6 +42,8 @@ function roll(key: string): number {
 export function wakeTime(def: NpcDef, day: number): number {
   return weekday(day) >= 5 ? H(7, 15) + roll(`${def.id}wake`) * 45 : H(7) + roll(`${def.id}wake`) * 30;
 }
+/** after getting up they spend a few minutes at their locker, getting dressed, before they leave the dorm */
+export const DRESS_MINUTES = 12;
 export function bedTime(def: NpcDef): number {
   return H(21, 45) + roll(`${def.id}bed`) * 12;
 }
@@ -50,7 +54,7 @@ export function activityOf(def: NpcDef, c: RoutineClock): Activity {
   if (a.out && a.out !== 'ceremony' && c.raining && roll(`${def.id}rain${c.day}`) < 0.7) {
     if (a.out === 'school') return { in: 'egitim' };
     if (a.out === 'plaza') return { in: 'dorm' };
-    return { in: roll(`${def.id}shelter`) < 0.5 ? 'dorm' : 'kantin' };
+    return { in: roll(`${def.id}shelter`) < 0.5 ? 'dorm' : 'spor' };
   }
   return a;
 }
@@ -66,6 +70,8 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   const optional = !def.fixed;
   const evci = npcIsEvci(def);
 
+  if (c.rush) return registering(def, c);
+
   // home for the weekend: out by the gate on Friday after lessons, back on Sunday evening
   if (evci && ((wd === 4 && m >= BUS_BOARDING + 22 + u('bus') * 50) || wd === 5 || (wd === 6 && m < BACK_ON_SUNDAY + u('bus') * 8))) return { in: 'away' };
 
@@ -77,7 +83,8 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   const cer = c.raining ? null : ceremonyWindow(c.day);
   if (cer && m >= cer[0] - 7 + u('bell') * 5 && m < cer[1]) return { out: 'ceremony' };
 
-  // breakfast, straight out of bed
+  // a few minutes at the locker getting dressed, then breakfast
+  if (m < wake + DRESS_MINUTES) return { in: 'dorm' };
   if (m < Math.min(wake + 38 + u('eat') * 14, weekend ? H(8, 30) : H(8, 15))) return { in: 'yemekhane' };
 
   if (!weekend && c.lessonsOn) {
@@ -107,7 +114,7 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
       if (r >= 0.3 && r < 0.45 && m >= H(9, 30) && m < H(11, 30)) return { in: 'kutuphane' };
     } else {
       const r = ud('pm');
-      if (r < 0.3 && m >= H(14) && m < H(15, 30)) return { in: 'kantin' }; // a film at Şakir Abi's
+      if (r < 0.3 && m >= H(14) && m < H(15, 30)) return { in: 'spor' }; // a film at Şakir Abi's canteen
       if (r >= 0.3 && r < 0.5 && m >= H(14) && m < H(16)) return { in: 'spor' };
     }
   }
@@ -119,7 +126,7 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
 
   if (m < H(17)) {
     if (!weekend && optional && !town) {
-      if (wednesday && (def.grade ?? 4) < 6 && ud('visit') < 0.35 && m >= CARSI_START + 5 && m < H(16, 45)) return { in: 'yemekhane' };
+      if (wednesday && (def.grade ?? 4) < 6 && ud('visit') < 0.35 && m >= CARSI_START + 5 && m < H(16, 45)) return { in: 'spor' }; // family at the canteen
       // sports and clubs
       if (ud('sport') < 0.4 && m >= H(15, 30) + u('bell') * 8 && m < H(16, 50) + u('out') * 8) return { in: 'spor' };
     }
@@ -140,16 +147,40 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   return { out: 'plaza' };
 }
 
+/** the registration weekend, for everyone: the new ones enrol, everybody has a health check and collects this year's
+ *  clothes and books. They go round the four desks in their own order, queueing at each, with meals in between */
+const DESKS: Indoors[] = ['cemiyet', 'revir', 'spor', 'kutuphane', 'dorm'];
+function registering(def: NpcDef, c: RoutineClock): Activity {
+  const m = c.minutes;
+  const u = (k: string) => roll(def.id + k), ud = (k: string) => roll(def.id + k + c.day);
+  const wake = H(7, 30) + u('wake') * 40;
+  if (m < wake || m >= RUSH_NIGHT - 10 + u('bed') * 20) return { in: 'dorm' };
+  if (m < wake + 35 + u('eat') * 15) return { in: 'yemekhane' };
+  const l0 = H(12, 20) + u('out') * 25;
+  if (m >= l0 && m < l0 + 30 + u('eat') * 12) return { in: 'yemekhane' };
+  const d0 = H(17) + u('din') * 20;
+  if (m >= d0 && m < d0 + 28) return { in: 'yemekhane' };
+  // 50-minute rounds: about half an hour in a queue, then out in the open on the way to the next desk
+  const t = m - H(8, 30) + u('rush') * 50;
+  const round = Math.floor(t / 50), into = t - round * 50;
+  const start = Math.floor(u('first') * DESKS.length) + (c.day - 1) * 2;
+  const stop = DESKS[(((round + start) % 6) + 6) % 6]; // (a sixth "desk" = a break on the lawn)
+  if (stop && (def.fixed ? ud(`r${round}`) < 0.35 : true) && into < 26 + u('q') * 10) return { in: stop };
+  return { out: 'lawn' };
+}
+
 /** teachers (0–4, one per subject): in by the gate before the bell, two on yard duty each day, home after lessons */
 export function teacherActivity(index: number, c: RoutineClock): Activity {
   const m = c.minutes, wd = weekday(c.day);
   const u = (k: string) => roll(`teacher${index}${k}`);
+  // on the registration weekend a few of them are in, helping at the desks or out greeting the new ones
+  if (c.rush) return m < H(8, 30) || m >= H(18) ? { in: 'away' } : index % 3 === 0 ? { out: 'school' } : index % 3 === 1 ? { in: 'egitim' } : { in: 'away' };
   if (wd >= 5 || m < H(7, 40) + u('in') * 20) return { in: 'away' };
   const cer = c.raining ? null : ceremonyWindow(c.day);
   if (cer && m >= cer[0] - 6 + u('in') * 4 && m < cer[1]) return { out: 'ceremony' };
   if (m >= (cer && wd === 4 ? cer[1] : H(15, 30)) + 2 + u('out') * 45) return { in: 'away' };
   // yard duty: before the bell, through the lunch break, and seeing everyone off
-  const duty = (index + c.day) % 5 < 2 && !c.raining;
+  const duty = (index + c.day) % 4 < 1 && !c.raining;
   if (duty && (m < H(8, 26) || (m >= H(12, 24) && m < H(13, 24)) || m >= H(15, 22))) return { out: 'school' };
   return { in: 'egitim' };
 }

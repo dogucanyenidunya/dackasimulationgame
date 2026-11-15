@@ -2,7 +2,7 @@
 import { drawCharacter, type CharacterLook } from '../art/textures';
 import {
   ATTRS, BOARDING_OPTIONS, CAUSES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, MEMORY_OPTIONS, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
-  capitalize, computeAttributes, defaultGuardian, guardianOptions, keepsakeName,
+  computeAttributes, defaultGuardian, guardianOptions,
   type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type MemoryScenes, type TraitId,
 } from '../content/character';
 import { L, getLang, onLangChange, type Text } from '../i18n';
@@ -37,7 +37,6 @@ const S = {
   memory: { tr: 'Anı sahneleri', en: 'Memory scenes' },
   memoryHelp: { tr: 'Duygusal sahnelerin yoğunluğu. Güçlerin her ayarda aynı çalışır.', en: 'How much emotional content you see. Your strengths work the same either way.' },
   strength: { tr: 'Gücün', en: 'Your strength' },
-  keepsake: { tr: 'Hatıran', en: 'Your keepsake' },
   attributes: { tr: 'Özellikler', en: 'Attributes' },
   respect: { tr: 'Saygınlık', en: 'Respect' },
   family: { tr: 'Ailen', en: 'Family' },
@@ -165,7 +164,6 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
               <div class="sc-label">${esc(L(S.strength))}</div>
               <div class="sc-name">${esc(L(cause.strength))}</div>
               <p>${esc(L(cause.perk))}</p>
-              <div class="sc-keep">🎁 ${esc(L(S.keepsake))}: <b>${esc(capitalize(keepsakeName(cause.id, d.loss)))}</b></div>
             </div>
             <div class="field-label">${esc(L(S.attributes))}</div>
             ${ATTRS.map((a) => `<div class="attr"><span>${esc(L(a.name))}</span><div class="attr-bar"><i style="width:${Math.min(100, attributes[a.id] * 2)}%"></i></div><b>${attributes[a.id]}</b></div>`).join('')}

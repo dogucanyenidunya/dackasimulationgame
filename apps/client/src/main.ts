@@ -5,7 +5,7 @@ import { backupSave, clearSave, hasBackup, loadSave, newSave, restoreBackup, typ
 import { runCreator } from './ui/creator';
 import { sfx } from './audio';
 import { askConfirm } from './ui/confirm';
-import { GUARDIANS, keepsakeName, type CharacterData } from './content/character';
+import { GUARDIANS, type CharacterData } from './content/character';
 import { L } from './i18n';
 import { currentSession, online, sendSignInLink, signOut } from './net/supabase';
 import { loadCloudSave } from './net/cloudSave';
@@ -120,7 +120,7 @@ function showArrival(el: HTMLElement, character: CharacterData, net: NetUser | n
       <p style="line-height:1.55;text-align:left"></p>
       <button class="primary" data-go>${t('arrival_go')}</button>
     </div>`;
-  el.querySelector('p')!.textContent = t('arrival_personal', { guardian, keepsake: keepsakeName(character.cause, character.loss) });
+  el.querySelector('p')!.textContent = t('arrival_personal', { guardian });
   el.querySelector('[data-go]')!.addEventListener('click', () => {
     el.remove();
     backupSave();
