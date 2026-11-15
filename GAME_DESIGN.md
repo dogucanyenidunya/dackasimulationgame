@@ -347,7 +347,6 @@ Each story also has its own scene: Compassion volunteers at the infirmary (Year 
 
 **Handled with care:**
 - Real Daçka students who play may have lost a parent themselves.
-- **Settings → Memory scenes:** *Full* / *Gentle* (shorter, no flashbacks) / *Off*. The perks work the same either way.
 - Other players can't see your story unless you share it from your profile.
 - The **guidance counselor (*rehber öğretmen*)** in the Cemiyet building is always there to talk to for a mood boost, any time.
 - Mother's Day and Father's Day show a gentle, optional scene based on your story, never a "make a card for your mom" task.
@@ -829,7 +828,7 @@ Romance is possible between **any genders**.
 | Republic Day (29 Ekim) | Ceremony and poem recital minigame |
 | Atatürk Commemoration (10 Kasım) | Respectful ceremony scene, with no gameplay rewards attached |
 | Çanakkale Victory and Martyrs' Day (18 Mart) | Ceremony on the Merkez Meydan. The *Honor* story gets its moment here |
-| Mother's Day / Father's Day | A gentle, optional memory scene based on your story (§5.2); respects the Memory scenes setting |
+| Mother's Day / Father's Day | A gentle, optional memory scene based on your story (§5.2) |
 | Semester break (*yarıyıl tatili*) | First report card, short holiday choice |
 | New Year | Dorm celebration, gift exchange |
 | National Sovereignty and Children's Day (23 Nisan) | Performances, the children's council |
@@ -925,7 +924,7 @@ This mirrors the school's strong alumni culture, keeps veterans in the game and 
 9. **Profile:** attributes, respect, medals, titles, discipline record
 10. **Cohort page:** members, goals, chat, class photos
 11. **Yearbook**
-12. **Settings:** language, audio, chat safety, **Memory scenes** (Full / Gentle / Off), **Romance with players** (on/off), accessibility (text size, colorblind-safe colors, reduced motion)
+12. **Settings:** language, audio, chat safety, **Romance with players** (on/off), accessibility (text size, colorblind-safe colors, reduced motion)
 
 Input: keyboard and mouse (WASD or arrows, E to interact) plus click-to-move. Design touch controls in from the start for mobile later.
 
@@ -1076,7 +1075,7 @@ rewards:
 
 ```
 users              id, email, password_hash, birth_year, age_band, locale, parental_consent,
-                   settings(jsonb: memory_scenes, romance_with_players, safe_chat), created_at
+                   settings(jsonb: romance_with_players, safe_chat), created_at
 campus_worlds      id, name, region, capacity, status
 cohorts            id, world_id, name, admitted_at
 characters         id, user_id, world_id, cohort_id, name, gender, appearance(jsonb),

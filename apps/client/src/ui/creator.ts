@@ -1,9 +1,9 @@
 // Character creator (GDD §5): look → about you → your story → summary.
 import { drawCharacter, type CharacterLook } from '../art/textures';
 import {
-  ATTRS, BOARDING_OPTIONS, CAUSES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, MEMORY_OPTIONS, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
+  ATTRS, BOARDING_OPTIONS, CAUSES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
   computeAttributes, defaultGuardian, guardianOptions,
-  type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type MemoryScenes, type TraitId,
+  type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId,
 } from '../content/character';
 import { L, getLang, onLangChange, type Text } from '../i18n';
 
@@ -34,8 +34,6 @@ const S = {
   whoLost: { tr: 'Kimi kaybettin?', en: 'Who did you lose?' },
   guardian: { tr: 'Seni kim büyütüyor ve ziyaret ediyor?', en: 'Who raises you and visits you?' },
   how: { tr: 'Nasıl oldu?', en: 'How did it happen?' },
-  memory: { tr: 'Anı sahneleri', en: 'Memory scenes' },
-  memoryHelp: { tr: 'Duygusal sahnelerin yoğunluğu. Güçlerin her ayarda aynı çalışır.', en: 'How much emotional content you see. Your strengths work the same either way.' },
   strength: { tr: 'Gücün', en: 'Your strength' },
   attributes: { tr: 'Özellikler', en: 'Attributes' },
   respect: { tr: 'Saygınlık', en: 'Respect' },
@@ -54,7 +52,7 @@ const S = {
 interface Draft {
   first: string; last: string; gender: Gender;
   look: CharacterLook; hometown: string; trait: TraitId | null;
-  loss: Loss; guardian: GuardianId; cause: CauseId | null; memoryScenes: MemoryScenes; boarding: Boarding;
+  loss: Loss; guardian: GuardianId; cause: CauseId | null; boarding: Boarding;
 }
 
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
@@ -70,7 +68,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     const d: Draft = {
       first: '', last: '', gender: 'girl',
       look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false },
-      hometown: 'İstanbul', trait: null, loss: 'father', guardian: 'mother', cause: null, memoryScenes: 'full', boarding: 'evci',
+      hometown: 'İstanbul', trait: null, loss: 'father', guardian: 'mother', cause: null, boarding: 'evci',
     };
 
     host.innerHTML = `
@@ -145,8 +143,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
               <b>${esc(L(c.how))}</b><span>${esc(L(c.strength))}: ${esc(L(c.blurb))}</span></button>`).join('')}</div>`) +
           field({ tr: 'Hafta sonları', en: 'Weekends' }, `<div class="cards">${BOARDING_OPTIONS.map((b) => `
             <button type="button" class="opt ${d.boarding === b.id ? 'on' : ''}" data-field="boarding" data-v="${b.id}">
-              <b>${esc(L(b.name))}</b><span>${esc(L(b.desc))}</span></button>`).join('')}</div>`) +
-          field(S.memory, seg('memoryScenes', MEMORY_OPTIONS.map((m) => ({ v: m.id, label: L(m.name) })), d.memoryScenes), S.memoryHelp);
+              <b>${esc(L(b.name))}</b><span>${esc(L(b.desc))}</span></button>`).join('')}</div>`);
       } else {
         const cause = CAUSES.find((c) => c.id === d.cause)!;
         const trait = TRAITS.find((x) => x.id === d.trait)!;
@@ -214,7 +211,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         resolve({
           first: d.first.trim(), last: d.last.trim(), gender: d.gender, look: { ...d.look },
           hometown: d.hometown, trait: d.trait!, loss: d.loss, guardian: d.guardian, cause: d.cause!,
-          memoryScenes: d.memoryScenes, boarding: d.boarding, attributes, respect,
+          boarding: d.boarding, attributes, respect,
         });
         return;
       }
@@ -239,7 +236,6 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
           if (!guardianOptions(d.loss).includes(d.guardian)) d.guardian = defaultGuardian(d.loss);
           break;
         case 'cause': d.cause = v as CauseId; error = ''; break;
-        case 'memoryScenes': d.memoryScenes = v as MemoryScenes; break;
         case 'boarding': d.boarding = v as Boarding; break;
       }
       render();

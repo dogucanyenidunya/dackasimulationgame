@@ -8,7 +8,6 @@ export type Loss = 'mother' | 'father' | 'both';
 export type CauseId = 'illness' | 'accident' | 'disaster' | 'work' | 'service' | 'private';
 export type GuardianId =
   | 'mother' | 'father' | 'grandma_m' | 'grandma_f' | 'grandpa' | 'aunt_m' | 'aunt_f' | 'uncle_m' | 'uncle_f' | 'sister' | 'brother';
-export type MemoryScenes = 'full' | 'gentle' | 'off';
 /** evci = goes home every weekend · daimi = stays at school */
 export type Boarding = 'evci' | 'daimi';
 export type AttrId = 'knowledge' | 'fitness' | 'social' | 'discipline' | 'creativity';
@@ -24,7 +23,6 @@ export interface CharacterData {
   loss: Loss;
   guardian: GuardianId;
   cause: CauseId;
-  memoryScenes: MemoryScenes;
   /** missing in older saves: treated as 'daimi' */
   boarding?: Boarding;
   attributes: Attributes;
@@ -147,12 +145,6 @@ export const CAUSES: Cause[] = [
 export const BOARDING_OPTIONS: Array<{ id: Boarding; name: Text; desc: Text }> = [
   { id: 'evci', name: { tr: 'Evci', en: 'Evci (home at weekends)' }, desc: { tr: 'Cuma dersten sonra (15:20–17:00) Ana Kapı\'dan servisle eve gidersin, Pazar 17:40\'ta dönersin.', en: 'You take the bus home from the main gate after Friday\'s lessons (15:20–17:00) and come back on Sunday at 17:40.' } },
   { id: 'daimi', name: { tr: 'Daimi', en: 'Daimi (stays at school)' }, desc: { tr: 'Hafta sonları okulda kalırsın. Ders yok, Cemiyet kapalı; Pazar günleri ailen ziyarete gelir.', en: 'You stay at school at weekends. No lessons, the Cemiyet building is closed; your family visits on Sundays.' } },
-];
-
-export const MEMORY_OPTIONS: Array<{ id: MemoryScenes; name: Text }> = [
-  { id: 'full', name: { tr: 'Tam', en: 'Full' } },
-  { id: 'gentle', name: { tr: 'Hafif', en: 'Gentle' } },
-  { id: 'off', name: { tr: 'Kapalı', en: 'Off' } },
 ];
 
 export function capitalize(s: string): string {
