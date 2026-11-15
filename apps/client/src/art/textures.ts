@@ -3,6 +3,9 @@
 import Phaser from 'phaser';
 import { T, TILE } from '../content/campus';
 
+export { CHAR_RES, DEFAULT_LOOK, drawCharacter, fitCharacter, footBody, makeCharacterTexture, paintCharacter } from './character';
+export type { CharacterLook, HairStyle } from './character';
+
 const PAL = {
   roof: '#c3c9cf', roofDark: '#a9b0b7', roofLight: '#d8dde2',
   wall: '#f1f2f0', wallShade: '#dcdfe0', fin: '#c98a4b', finDark: '#9c6633', window: '#4f6f8c', windowLight: '#9cc0dd',
@@ -373,20 +376,6 @@ export const FOG_KEY = 'fog';
 export const FOG_FULL = 0;
 export const FOG_SOFT = 1;
 
-export interface CharacterLook {
-  skin: string;
-  hair: string;
-  hairStyle: 0 | 1 | 2 | 3; // short, buzz, long, ponytail
-  top: string;     // sweater
-  bottom: string;  // trousers / skirt
-  skirt: boolean;
-  glasses?: boolean;
-}
-
-export const DEFAULT_LOOK: CharacterLook = {
-  skin: '#e8b98f', hair: '#3b2a20', hairStyle: 0, top: '#22365c', bottom: '#5b6168', skirt: false,
-};
-
 export function generateTextures(scene: Phaser.Scene) {
   const count = 36;
   // paint tiles side by side, then copy them into an "extruded" sheet: each tile gets a 1px border
@@ -670,89 +659,4 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillStyle = '#3a2a10'; c.font = 'bold 14px monospace'; c.textAlign = 'center'; c.fillText('?', 9, 14);
     c.fillStyle = '#f2c14e'; c.beginPath(); c.moveTo(5, 16); c.lineTo(13, 16); c.lineTo(9, 22); c.fill();
   });
-}
-
-/** Draws a 32x32 kid. dir: 0 down, 1 left, 2 right, 3 up. frame: 0 idle, 1/2 walking. */
-export function drawCharacter(c: Ctx, ox: number, oy: number, look: CharacterLook, dir: number, frame: number) {
-  const p = (x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(ox + x, oy + y, w, h); };
-  const shoe = '#1f1f22';
-  const shirt = '#f4f4f0';
-  const bob = frame === 0 ? 0 : 1;
-  p(9, 29, 14, 2, 'rgba(0,0,0,0.2)');
-
-  // legs
-  const legL = frame === 1 ? -1 : frame === 2 ? 1 : 0;
-  if (look.skirt) {
-    p(10, 20 - bob, 12, 5, look.bottom);
-    p(11, 25 - bob, 3, 3 + (legL < 0 ? 1 : 0), look.skin); p(18, 25 - bob, 3, 3 + (legL > 0 ? 1 : 0), look.skin);
-  } else {
-    p(11, 21 - bob, 4, 6 + (legL < 0 ? 1 : 0), look.bottom); p(17, 21 - bob, 4, 6 + (legL > 0 ? 1 : 0), look.bottom);
-  }
-  p(10, 27 - bob + (legL < 0 ? 1 : 0), 5, 2, shoe); p(17, 27 - bob + (legL > 0 ? 1 : 0), 5, 2, shoe);
-
-  // torso + arms
-  p(9, 13 - bob, 14, 9, look.top);
-  p(9, 20 - bob, 14, 2, 'rgba(0,0,0,0.18)'); p(10, 14 - bob, 1, 6, 'rgba(255,255,255,0.14)');
-  if (dir === 0) { p(14, 13 - bob, 4, 3, shirt); p(15, 16 - bob, 2, 4, '#8a1f2b'); }
-  const swing = frame === 1 ? 1 : frame === 2 ? -1 : 0;
-  if (dir === 0 || dir === 3) {
-    p(7, 14 - bob + swing, 2, 7, look.top); p(23, 14 - bob - swing, 2, 7, look.top);
-    p(7, 21 - bob + swing, 2, 2, look.skin); p(23, 21 - bob - swing, 2, 2, look.skin);
-  } else {
-    const ax = dir === 1 ? 14 + swing * 2 : 16 - swing * 2;
-    p(ax, 14 - bob, 3, 7, look.top); p(ax, 21 - bob, 3, 2, look.skin);
-  }
-
-  // head
-  p(10, 2 - bob, 12, 11, look.skin);
-  // hair
-  const h = look.hair;
-  const style = look.hairStyle;
-  if (style === 1) { p(10, 1 - bob, 12, 3, h); }
-  else { p(9, 0 - bob, 14, 4, h); p(9, 4 - bob, 2, 3, h); p(21, 4 - bob, 2, 3, h); }
-  if (dir === 3) { p(10, 2 - bob, 12, 8, h); if (style === 2) p(9, 8 - bob, 14, 7, h); if (style === 3) p(14, 9 - bob, 4, 7, h); }
-  else if (style === 2) { p(8, 4 - bob, 3, 10, h); p(21, 4 - bob, 3, 10, h); }
-  else if (style === 3) { const px = dir === 1 ? 21 : dir === 2 ? 8 : 22; p(px, 5 - bob, 3, 7, h); }
-  if (dir !== 3) p(12, 1 - bob, 5, 1, 'rgba(255,255,255,0.22)');
-  // face
-  const eye = '#2a1d16';
-  if (dir === 0) { p(13, 7 - bob, 2, 2, eye); p(18, 7 - bob, 2, 2, eye); p(15, 11 - bob, 3, 1, '#b5735a'); }
-  if (dir === 1) { p(11, 7 - bob, 2, 2, eye); p(9, 6 - bob, 2, 5, look.skin); }
-  if (dir === 2) { p(19, 7 - bob, 2, 2, eye); p(21, 6 - bob, 2, 5, look.skin); }
-  if (look.glasses) {
-    const fr = '#5a7896';
-    const lens = 'rgba(214, 232, 245, 0.55)';
-    if (dir === 0) {
-      p(12, 6 - bob, 4, 4, fr); p(17, 6 - bob, 4, 4, fr); p(16, 7 - bob, 1, 1, fr);
-      p(13, 7 - bob, 2, 2, lens); p(18, 7 - bob, 2, 2, lens);
-    }
-    if (dir === 1) { p(10, 6 - bob, 4, 4, fr); p(11, 7 - bob, 2, 2, lens); p(14, 7 - bob, 4, 1, fr); }
-    if (dir === 2) { p(18, 6 - bob, 4, 4, fr); p(19, 7 - bob, 2, 2, lens); p(14, 7 - bob, 4, 1, fr); }
-  }
-}
-
-/** Builds a 3x4 spritesheet texture for a character look (with a dark outline). Frame index = dir * 3 + frame. */
-export function makeCharacterTexture(scene: Phaser.Scene, key: string, look: CharacterLook) {
-  if (scene.textures.exists(key)) scene.textures.remove(key);
-  const tex = scene.textures.createCanvas(key, 32 * 3, 32 * 4)!;
-  const ctx = tex.getContext();
-  const tmp = document.createElement('canvas');
-  tmp.width = 32; tmp.height = 32;
-  const t = tmp.getContext('2d')!;
-  for (let dir = 0; dir < 4; dir++) for (let f = 0; f < 3; f++) {
-    t.clearRect(0, 0, 32, 32);
-    drawCharacter(t, 0, 0, look, dir, f);
-    const img = t.getImageData(0, 0, 32, 32);
-    const d = img.data;
-    const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < 32 && y < 32 && d[(y * 32 + x) * 4 + 3] > 150;
-    const out = new Uint8ClampedArray(d);
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-      if (solid(x, y)) continue;
-      if (solid(x + 1, y) || solid(x - 1, y) || solid(x, y + 1) || solid(x, y - 1)) out.set([28, 30, 34, 220], (y * 32 + x) * 4);
-    }
-    ctx.putImageData(new ImageData(out, 32, 32), f * 32, dir * 32);
-  }
-  tex.refresh();
-  for (let dir = 0; dir < 4; dir++) for (let f = 0; f < 3; f++) tex.add(dir * 3 + f, 0, f * 32, dir * 32, 32, 32);
-  return tex;
 }

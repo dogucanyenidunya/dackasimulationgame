@@ -1,5 +1,5 @@
 // Character creation content: look options, traits, family and "Your story" (GDD §5).
-import type { CharacterLook } from '../art/textures';
+import type { CharacterLook, HairStyle } from '../art/textures';
 import { getLang, type Text } from '../i18n';
 
 export type Gender = 'girl' | 'boy';
@@ -31,12 +31,16 @@ export interface CharacterData {
 
 export const SKIN_TONES = ['#f6d7bd', '#f1c9a5', '#e8b98f', '#d9a77d', '#c68e63', '#a8714a', '#8a5a3b', '#6b432b'];
 export const HAIR_COLORS = ['#120c09', '#2b1d14', '#3b2a20', '#5e3b22', '#7a4a24', '#a8682e', '#c79a4a', '#b5462e'];
-export const HAIR_STYLES: Array<{ id: 0 | 1 | 2 | 3; name: Text }> = [
+export const HAIR_STYLES: Array<{ id: HairStyle; name: Text }> = [
   { id: 0, name: { tr: 'Kısa', en: 'Short' } },
   { id: 1, name: { tr: 'Çok kısa', en: 'Buzz' } },
   { id: 2, name: { tr: 'Uzun', en: 'Long' } },
   { id: 3, name: { tr: 'At kuyruğu', en: 'Ponytail' } },
+  { id: 4, name: { tr: 'Kıvırcık', en: 'Curly' } },
+  { id: 5, name: { tr: 'Örgülü', en: 'Braids' } },
 ];
+/** iris colours: dark brown, brown, hazel, green, blue, grey */
+export const EYE_COLORS = ['#2e1c12', '#4a2e1c', '#7a5426', '#56703a', '#4d7aa6', '#6c7a86'];
 /** Daçka uniform: navy sweater, white shirt, burgundy tie, grey trousers/skirt */
 export const UNIFORM = { top: '#22365c', bottom: '#5b6168' };
 

@@ -81,7 +81,9 @@ button.primary:hover { background: #8f5c33; }
 .creator-steps .done { color: var(--good); font-weight: 600; }
 .creator-body { display: grid; grid-template-columns: 220px 1fr; gap: 20px; padding: 16px; overflow: auto; flex: 1; min-height: 0; }
 .creator-preview { text-align: center; background: linear-gradient(#d9e8cf, #b7d6a0); border-radius: 10px; padding: 18px 10px; align-self: start; position: sticky; top: 0; }
-.creator-preview canvas { width: 160px; height: 160px; image-rendering: pixelated; }
+.creator-preview canvas { display: block; margin: 0 auto; }
+.creator-preview .cp-bust { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f4f8ef, #c9dfba); box-shadow: inset 0 0 0 3px rgba(255,255,255,0.7), 0 2px 8px rgba(30,50,30,0.18); }
+.creator-preview .cp-body { width: 128px; height: 128px; margin-top: 4px; }
 .preview-name { font-weight: 800; font-size: 18px; margin-top: 6px; overflow-wrap: anywhere; }
 .preview-age { font-size: 13px; color: #4b5459; }
 .creator-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -122,14 +124,15 @@ button.primary:hover { background: #8f5c33; }
 /* profile */
 .profile-card { width: min(520px, 100%); padding: 20px 22px; max-height: calc(100vh - 32px); overflow: auto; }
 .profile-head { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
-.profile-head canvas { width: 72px; height: 72px; image-rendering: pixelated; background: #d9e8cf; border-radius: 10px; }
+.profile-head canvas { width: 72px; height: 72px; background: radial-gradient(circle at 40% 35%, #f4f8ef, #c9dfba); border-radius: 50%; }
 .profile-head h2 { margin: 0; }
 .hud-name { font-weight: 800; font-size: 14px; margin-bottom: 2px; }
 
 @media (max-width: 720px) {
   .creator-body { grid-template-columns: 1fr; }
   .creator-preview { position: static; display: flex; align-items: center; gap: 12px; padding: 8px 12px; text-align: left; }
-  .creator-preview canvas { width: 72px; height: 72px; }
+  .creator-preview .cp-bust { width: 72px; height: 72px; margin: 0; }
+  .creator-preview .cp-body { width: 64px; height: 64px; margin: 0; }
   .row2 { grid-template-columns: 1fr; }
 }
 .profile-card .attr { margin: 6px 0; }
@@ -365,7 +368,7 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 /* wardrobe pictures in the action list */
 button.action.with-look { flex-direction: row; align-items: center; gap: 12px; }
 button.action .act-text { display: flex; flex-direction: column; gap: 2px; }
-button.action .act-look { width: 48px; height: 48px; image-rendering: pixelated; background: #efe8db; border-radius: 8px; flex: none; }
+button.action .act-look { width: 48px; height: 48px; background: #efe8db; border-radius: 8px; flex: none; }
 
 /* the teacher's question */
 .quiz-q { font-size: 19px; font-weight: 800; line-height: 1.35; margin: 4px 0; }

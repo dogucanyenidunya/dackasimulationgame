@@ -1,7 +1,7 @@
 // Building interiors (as menus) and minigames. Interiors become walkable maps later (GDD §4).
 import { L, type Text } from '../i18n';
 import { sfx } from '../audio';
-import { drawCharacter, type CharacterLook } from '../art/textures';
+import { paintCharacter, type CharacterLook } from '../art/textures';
 
 export interface ActionView {
   id: string;
@@ -120,14 +120,14 @@ export class Panel {
           ${room.note ? `<p class="room-note">${esc(room.note)}</p>` : ''}
           ${room.locked ? `<p class="room-locked">🔒 ${esc(room.locked)}</p>` : `<div class="actions">${room.actions.map((a, i) => `
             <button type="button" class="action ${a.look ? 'with-look' : ''}" data-action="${i}" ${a.locked ? 'disabled' : ''}>
-              ${a.look ? `<canvas class="act-look" width="32" height="32" data-look="${i}"></canvas>` : ''}
+              ${a.look ? `<canvas class="act-look" width="96" height="96" data-look="${i}"></canvas>` : ''}
               <span class="act-text"><b>${esc(a.label)}</b>${a.hint ? `<span class="hint">${esc(a.hint)}</span>` : ''}${a.locked ? `<span class="why">${esc(a.locked)}</span>` : ''}</span>
             </button>`).join('')}</div>`}
         </div>
       </div>`;
     this.el.querySelectorAll<HTMLCanvasElement>('canvas[data-look]').forEach((cv) => {
       const look = room.actions[Number(cv.dataset.look)]?.look;
-      if (look) drawCharacter(cv.getContext('2d')!, 0, 0, look, 0, 0);
+      if (look) paintCharacter(cv, look);
     });
     this.el.querySelector('.close-btn')!.addEventListener('click', () => this.tryClose());
     this.el.querySelectorAll<HTMLButtonElement>('[data-room]').forEach((b) => b.addEventListener('click', () => {

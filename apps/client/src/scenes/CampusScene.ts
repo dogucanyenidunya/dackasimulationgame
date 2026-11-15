@@ -5,7 +5,7 @@ import {
   AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
-  DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture,
+  DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture, fitCharacter, footBody,
 } from '../art/textures';
 import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
@@ -351,8 +351,8 @@ export class CampusScene extends Phaser.Scene {
 
     // player
     const p = this.save.player;
-    this.player = this.physics.add.sprite(p.x * TILE, p.y * TILE, 'player', p.dir * 3);
-    this.player.body!.setSize(16, 10).setOffset(8, 21);
+    this.player = fitCharacter(this.physics.add.sprite(p.x * TILE, p.y * TILE, 'player', p.dir * 3));
+    footBody(this.player);
     this.player.setCollideWorldBounds(true);
     this.dir = p.dir;
     this.physics.world.setBounds(0, 0, (DINING_OX + DINING_W) * TILE, MAP_H * TILE);
@@ -521,7 +521,7 @@ export class CampusScene extends Phaser.Scene {
     this.mp = new Multiplayer(me, {
       onJoin: (p) => {
         makeCharacterTexture(this, `peer-${p.id}`, { ...DEFAULT_LOOK, ...p.look });
-        const sprite = this.add.sprite(0, 0, `peer-${p.id}`, 0).setVisible(false);
+        const sprite = fitCharacter(this.add.sprite(0, 0, `peer-${p.id}`, 0)).setVisible(false);
         const label = this.add.text(0, 0, `● ${p.name}`, {
           fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(95_000).setVisible(false);
@@ -731,8 +731,8 @@ export class CampusScene extends Phaser.Scene {
     seats.forEach(([x, y], i) => {
       const def = sameDorm[i % sameDorm.length];
       if (!def || i >= sameDorm.length) return;
-      const sp = this.physics.add.sprite((ROOM_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9).setDepth((y + 1) * TILE + 16);
-      sp.body!.setSize(16, 10).setOffset(8, 21);
+      const sp = fitCharacter(this.physics.add.sprite((ROOM_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9)).setDepth((y + 1) * TILE + 16);
+      footBody(sp);
       sp.setImmovable(true);
       sp.setData('def', def).setData('slot', this.roomMates.length);
       // (they sleep in pyjamas, and change at their lockers when they get up)
@@ -745,12 +745,12 @@ export class CampusScene extends Phaser.Scene {
     tag(PHONE_SPOT[0], 1.2, L({ tr: 'Telefon', en: 'Phone' }));
     // Cemil Emmi, the old caretaker of the boys' dorm
     makeCharacterTexture(this, 'cemil', { ...DEFAULT_LOOK, skin: '#d9a77d', hair: '#c9c9c9', hairStyle: 1, skirt: false, top: '#6b5a44', bottom: '#3a3a3a', glasses: true });
-    this.cemilOut.setTexture('cemil', 0).setScale(1.12).setDepth(CEMIL_OUT[1] * TILE + 16);
+    fitCharacter(this.cemilOut.setTexture('cemil', 0), 1.12).setDepth(CEMIL_OUT[1] * TILE + 16);
     this.cemilOut.refreshBody();
     (this.cemilOut.body as Phaser.Physics.Arcade.StaticBody).setSize(16, 10).setOffset(10, 24);
-    this.cemilIn = this.add.sprite((ROOM_OX + CEMIL_IN[0]) * TILE, CEMIL_IN[1] * TILE, 'cemil', 1).setScale(1.12).setDepth(CEMIL_IN[1] * TILE + 16).setVisible(false);
+    this.cemilIn = fitCharacter(this.add.sprite((ROOM_OX + CEMIL_IN[0]) * TILE, CEMIL_IN[1] * TILE, 'cemil', 1), 1.12).setDepth(CEMIL_IN[1] * TILE + 16).setVisible(false);
     const belDef = BELLETMENS.find((b) => b.id === (this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet'))!;
-    this.roomBelletmen = this.physics.add.sprite((ROOM_OX + BELLETMEN_ROUTE[0][0]) * TILE, BELLETMEN_ROUTE[0][1] * TILE, `npc-${belDef.id}`, 0);
+    this.roomBelletmen = fitCharacter(this.physics.add.sprite((ROOM_OX + BELLETMEN_ROUTE[0][0]) * TILE, BELLETMEN_ROUTE[0][1] * TILE, `npc-${belDef.id}`, 0));
     this.roomBelletmen.setData('def', belDef).setData('leg', 0);
   }
 
@@ -784,8 +784,8 @@ export class CampusScene extends Phaser.Scene {
     this.physics.add.collider(this.player, layer);
     // a pool of diners: whoever the routine says is eating right now takes a seat
     for (let i = 0; i < NPCS.length; i++) {
-      const sp = this.physics.add.sprite(0, 0, `npc-${NPCS[i % NPCS.length].id}`, 0).setVisible(false);
-      sp.body!.setSize(16, 10).setOffset(8, 21);
+      const sp = fitCharacter(this.physics.add.sprite(0, 0, `npc-${NPCS[i % NPCS.length].id}`, 0)).setVisible(false);
+      footBody(sp);
       sp.setImmovable(true);
       sp.body!.enable = false;
       this.physics.add.collider(this.player, sp);
@@ -797,7 +797,7 @@ export class CampusScene extends Phaser.Scene {
     }
     const cookLook = { skin: '#d9a77d', hair: '#f4f4f0', hairStyle: 1 as const, top: '#f4f4f0', bottom: '#8b9196', skirt: false };
     makeCharacterTexture(this, 'cook', { ...DEFAULT_LOOK, ...cookLook });
-    for (const [x, y] of COOKS) this.cooks.push(this.add.sprite((DINING_OX + x + 0.5) * TILE, y * TILE, 'cook', 0).setDepth(y * TILE + 16));
+    for (const [x, y] of COOKS) this.cooks.push(fitCharacter(this.add.sprite((DINING_OX + x + 0.5) * TILE, y * TILE, 'cook', 0)).setDepth(y * TILE + 16));
     this.trayImg = this.add.image(0, 0, 'tray').setVisible(false);
   }
 
@@ -977,15 +977,15 @@ export class CampusScene extends Phaser.Scene {
     const seats = CLASS_DESKS.filter(([x, y]) => !(x === MY_CLASS_DESK[0] && y === MY_CLASS_DESK[1]));
     mates.forEach((def, i) => {
       const [x, y] = seats[i % seats.length];
-      const sp = this.physics.add.sprite((CLASS_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9).setDepth((y + 1) * TILE + 16);
-      sp.body!.setSize(16, 10).setOffset(8, 21);
+      const sp = fitCharacter(this.physics.add.sprite((CLASS_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9)).setDepth((y + 1) * TILE + 16);
+      footBody(sp);
       sp.setImmovable(true);
       sp.setData('def', def);
       this.physics.add.collider(this.player, sp);
       this.classMates.push(sp);
     });
     for (const [id, tch] of Object.entries(TEACHERS)) makeCharacterTexture(this, `teacher-${id}`, { ...DEFAULT_LOOK, ...tch.look });
-    this.teacher = this.physics.add.sprite((CLASS_OX + TEACHER_ROUTE[0][0]) * TILE, TEACHER_ROUTE[0][1] * TILE, 'teacher-matematik', 0);
+    this.teacher = fitCharacter(this.physics.add.sprite((CLASS_OX + TEACHER_ROUTE[0][0]) * TILE, TEACHER_ROUTE[0][1] * TILE, 'teacher-matematik', 0));
     this.teacher.setData('leg', 0);
     this.classLife = new ClassLife(this, this.classMates.map((sp, i) => ({ sp, desk: seats[i % seats.length] })), this.teacher, (sp, text) => this.bubbleAbove(sp, text));
   }
@@ -1698,8 +1698,8 @@ export class CampusScene extends Phaser.Scene {
       const key = `npc-${def.id}`;
       makeCharacterTexture(this, key, { ...DEFAULT_LOOK, ...def.look });
       const [x, y] = this.walkable(def.home[0], def.home[1]);
-      const npc = this.physics.add.sprite(...this.npcSpot(x, y), key, 0);
-      npc.body!.setSize(16, 10).setOffset(8, 21);
+      const npc = fitCharacter(this.physics.add.sprite(...this.npcSpot(x, y), key, 0));
+      footBody(npc);
       npc.setCollideWorldBounds(true);
       this.physics.add.collider(npc, ground);
       this.physics.add.collider(npc, trees);

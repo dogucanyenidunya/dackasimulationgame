@@ -1,7 +1,7 @@
 // Character creator (GDD §5): look → about you → your story → summary.
-import { drawCharacter, type CharacterLook } from '../art/textures';
+import { paintCharacter, type CharacterLook, type HairStyle } from '../art/textures';
 import {
-  ATTRS, BOARDING_OPTIONS, CAUSES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
+  ATTRS, BOARDING_OPTIONS, CAUSES, EYE_COLORS, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
   defaultGuardian, startingAttributes, guardianOptions,
   type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId,
 } from '../content/character';
@@ -21,6 +21,8 @@ const S = {
   trousers: { tr: 'Pantolon', en: 'Trousers' },
   skirt: { tr: 'Etek', en: 'Skirt' },
   glasses: { tr: 'Gözlük', en: 'Glasses' },
+  eyes: { tr: 'Göz rengi', en: 'Eye color' },
+  freckles: { tr: 'Çil', en: 'Freckles' },
   yes: { tr: 'Var', en: 'Yes' },
   no: { tr: 'Yok', en: 'No' },
   first: { tr: 'Adın', en: 'First name' },
@@ -66,7 +68,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     let error = '';
     const d: Draft = {
       first: '', last: '', gender: 'girl',
-      look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false },
+      look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false, eyes: EYE_COLORS[1], freckles: false },
       hometown: 'İstanbul', trait: null, loss: 'father', guardian: 'mother', cause: null, boarding: 'evci',
     };
 
@@ -75,7 +77,8 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         <div class="creator-steps"></div>
         <div class="creator-body">
           <div class="creator-preview">
-            <canvas width="32" height="32"></canvas>
+            <canvas class="cp-bust" width="300" height="300"></canvas>
+            <canvas class="cp-body" width="256" height="256"></canvas>
             <div class="preview-name"></div>
             <div class="preview-age"></div>
           </div>
@@ -86,19 +89,26 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     const stepsEl = host.querySelector('.creator-steps') as HTMLElement;
     const form = host.querySelector('.creator-form') as HTMLElement;
     const nav = host.querySelector('.creator-nav') as HTMLElement;
-    const canvas = host.querySelector('.creator-preview canvas') as HTMLCanvasElement;
+    const bust = host.querySelector('.cp-bust') as HTMLCanvasElement;
+    const body = host.querySelector('.cp-body') as HTMLCanvasElement;
     const nameEl = host.querySelector('.preview-name') as HTMLElement;
     const ageEl = host.querySelector('.preview-age') as HTMLElement;
-    const ctx = canvas.getContext('2d')!;
 
-    // animated preview: turns around and walks in place
+    // animated preview: a close-up that blinks now and then, and the whole body turning around and walking in place
     let tick = 0;
+    let shown = '';
+    const paintBust = (blink: boolean) => {
+      const key = JSON.stringify(d.look) + blink;
+      if (key === shown) return;
+      shown = key;
+      paintCharacter(bust, d.look, 0, 0, { bust: true, blink });
+    };
     const timer = window.setInterval(() => {
       tick++;
       const dir = [0, 2, 3, 1][Math.floor(tick / 8) % 4];
       const frame = [1, 0, 2, 0][tick % 4];
-      ctx.clearRect(0, 0, 32, 32);
-      drawCharacter(ctx, 0, 0, d.look, dir, frame);
+      paintCharacter(body, d.look, dir, frame);
+      paintBust(tick % 17 === 0);
     }, 180);
 
     const seg = (name: string, options: Array<{ v: string; label: string }>, current: string) =>
@@ -120,8 +130,10 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
           field(S.skin, swatches('skin', SKIN_TONES, d.look.skin)) +
           field(S.hairStyle, seg('hairStyle', HAIR_STYLES.map((h) => ({ v: String(h.id), label: L(h.name) })), String(d.look.hairStyle))) +
           field(S.hairColor, swatches('hair', HAIR_COLORS, d.look.hair)) +
+          field(S.eyes, swatches('eyes', EYE_COLORS, d.look.eyes ?? EYE_COLORS[1])) +
           field(S.uniform, seg('skirt', [{ v: 'no', label: L(S.trousers) }, { v: 'yes', label: L(S.skirt) }], d.look.skirt ? 'yes' : 'no')) +
-          field(S.glasses, seg('glasses', [{ v: 'no', label: L(S.no) }, { v: 'yes', label: L(S.yes) }], d.look.glasses ? 'yes' : 'no')) +
+          `<div class="row2">${field(S.glasses, seg('glasses', [{ v: 'no', label: L(S.no) }, { v: 'yes', label: L(S.yes) }], d.look.glasses ? 'yes' : 'no'))}` +
+          `${field(S.freckles, seg('freckles', [{ v: 'no', label: L(S.no) }, { v: 'yes', label: L(S.yes) }], d.look.freckles ? 'yes' : 'no'))}</div>` +
           `<button type="button" class="link-btn" data-act="random">🎲 ${esc(L(S.randomize))}</button>`;
       } else if (step === 1) {
         form.innerHTML =
@@ -192,7 +204,8 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
       const act = btn.dataset.act;
       if (act === 'random') {
         d.look.skin = pick(SKIN_TONES); d.look.hair = pick(HAIR_COLORS);
-        d.look.hairStyle = pick(HAIR_STYLES).id; d.look.glasses = Math.random() < 0.25;
+        d.look.hairStyle = pick(HAIR_STYLES.filter((h) => d.gender === 'girl' ? h.id !== 1 : h.id !== 2 && h.id !== 5)).id;
+        d.look.glasses = Math.random() < 0.25; d.look.eyes = pick(EYE_COLORS); d.look.freckles = Math.random() < 0.2;
         render(); return;
       }
       if (act === 'back') { error = ''; step--; render(); return; }
@@ -217,12 +230,14 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         case 'gender':
           d.gender = v as Gender;
           d.look.skirt = d.gender === 'girl';
-          if (d.gender === 'boy' && d.look.hairStyle === 2) d.look.hairStyle = 0;
+          if (d.gender === 'boy' && (d.look.hairStyle === 2 || d.look.hairStyle === 5)) d.look.hairStyle = 0;
           if (d.gender === 'girl' && d.look.hairStyle === 1) d.look.hairStyle = 2;
           break;
         case 'skin': d.look.skin = v; break;
         case 'hair': d.look.hair = v; break;
-        case 'hairStyle': d.look.hairStyle = Number(v) as 0 | 1 | 2 | 3; break;
+        case 'hairStyle': d.look.hairStyle = Number(v) as HairStyle; break;
+        case 'eyes': d.look.eyes = v; break;
+        case 'freckles': d.look.freckles = v === 'yes'; break;
         case 'skirt': d.look.skirt = v === 'yes'; break;
         case 'glasses': d.look.glasses = v === 'yes'; break;
         case 'trait': d.trait = v as TraitId; error = ''; break;
@@ -234,10 +249,13 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         case 'boarding': d.boarding = v as Boarding; break;
       }
       render();
+      paintBust(false);
     });
 
     onLangChange(render);
     render();
+    paintCharacter(body, d.look, 0, 0);
+    paintBust(false);
     void getLang;
   });
 }

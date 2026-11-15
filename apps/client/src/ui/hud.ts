@@ -1,6 +1,6 @@
 import { LOCATIONS, MAP_H, MAP_W, T, doorStandTile, type Location } from '../content/campus';
 import { L, t, getLang, setLang, onLangChange } from '../i18n';
-import { drawCharacter } from '../art/textures';
+import { paintCharacter } from '../art/textures';
 import { sfx } from '../audio';
 import { askConfirm } from './confirm';
 import {
@@ -522,7 +522,7 @@ export class Hud {
       return `<div class="sum-row"><span>${L(s.name)}</span><b>${avg === null ? '—' : avg}</b></div>`;
     }).join('');
     body.innerHTML = `
-      <div class="profile-head"><canvas width="32" height="32"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
+      <div class="profile-head"><canvas width="144" height="144"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
       <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
       ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
       <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
@@ -533,7 +533,7 @@ export class Hud {
     body.querySelector('h2')!.textContent = `${c.first} ${c.last}`;
     body.querySelector('.age')!.textContent = t('age_line', { home: c.hometown });
     body.querySelector('.trait')!.textContent = L(trait.name);
-    drawCharacter(body.querySelector('canvas')!.getContext('2d')!, 0, 0, c.look, 0, 0);
+    paintCharacter(body.querySelector('canvas')!, c.look, 0, 0, { bust: true });
     this.openCustomModal(body, ['Enter', 'Escape', 'c', 'C', ' ']);
   }
 
