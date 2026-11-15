@@ -39,6 +39,32 @@ export async function verifySignInCode(email: string, code: string): Promise<str
   return error ? error.message : null;
 }
 
+/** the sign-in token from an email link (…?token_hash=…&type=email), if we arrived from one. Reading it
+ *  doesn't use it up: that waits for the player's button press, so a mail scanner that only opens the
+ *  page can't spend it. */
+export function pendingLinkToken(): { tokenHash: string; type: 'email' | 'magiclink' | 'signup' } | null {
+  const params = new URLSearchParams(location.search);
+  const tokenHash = params.get('token_hash');
+  if (!tokenHash) return null;
+  const t = params.get('type');
+  return { tokenHash, type: t === 'magiclink' || t === 'signup' ? t : 'email' };
+}
+
+export async function verifyLinkToken(link: { tokenHash: string; type: 'email' | 'magiclink' | 'signup' }): Promise<string | null> {
+  const c = sb();
+  if (!c) return 'offline';
+  const { error } = await c.auth.verifyOtp({ token_hash: link.tokenHash, type: link.type });
+  return error ? error.message : null;
+}
+
+/** takes the email-link token out of the address (keeping anything else there) */
+export function clearLinkToken() {
+  const url = new URL(location.href);
+  url.searchParams.delete('token_hash');
+  url.searchParams.delete('type');
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
+}
+
 /** if we arrived from an email link that failed (expired / already used), returns its error code and tidies the URL */
 export function takeLinkError(): string | null {
   const params = new URLSearchParams(location.search);

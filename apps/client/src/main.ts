@@ -7,7 +7,7 @@ import { sfx } from './audio';
 import { askConfirm } from './ui/confirm';
 import { GUARDIANS, type CharacterData } from './content/character';
 import { L, type Text } from './i18n';
-import { currentSession, online, sendSignInLink, signOut, takeLinkError, verifySignInCode } from './net/supabase';
+import { clearLinkToken, currentSession, online, pendingLinkToken, sendSignInLink, signOut, takeLinkError, verifyLinkToken, verifySignInCode } from './net/supabase';
 import { loadCloudSave } from './net/cloudSave';
 import { clearPendingInvite, inviteInfo, pendingInvite, redeemInvite } from './net/friends';
 import { withDefaults } from './game/state';
@@ -52,11 +52,20 @@ async function titleScreen() {
   const invite = await handleInvite(net);
   // a link that was already used (often by a mail scanner) or expired lands back here with an error
   const linkError = online && !net ? takeLinkError() : null;
-  if (linkError) signInError = L({ tr: 'Bu giriş bağlantısı geçersiz ya da süresi dolmuş (bazı e-posta servisleri bağlantıyı önceden açıp kullanır). Yeni bir bağlantı iste ve e-postadaki kodu gir.', en: 'That sign-in link is invalid or expired (some mail services open links before you do, which uses them up). Ask for a new one and enter the code from the email.' });
+  const expiredLink = () => L({ tr: 'Bu giriş bağlantısı geçersiz ya da süresi dolmuş (bazı e-posta servisleri bağlantıyı önceden açıp kullanır). Yeni bir bağlantı iste ve e-postadaki kodu gir.', en: 'That sign-in link is invalid or expired (some mail services open links before you do, which uses them up). Ask for a new one and enter the code from the email.' });
+  if (linkError) signInError = expiredLink();
+  // came from the sign-in email: sign in only when the player presses the button (scanners never do)
+  let linkToken = online && !net ? pendingLinkToken() : null;
+  if (net && pendingLinkToken()) clearLinkToken();
 
   const render = () => {
     const account = !online ? '' : net
       ? `<div class="account">✓ ${L({ tr: 'Çevrimiçi', en: 'Online' })} · <b></b> · <button type="button" data-act="signout">${L({ tr: 'Çıkış', en: 'Sign out' })}</button></div>`
+      : linkToken
+        ? `<form class="signin" data-link-form>
+             <div class="account sent">✉️ ${L({ tr: 'E-postandaki bağlantıyla geldin. Okula girmek için butona bas.', en: 'You came from your sign-in email. Press the button to go in.' })}</div>
+             <button type="submit" class="primary">${L({ tr: 'Giriş yap', en: 'Sign in' })}</button>
+           </form>`
       : linkSentTo
         ? `<div class="account sent">📬 ${L({ tr: 'Giriş bağlantısı gönderildi:', en: 'Sign-in link sent to' })} <b></b>. ${L({ tr: 'E-postandaki bağlantıya tıkla ya da kodu buraya gir.', en: 'Click the link in your email, or enter its code here.' })}</div>
            <form class="signin" data-code-form>
@@ -99,6 +108,17 @@ async function titleScreen() {
 
   el.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if ((e.target as HTMLElement).hasAttribute('data-link-form') && linkToken) {
+      const btn = el.querySelector('[data-link-form] button') as HTMLButtonElement;
+      btn.disabled = true;
+      const error = await verifyLinkToken(linkToken);
+      clearLinkToken();
+      if (!error) { window.location.reload(); return; }
+      linkToken = null;
+      signInError = expiredLink();
+      render();
+      return;
+    }
     if ((e.target as HTMLElement).hasAttribute('data-code-form')) {
       const code = (el.querySelector('#otp') as HTMLInputElement).value.replace(/\D/g, '');
       if (!code) return;
