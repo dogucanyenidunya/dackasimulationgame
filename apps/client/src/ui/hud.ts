@@ -256,6 +256,7 @@ export class Hud {
           <button class="friends-btn hidden" type="button"></button>
           <button class="profile-btn" type="button"></button>
           <button class="lang-btn" type="button"></button>
+          <button class="music-btn" type="button"></button>
           <button class="mute-btn" type="button"></button>
           <button class="reset-btn" type="button">↺</button>
         </div>
@@ -337,6 +338,16 @@ export class Hud {
     const setMute = () => { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; };
     mute.addEventListener('click', () => { sfx.toggle(); setMute(); });
     setMute();
+    // background music: off by default
+    const musicBtn = q<HTMLButtonElement>('.music-btn');
+    const setMusic = () => {
+      musicBtn.textContent = '🎵';
+      musicBtn.classList.toggle('off', !sfx.musicOn());
+      musicBtn.title = sfx.musicOn() ? L({ tr: 'Müziği kapat', en: 'Turn the music off' }) : L({ tr: 'Müziği aç', en: 'Turn the music on' });
+    };
+    musicBtn.addEventListener('click', () => { sfx.toggleMusic(); setMusic(); });
+    setMusic();
+    onLangChange(setMusic);
     q('.tracker').addEventListener('click', () => this.onMissions());
     q('.reset-btn').addEventListener('click', async () => { if (await askConfirm(t('reset_confirm'), t('menu_reset'), L({ tr: 'Vazgeç', en: 'Cancel' }))) this.onReset(); });
     onLangChange(() => this.refreshStatic());

@@ -522,3 +522,8 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .friend-btns .linkish { margin-top: 0; }
 .friends-card .nav-error { color: #b03a2e; font-size: 14px; }
 @media (max-width: 560px) { .friend-row { flex-direction: column; align-items: flex-start; gap: 4px; } .friends-card .invite-row { flex-wrap: wrap; } }
+
+/* the music button, crossed out while the music is off */
+.music-btn { position: relative; }
+.music-btn.off { opacity: 0.55; }
+.music-btn.off::after { content: ''; position: absolute; left: 22%; right: 22%; top: 50%; height: 2px; background: #b03a2e; transform: rotate(-35deg); border-radius: 1px; }

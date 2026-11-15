@@ -29,10 +29,12 @@ function tone(freq: number, start: number, dur: number, vol = 0.15, type: Oscill
   o.stop(t0 + dur + 0.05);
 }
 
-// background music: public/audio/bgm.mp3 (by Paul Yudin), looping quietly; the mute button covers it too
+// background music: public/audio/bgm.mp3 (by Paul Yudin), looping quietly. Off unless you turn it on (its own
+// button); the mute button silences it too
+let musicOn = (() => { try { return localStorage.getItem('dacka.music') === '1'; } catch { return false; } })();
 let music: HTMLAudioElement | null = null;
 function startMusic() {
-  if (muted) return;
+  if (muted || !musicOn) return;
   try {
     music ??= Object.assign(new Audio(`${import.meta.env.BASE_URL}audio/bgm.mp3`), { loop: true, volume: 0.28 });
     void music.play().catch(() => { /* blocked until the first click; retried then */ });
@@ -53,6 +55,14 @@ export const sfx = {
   friend() { [659, 880].forEach((f, i) => tone(f, i * 0.1, 0.4, 0.1)); },
   warn() { tone(196, 0, 0.35, 0.12, 'sawtooth'); tone(185, 0.12, 0.35, 0.1, 'sawtooth'); },
   isMuted: () => muted,
+  musicOn: () => musicOn,
+  /** turns the background music on or off (remembered) */
+  toggleMusic() {
+    musicOn = !musicOn;
+    try { localStorage.setItem('dacka.music', musicOn ? '1' : '0'); } catch { /* ignore */ }
+    if (musicOn) startMusic(); else stopMusic();
+    return musicOn;
+  },
   toggle() {
     muted = !muted;
     try { localStorage.setItem('dacka.muted', muted ? '1' : '0'); } catch { /* ignore */ }
