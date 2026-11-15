@@ -283,7 +283,7 @@ export async function runDilemma(ctx: GameCtx, id: DilemmaId): Promise<boolean> 
   const before = snapshot(ctx);
   const outcome = c.run();
   ctx.st.memories.push({ id, choice: c.id, day: ctx.clock.day, year: ctx.st.year, who: d.who?.id });
-  ctx.log(`✦ ${L(d.title).replace(/^\S+\s/, '')}: ${L(c.label)}`);
+  ctx.log({ kind: 'dilemma', a: id, b: c.id });
   const after = snapshot(ctx);
   const shifts = AXES.map((a) => ({ a, d: after.temper[a.id] - before.temper[a.id] })).filter((x) => x.d !== 0)
     .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))

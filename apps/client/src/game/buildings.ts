@@ -16,6 +16,7 @@ import { dilemmaDone, runDilemma, shape } from './dilemmas';
 import type { AxisId } from './state';
 import { DEPUTY, NPCS, ablativeTr, dativeTr, friendLevel, genitiveTr, type NpcDef } from '../content/npcs';
 import type { CharacterLook } from '../art/textures';
+import type { DiaryEvent } from '../content/diary';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -56,7 +57,7 @@ export interface GameCtx {
   /** back inside the Eğitim Binası, in your classroom (after PE) */
   toClass(): void;
   /** a line in today's diary */
-  log(text: string): void;
+  log(e: DiaryEvent): void;
   /** take your seat in the stand for the match */
   watchMatch(): void;
 }
@@ -608,7 +609,7 @@ export function pePanel(ctx: GameCtx): PanelView {
           if (a.id === 'futbol') st.skills.football = Math.min(100, st.skills.football + 2 + hits);
           if (a.id === 'basket') st.skills.basketball = Math.min(100, st.skills.basketball + 2 + hits);
           st.health = clamp(st.health + 3);
-          ctx.log(T(`${L(a.label)} · Beden Eğitimi'nde ${team.map((n) => n.name).join(', ')} ile`, `${L(a.label)} · in PE with ${team.map((n) => n.name).join(', ')}`));
+          ctx.log({ kind: 'pe', a: a.id, b: team.slice(0, 3).map((n) => n.name).join(', ') });
           attendLesson(ctx, les!.key, 'beden', score);
           ctx.gain({ xp: 15 + Math.round(pct * 25), energy: -15, hunger: -10, mood: pct >= 0.5 ? 8 : 2, attrs: { fitness: a.id === 'kosu' ? 3 : 2, social: a.id === 'kosu' ? 0 : 1 } });
           ctx.advance(Math.max(0, les!.end - ctx.clock.minutes));
@@ -631,7 +632,7 @@ export function attendLesson(ctx: GameCtx, key: string, sub: keyof typeof TEACHE
   s.scores[sub].push(score);
   s.lessons[sub] = (s.lessons[sub] ?? 0) + 1;
   if (s.homework.length < 3) s.homework.push({ s: sub, day: ctx.clock.day });
-  ctx.log(T(`📚 ${subjName(sub)} dersine girdin · performans notu ${score}`, `📚 You had ${subjName(sub)} · performance mark ${score}`));
+  ctx.log({ kind: 'lesson', a: subjName(sub), n: score });
 }
 
 /** what's being served right now, if anything */
@@ -672,9 +673,7 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
     friendsElsewhere.forEach((n) => ctx.befriend(n.id, -3));
     ctx.toast(T(`${friendsElsewhere.map((n) => n.name).join(', ')} başka bir masada oturduğuna biraz bozuldu.`, `${friendsElsewhere.map((n) => n.name).join(', ')} ${friendsElsewhere.length > 1 ? 'were' : 'was'} a bit hurt that you sat at another table.`));
   }
-  ctx.log(tablemates.length
-    ? T(`🍽 ${mealName} yedin; masanda ${tablemates.map((n) => n.name).join(', ')} vardı`, `🍽 You had ${mealName.toLowerCase()} with ${tablemates.map((n) => n.name).join(', ')}`)
-    : T(`🍽 ${mealName} yedin, tek başına`, `🍽 You had ${mealName.toLowerCase()} on your own`));
+  ctx.log({ kind: 'meal', a: mealName, b: tablemates.map((n) => n.name).join(', ') });
   if (tablemates.length) {
     // eating side by side or across from someone brings you a little closer (a friend most of all)
     tablemates.forEach((n) => ctx.befriend(n.id, (ctx.st.friends[n.id] ?? 0) >= FRIEND_AT ? 10 : n.kind === 'classmate' ? 8 : 5));
@@ -1568,7 +1567,7 @@ function meetAction(npc: NpcDef, ctx: GameCtx): ActionView {
     run: async () => {
       nudge(ctx, { heart: 1, presence: 1 });
       ctx.st.once[`met-${npc.id}`] = true;
-      ctx.log(T(`👋 ${npc.name} ile tanıştın: ${bioOf(npc).from}'dan geliyor, ${L(bioOf(npc).likes)} seviyor`, `👋 You met ${npc.name}: from ${bioOf(npc).from}, loves ${L(bioOf(npc).likes)}`));
+      ctx.log({ kind: 'met', a: npc.name, b: bioOf(npc).from, c: L(bioOf(npc).likes) });
       ctx.advance(10);
       ctx.befriend(npc.id, 20);
       ctx.gain({ attrs: { social: 1 }, mood: 3, xp: 8 });
