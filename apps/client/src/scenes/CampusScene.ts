@@ -593,6 +593,10 @@ export class CampusScene extends Phaser.Scene {
       sp.setImmovable(true);
       sp.body!.enable = false;
       this.physics.add.collider(this.player, sp);
+      // a name tag over each diner, so you can see who's at which table before you sit down
+      sp.setData('label', this.add.text(0, 0, '', {
+        fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffffff', stroke: '#1d2326', strokeThickness: 3,
+      }).setOrigin(0.5, 1).setDepth(95_000).setVisible(false));
       this.diners.push(sp);
     }
     const cookLook = { skin: '#d9a77d', hair: '#f4f4f0', hairStyle: 1 as const, top: '#f4f4f0', bottom: '#8b9196', skirt: false };
@@ -648,9 +652,17 @@ export class CampusScene extends Phaser.Scene {
     this.seatDiners();
     const serving = !!currentMeal(this.gameCtx());
     for (const d of this.diners) {
-      if (!d.visible) continue;
-      const seat = d.getData('seat') as { faces: number };
+      const label = d.getData('label') as Phaser.GameObjects.Text;
+      const def = d.getData('def') as NpcDef | null;
+      label.setVisible(this.room === 'dining' && d.visible && !!def);
+      if (!d.visible || !def) continue;
+      const seat = d.getData('seat') as { x: number; faces: number };
       d.setFrame(seat.faces * 3 + (Math.floor(time / 500 + d.x) % 7 === 0 ? 1 : 0)); // munching
+      // friends in gold with a heart, classmates with a star; neighbours' tags sit at two heights so they don't overlap
+      const friend = this.isFriend(def);
+      const text = `${friend ? '💛 ' : ''}${def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : ''}${def.name}`;
+      if (label.text !== text) label.setText(text).setColor(friend ? '#ffe27a' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff');
+      label.setPosition(d.x, d.y - 14 - (seat.x % 2 ? 11 : 0));
     }
     const snack = isSnackTime(this.save.clock.minutes);
     this.cooks.forEach((c, i) => c.setVisible(serving || snack).setFrame(Math.floor(time / 900 + i) % 5 === 0 ? 1 : 0));
