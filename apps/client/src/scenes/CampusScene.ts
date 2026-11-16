@@ -20,11 +20,12 @@ import { yetimPanel } from '../game/yetimCat';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
+import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
 import { askConfirm } from '../ui/confirm';
-import { saveToCloud } from '../net/cloudSave';
+import { flushCloudSave, saveToCloud } from '../net/cloudSave';
 import { MS_PER_MIN_DAY, MS_PER_MIN_NIGHT, absMinutes, alignOffset, worldNow } from '../game/worldClock';
 import type { NetUser } from '../main';
 import { Panel, type ActionView } from '../ui/panel';
@@ -202,7 +203,8 @@ export class CampusScene extends Phaser.Scene {
   /** the friends panel while it's open, so it can update live */
   private friendsUi: { render: () => void } | null = null;
   private friendsTimer: number | null = null;
-  private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; room: string; seen: boolean }>();
+  /** `lastPos`: when their last position came (performance.now) · `away`: paused or gone quiet · `leaving`: walking off after they left */
+  private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; room: string; seen: boolean; lastPos: number; away: boolean; leaving: Leaving | null }>();
   /** which walkable interior you're in, if any */
   private room: 'dorm' | 'class' | 'dining' | null = null;
   private diners: Phaser.Physics.Arcade.Sprite[] = [];
@@ -508,6 +510,8 @@ export class CampusScene extends Phaser.Scene {
     if (this.pauseScreen) return;
     this.player.setVelocity(0, 0);
     this.persist();
+    flushCloudSave(); // the tab may be closing: don't leave the last save waiting on a timer
+    this.mp?.status(true);
     this.scene.pause();
     sfx.pauseMusic();
     const wrap = document.createElement('div');
@@ -551,6 +555,7 @@ export class CampusScene extends Phaser.Scene {
     this.input.keyboard?.resetKeys();
     this.scene.resume();
     sfx.music();
+    this.mp?.status(false);
     // online: straight to the campus time, like coming back to the game, with nothing played through
     if (this.synced() && this.worldOffset !== null) this.jumpToWorld(false);
     this.minuteAcc = 0;
@@ -563,36 +568,56 @@ export class CampusScene extends Phaser.Scene {
     return this.room === 'dorm' ? `dorm-${this.save.character.gender}` : this.room ?? 'campus';
   }
 
+  /** a real player left (their goodbye, or presence noticing): if you can see them, they walk off first */
+  private peerGone(id: string, byBye: boolean) {
+    this.peerPlay?.peerLeft(id);
+    const peer = this.peers.get(id);
+    if (!peer) return;
+    if (!peer.leaving) this.hud.toast(L({ tr: `${peer.profile.name} oyundan çıktı`, en: `${peer.profile.name} left` }));
+    this.friendsUi?.render();
+    if (peer.sprite.visible && peer.seen && peer.room === this.roomKey()) { startLeaving(peer, performance.now(), byBye); return; }
+    peer.sprite.destroy(); peer.label.destroy();
+    this.peers.delete(id);
+    this.friendsUi?.render();
+  }
+
+  /** a real player came online (or came back while walking off) */
+  private addPeer(p: PeerProfile, quiet = false) {
+    const old = this.peers.get(p.id);
+    if (old) { cancelLeaving(old); old.away = false; old.profile = p; this.labelPeer(p.id); this.friendsUi?.render(); return; }
+    makeCharacterTexture(this, `peer-${p.id}`, { ...DEFAULT_LOOK, ...p.look });
+    const sprite = fitCharacter(this.add.sprite(0, 0, `peer-${p.id}`, 0)).setVisible(false);
+    const label = this.add.text(0, 0, `● ${p.name}`, {
+      fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(95_000).setVisible(false);
+    this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, room: '', seen: false, lastPos: performance.now(), away: false, leaving: null });
+    this.labelPeer(p.id);
+    const friend = this.friends.get(p.id)?.status === 'accepted';
+    if (!quiet) this.hud.toast(friend ? L({ tr: `⭐ Arkadaşın ${p.name} oyuna katıldı`, en: `⭐ Your friend ${p.name} joined` }) : L({ tr: `🟢 ${p.name} oyuna katıldı`, en: `🟢 ${p.name} joined` }), friend ? 'good' : 'info');
+    // someone new may have just become your friend through your invite link
+    if (this.friendsReady && !this.friends.has(p.id)) this.refreshFriendsSoon();
+    this.friendsUi?.render();
+  }
+
   private async goOnline() {
     const ch = this.save.character;
     const me: PeerProfile = { id: this.net!.id, name: ch.first, look: ch.look, grade: this.save.state.year + 3, gender: ch.gender };
     this.mp = new Multiplayer(me, {
-      onJoin: (p) => {
-        makeCharacterTexture(this, `peer-${p.id}`, { ...DEFAULT_LOOK, ...p.look });
-        const sprite = fitCharacter(this.add.sprite(0, 0, `peer-${p.id}`, 0)).setVisible(false);
-        const label = this.add.text(0, 0, `● ${p.name}`, {
-          fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(95_000).setVisible(false);
-        this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, room: '', seen: false });
-        this.labelPeer(p.id);
-        const friend = this.friends.get(p.id)?.status === 'accepted';
-        this.hud.toast(friend ? L({ tr: `⭐ Arkadaşın ${p.name} oyuna katıldı`, en: `⭐ Your friend ${p.name} joined` }) : L({ tr: `🟢 ${p.name} oyuna katıldı`, en: `🟢 ${p.name} joined` }), friend ? 'good' : 'info');
-        // someone new may have just become your friend through your invite link
-        if (this.friendsReady && !this.friends.has(p.id)) this.refreshFriendsSoon();
-        this.friendsUi?.render();
-      },
-      onLeave: (id) => {
-        this.peerPlay?.peerLeft(id);
-        const peer = this.peers.get(id);
-        if (!peer) return;
-        this.hud.toast(L({ tr: `${peer.profile.name} oyundan çıktı`, en: `${peer.profile.name} left` }));
-        peer.sprite.destroy(); peer.label.destroy();
-        this.peers.delete(id);
-        this.friendsUi?.render();
-      },
+      onJoin: (p) => this.addPeer(p),
+      onLeave: (id) => this.peerGone(id, false),
+      onBye: (id) => this.peerGone(id, true),
+      onStatus: (id, away) => { const peer = this.peers.get(id); if (peer) showAway(peer, away, () => this.labelPeer(id)); },
       onPos: (p: PeerPos) => {
-        const peer = this.peers.get(p.id);
+        let peer = this.peers.get(p.id);
+        // back after a goodbye that presence never noticed (a quick reload): they're themselves again
+        if (!peer && this.mp?.peers.has(p.id)) { this.addPeer(this.mp.peers.get(p.id)!, true); peer = this.peers.get(p.id); }
         if (!peer) return;
+        if (peer.leaving) {
+          if (!peer.leaving.byBye || performance.now() - peer.leaving.started < 1500) return;
+          cancelLeaving(peer); this.labelPeer(p.id);
+        }
+        peer.lastPos = performance.now();
+        if (peer.away) showAway(peer, false, () => this.labelPeer(p.id));
         peer.tx = p.x * TILE; peer.ty = p.y * TILE; peer.dir = p.dir; peer.moving = p.moving; peer.room = p.room;
         if (!peer.seen) { peer.sprite.setPosition(peer.tx, peer.ty); peer.seen = true; }
       },
@@ -677,8 +702,9 @@ export class CampusScene extends Phaser.Scene {
   /** friends get a gold star over their head; everyone else a green dot */
   private labelPeer(id: string) {
     const peer = this.peers.get(id);
-    if (!peer) return;
+    if (!peer || peer.leaving) return;
     const friend = this.friends.get(id)?.status === 'accepted';
+    if (peer.away) { peer.label.setText(`💤 ${peer.profile.name}`); return; }
     peer.label.setText(`${friend ? '★' : '●'} ${peer.profile.name}`).setColor(friend ? '#ffe08a' : '#a8e6b0');
   }
 
@@ -717,7 +743,7 @@ export class CampusScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     const ui = friendsCard({
       friends: () => (this.friendsReady ? [...this.friends.values()] : null),
-      whereIs: (id) => this.peers.get(id)?.room,
+      whereIs: (id) => { const p = this.peers.get(id); return p && !p.leaving ? p.room : undefined; },
       inviteCode: (reset) => myInviteCode(reset),
       accept: (f) => this.acceptFriend(f),
       decline: async (f) => { await respondFriend(f.id, false); await this.refreshFriends(); },
@@ -742,7 +768,14 @@ export class CampusScene extends Phaser.Scene {
     const moving = (this.player.body?.velocity.length() ?? 0) > 1;
     this.mp.sendPos({ x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, moving, room: this.roomKey() }, time);
     const here = this.roomKey();
-    for (const peer of this.peers.values()) {
+    const now = performance.now();
+    for (const [id, peer] of this.peers) {
+      if (peer.leaving) {
+        if (stepLeaving(peer, now, this.game.loop.delta, time)) { peer.sprite.destroy(); peer.label.destroy(); this.peers.delete(id); this.friendsUi?.render(); }
+        continue;
+      }
+      // nothing from them for a while: paused, or the connection is going
+      if (!peer.away && now - peer.lastPos > QUIET_MS) showAway(peer, true, () => this.labelPeer(id));
       const show = peer.seen && peer.room === here;
       peer.sprite.setVisible(show);
       peer.label.setVisible(show);
@@ -756,8 +789,9 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  private nearPeer() {
+  private nearPeer(leaving = false) {
     for (const peer of this.peers.values()) {
+      if (!!peer.leaving !== leaving) continue;
       if (peer.sprite.visible && Phaser.Math.Distance.Between(peer.sprite.x, peer.sprite.y, this.player.x, this.player.y) < 1.7 * TILE) return peer;
     }
     return null;
@@ -2602,6 +2636,8 @@ export class CampusScene extends Phaser.Scene {
 
   private interact() {
     if (this.blocked()) return;
+    const ghost = this.peers.size ? this.nearPeer(true) : null;
+    if (ghost) { this.hud.toast(leftMessage(ghost.profile.name)); return; }
     const peer = this.nearPeer();
     if (peer) {
       this.player.setVelocity(0, 0);

@@ -330,6 +330,12 @@ class RpsDuel {
 
   abandoned() {
     if (this.ended) return;
+    // walking out while losing doesn't save you: whoever was ahead gets the win
+    if (this.score[0] > this.score[1]) {
+      this.render(T(`🏆 ${this.o.them} sen öndeyken oyundan çıktı: kazandın!`, `🏆 ${this.o.them} left while you were ahead: you win!`));
+      this.finish(true);
+      return;
+    }
     this.render(T(`${this.o.them} oyundan çıktı.`, `${this.o.them} left the game.`));
     this.finish(null);
   }

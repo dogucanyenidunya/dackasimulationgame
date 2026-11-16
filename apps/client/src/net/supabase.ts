@@ -7,6 +7,11 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const online = !!url && !!key;
 
+/** the project's REST address and public key, for a request that has to outlive the page (see cloudSave) */
+export function restConfig(): { url: string; key: string } | null {
+  return online ? { url: url!, key: key! } : null;
+}
+
 let client: SupabaseClient | null = null;
 export function sb(): SupabaseClient | null {
   if (!online) return null;

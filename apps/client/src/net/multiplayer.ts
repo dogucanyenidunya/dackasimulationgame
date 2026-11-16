@@ -15,6 +15,10 @@ type Handlers = {
   onEmote?: (from: string, emoji: string) => void;
   /** someone sent you a friend request or accepted yours (only a nudge: check the database for what's true) */
   onFriend?: (from: string, kind: FriendNudge) => void;
+  /** someone is closing the game on purpose (presence notices a little later) */
+  onBye?: (id: string) => void;
+  /** someone's game is paused (their tab is in the background) or running again */
+  onStatus?: (id: string, away: boolean) => void;
   /** a message meant only for you from another player (a treat, an invitation to play, a move in a game…) */
   onPeer?: (from: string, msg: PeerMsg) => void;
 };
@@ -62,6 +66,11 @@ export class Multiplayer {
       this.h.onChat?.(p.id, p.name, String(p.text).slice(0, 140));
     });
     ch.on('broadcast', { event: 'emote' }, ({ payload }) => this.h.onEmote?.((payload as { id: string }).id, (payload as { e: string }).e));
+    ch.on('broadcast', { event: 'bye' }, ({ payload }) => { const id = (payload as { id: string }).id; if (typeof id === 'string') this.h.onBye?.(id); });
+    ch.on('broadcast', { event: 'status' }, ({ payload }) => {
+      const p = payload as { id: string; away: boolean };
+      if (typeof p.id === 'string') this.h.onStatus?.(p.id, !!p.away);
+    });
     ch.on('broadcast', { event: 'peer' }, ({ payload }) => {
       const p = payload as { to: string; from: string; msg: PeerMsg };
       if (p.to === this.me.id && typeof p.from === 'string' && p.msg && typeof p.msg.kind === 'string') this.h.onPeer?.(p.from, p.msg);
@@ -76,7 +85,8 @@ export class Multiplayer {
     }));
     if (!ok) { void c.removeChannel(ch); return false; }
     this.channel = ch;
-    window.addEventListener('pagehide', () => void this.disconnect());
+    // say goodbye first, so the others see you walk off at once rather than when the server notices
+    window.addEventListener('pagehide', () => { this.bye(); void this.disconnect(); });
     return true;
   }
 
@@ -107,6 +117,16 @@ export class Multiplayer {
   /** tells another player (if they're online) to look at their friends list again */
   nudgeFriend(to: string, kind: FriendNudge) {
     void this.channel?.send({ type: 'broadcast', event: 'friend', payload: { to, from: this.me.id, kind } });
+  }
+
+  /** you're closing the game */
+  bye() {
+    void this.channel?.send({ type: 'broadcast', event: 'bye', payload: { id: this.me.id } });
+  }
+
+  /** your game paused (away) or running again */
+  status(away: boolean) {
+    void this.channel?.send({ type: 'broadcast', event: 'status', payload: { id: this.me.id, away } });
   }
 
   async disconnect() {

@@ -219,6 +219,12 @@ export class YetimballView {
   /** the other player left or closed the game */
   abandoned() {
     if (this.ended) return;
+    // walking out while losing doesn't save you: whoever was ahead gets the win
+    if (this.myWind() > 0) {
+      this.finish('win');
+      this.status = L({ tr: `🏆 ${this.o.them} sen öndeyken oyundan çıktı: kazandın!`, en: `🏆 ${this.o.them} left while you were ahead: you win!` });
+      return;
+    }
     this.status = L({ tr: `${this.o.them} oyundan çıktı.`, en: `${this.o.them} left the game.` });
     this.finish('abandoned');
   }
