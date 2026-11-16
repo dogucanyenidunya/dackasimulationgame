@@ -39,7 +39,7 @@ import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, 
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
 import { dilemmaDone, matchState, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
-import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, buildDining } from '../content/dining';
+import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
 import { writeDiary, type DiaryEvent } from '../content/diary';
@@ -67,6 +67,9 @@ const RUSH_SPEED = 4;
 const ETUT_SPEED = 2;
 /** a night's sleep fast-forwards in about this many real milliseconds */
 const SLEEP_MS = 10_000;
+/** how many students there are in each devre (school year); a big one splits into its friend groups when it gathers */
+const DEVRE_SIZE = new Map<number, number>();
+for (const n of NPCS) DEVRE_SIZE.set(n.grade ?? 4, (DEVRE_SIZE.get(n.grade ?? 4) ?? 0) + 1);
 /** how much of a classmate shows above a study table when they sit on its far side */
 const DESK_CROP = 0.72;
 /** how long a meal takes at the table (game minutes), and how fast it goes by */
@@ -867,6 +870,33 @@ export class CampusScene extends Phaser.Scene {
     this.trayImg = this.add.image(0, 0, 'tray').setVisible(false);
   }
 
+  /** devrecilik at meals: you sit with your own year. Next to someone from your devre if there's room at their table,
+   *  otherwise at an empty table (the devre spills over to the next one), and only when the hall is full anywhere at all */
+  private devreSeat(def: NpcDef, free: Array<(typeof SEATS)[number]>): (typeof SEATS)[number] | undefined {
+    if (!free.length) return undefined;
+    const table = (s: { x: number; y: number; faces: 0 | 3 }) => TABLES.findIndex(([tx, ty, len]) => s.x >= tx && s.x < tx + len && s.y === ty + (s.faces === 0 ? -1 : 1));
+    const g = def.grade ?? 4;
+    const seated = this.diners.filter((d) => d.visible && d.getData('def')).map((d) => ({ g: (d.getData('def') as NpcDef).grade ?? 4, seat: d.getData('seat') as (typeof SEATS)[number] }));
+    const mates = seated.filter((o) => o.g === g);
+    const others = new Set(seated.filter((o) => o.g !== g).map((o) => table(o.seat)));
+    // 1) beside the nearest devre-mate, at their table
+    const mateTables = new Set(mates.map((o) => table(o.seat)));
+    const byMates = free.filter((s) => mateTables.has(table(s)));
+    if (byMates.length) {
+      const gap = (s: { x: number; y: number }) => Math.min(...mates.map((o) => Math.abs(o.seat.x - s.x) + Math.abs(o.seat.y - s.y) * 0.6));
+      return byMates.reduce((a, b) => (gap(b) < gap(a) ? b : a));
+    }
+    // 2) a table nobody else is at, starting at its end
+    const empty = free.filter((s) => !others.has(table(s)) && !mateTables.has(table(s)));
+    if (empty.length) {
+      const t = table(empty[Math.floor(Math.random() * empty.length)]);
+      return empty.filter((s) => table(s) === t).reduce((a, b) => (b.x < a.x || (b.x === a.x && b.faces < a.faces) ? b : a));
+    }
+    // 3) no empty table left: share one, as far from the other devres as you can get (the far end of the table), so your devre can sit round you
+    const far = (s: { x: number; y: number }) => Math.min(99, ...seated.filter((o) => o.g !== g).map((o) => Math.abs(o.seat.x - s.x) + Math.abs(o.seat.y - s.y) * 3));
+    return free.reduce((a, b) => (far(b) > far(a) ? b : a));
+  }
+
   /** seats whoever is in the dining hall right now: people arrive and leave through the meal */
   private seatDiners() {
     const here = NPCS.filter((n) => this.whereIs(n) === 'yemekhane');
@@ -884,10 +914,15 @@ export class CampusScene extends Phaser.Scene {
     // nobody sits down on top of you
     const px = this.player.x / TILE - DINING_OX, py = this.player.y / TILE;
     const free = SEATS.filter((s) => !taken.has(s) && !(this.room === 'dining' && Math.hypot(px - (s.x + 0.5), py - (s.y + 0.35)) < 0.8)).sort(() => Math.random() - 0.5);
-    for (const def of here) {
+    // (sit down devre by devre, the biggest first, so a devre that arrives all at once takes a table together)
+    const count = new Map<number, number>();
+    for (const n of here) count.set(n.grade ?? 4, (count.get(n.grade ?? 4) ?? 0) + 1);
+    const order = [...here].sort((a, b) => count.get(b.grade ?? 4)! - count.get(a.grade ?? 4)! || (a.grade ?? 4) - (b.grade ?? 4));
+    for (const def of order) {
       if (seated.has(def.id)) continue;
-      const sp = this.diners.find((d) => !d.visible), seat = free.pop();
+      const sp = this.diners.find((d) => !d.visible), seat = this.devreSeat(def, free);
       if (!sp || !seat) break;
+      free.splice(free.indexOf(seat), 1);
       sp.setTexture(`npc-${def.id}`, seat.faces * 3).setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE)
         .setDepth((seat.y + 0.4) * TILE + 16).setVisible(true);
       sp.body!.enable = true;
@@ -907,6 +942,12 @@ export class CampusScene extends Phaser.Scene {
     if (m || isSnackTime(this.save.clock.minutes)) this.hud.toast(m
       ? L({ tr: `${m.name} servisi var: ellerini yıka, tezgâhtan tepsini al ve boş bir yere otur.`, en: `${m.name} is being served: wash your hands, get a tray at the counter and find a free seat.` })
       : L({ tr: 'Ara öğün saati: tezgâhta poğaça, simit ve kek var.', en: 'Snack time: poğaça, simit and cake at the counter.' }));
+    // (the first time: how the tables work)
+    if (m && !this.save.state.once.devreTip) {
+      this.save.state.once.devreTip = true;
+      const g = grade(this.save.state.year);
+      this.hud.toast(L({ tr: `🍽 Devrecilik: yemekhanede herkes kendi devresiyle oturur. Senin devren ${g}. sınıflar; abiler ve ablalar kendi masalarında.`, en: `🍽 Devrecilik: in the dining hall everyone sits with their own year, their "devre". Yours is grade ${g}; the older students have their own tables.` }));
+    }
     this.persist();
   }
 
@@ -1789,8 +1830,8 @@ export class CampusScene extends Phaser.Scene {
       else if (li >= 0) npc.setData('ceremonyHome', this.walkable(45.2 - (li % 4) * 1.2, 25 + Math.floor(li / 4)));
       // evening spot around the dorms (20:00–22:00)
       this.pickEveningHome(npc);
-      // where they wait for the bell
-      npc.setData('schoolHome', this.walkable(SCHOOL_FRONT.x + Math.random() * (SCHOOL_FRONT.w - 1), SCHOOL_FRONT.y + Math.random() * (SCHOOL_FRONT.h - 1)));
+      // where they wait for the bell (with their devre)
+      npc.setData('schoolHome', this.devreHome('school', def, () => this.inRect(SCHOOL_FRONT, 2)).home);
       // at PE: most of the class on the pitch, a few on the basketball court beside it
       const court = Math.random() < 0.3 ? COURTS.basketball : COURTS.football;
       npc.setData('peHome', this.walkable(court.x + 1 + Math.random() * (court.w - 2), court.y + 1 + Math.random() * (court.h - 2)));
@@ -1806,24 +1847,49 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** by day students stay near their age group's lawn; about a third drift to the mixed plazas in the middle */
+  /** devrecilik: a devre (everyone in the same school year) hangs out together. Each day the devre picks where it gathers,
+   *  a big devre splits into its friend groups standing side by side, and each member stands close to their own group */
+  private devreSpots = new Map<string, { x: number; y: number; roam: number }>();
+  private devreSpotsDay = -1;
+  private devreSpot(key: string, pick: () => { x: number; y: number; roam: number }) {
+    if (this.devreSpotsDay !== this.save.clock.day) { this.devreSpots.clear(); this.devreSpotsDay = this.save.clock.day; }
+    let s = this.devreSpots.get(key);
+    if (!s) { s = pick(); this.devreSpots.set(key, s); }
+    return s;
+  }
+  /** where this student stands within their devre's spot: by their friend group in a big devre, then a step or two apart */
+  private devreHome(kind: string, def: NpcDef, pick: () => { x: number; y: number; roam: number }): { home: [number, number]; roam: number } {
+    const g = def.grade ?? 4;
+    const zone = this.devreSpot(`${kind}|${g}`, pick);
+    const spot = DEVRE_SIZE.get(g)! > 8 && def.group
+      ? this.devreSpot(`${kind}|${g}|${def.group}`, () => ({ x: zone.x + (Math.random() - 0.5) * 5, y: zone.y + (Math.random() - 0.5) * 3, roam: zone.roam }))
+      : zone;
+    return { home: this.walkable(spot.x + (Math.random() - 0.5) * 1.8, spot.y + (Math.random() - 0.5) * 1.8), roam: spot.roam };
+  }
+  private inRect(z: Rect, roam: number) { return { x: z.x + Math.random() * (z.w - 1), y: z.y + Math.random() * (z.h - 1), roam }; }
+
+  /** by day each devre gathers by its age group's lawn, or now and then out on the mixed plazas in the middle; a few wander off alone */
   private pickDayHome(npc: Phaser.Physics.Arcade.Sprite) {
     const def = npc.getData('def') as NpcDef;
-    const centre = Math.random() < 0.35;
-    const zones = centre ? CENTER_ZONES : AGE_ZONES[ageGroup(def)];
-    const z = zones[Math.floor(Math.random() * zones.length)];
-    const home = this.walkable(z.x + Math.random() * (z.w - 1), z.y + Math.random() * (z.h - 1));
+    const pick = () => {
+      const centre = Math.random() < 0.35;
+      const zones = centre ? CENTER_ZONES : AGE_ZONES[ageGroup(def)];
+      return this.inRect(zones[Math.floor(Math.random() * zones.length)], centre ? 3 : 2);
+    };
+    if (Math.random() < 0.12) { const s = pick(); npc.setData('dayHome', this.walkable(s.x, s.y)); npc.setData('dayRoam', s.roam); return; }
+    const { home } = this.devreHome('day', def, pick);
     npc.setData('dayHome', home);
-    npc.setData('dayRoam', centre ? 3 : 2);
+    npc.setData('dayRoam', 1.5);
   }
 
-  /** 20:00–22:00: each grade has its own spot around the dorms; about a third join the mixed crowd on the dorm plaza */
+  /** 20:00–22:00: most devres are out on the Yurt Meydanı itself, some keep to their own year's corner, always together */
   private pickEveningHome(npc: Phaser.Physics.Arcade.Sprite) {
     const def = npc.getData('def') as NpcDef;
     const g = def.grade ?? 4;
-    // (most of them are out on the Yurt Meydanı itself; a few keep to their own year's corner)
-    const z = def.fixed || Math.random() < 0.7 ? EVENING_CENTER : EVENING_ZONES[g >= 9 ? 'lise' : (String(g) as '4' | '5' | '6' | '7' | '8')];
-    npc.setData('plazaHome', this.walkable(z.x + Math.random() * (z.w - 1), z.y + Math.random() * (z.h - 1)));
+    const pick = () => this.inRect(Math.random() < 0.6 ? EVENING_CENTER : EVENING_ZONES[g >= 9 ? 'lise' : (String(g) as '4' | '5' | '6' | '7' | '8')], 2);
+    // (the abi and abla who keep an eye on the little ones stay out in the middle of it)
+    if (def.fixed) { const s = this.inRect(EVENING_CENTER, 3); npc.setData('plazaHome', this.walkable(s.x, s.y)); return; }
+    npc.setData('plazaHome', this.devreHome('evening', def, pick).home);
   }
 
   /** little speech bubbles above students' heads */

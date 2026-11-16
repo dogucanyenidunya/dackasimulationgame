@@ -40,33 +40,43 @@ function roll(key: string): number {
   return v;
 }
 
+/** devrecilik: everyone in the same school year (their "devre") keeps nearly the same hours, so they get up, eat and
+ *  move about together. Each one's habits are mostly the devre's, with a little of their own so nobody moves in step. */
+function habit(def: NpcDef, k: string): number {
+  return 0.8 * roll(`devre${def.grade ?? 4}${k}`) + 0.2 * roll(def.id + k);
+}
+/** today's whim: most days the devre decides together (the gym, the canteen, a trip into town); now and then someone goes their own way */
+function whim(def: NpcDef, k: string, day: number): number {
+  return roll(`${def.id}solo${k}${day}`) < 0.2 ? roll(def.id + k + day) : roll(`devre${def.grade ?? 4}${k}${day}`);
+}
+
 /** when they get out of bed and when they turn in (minutes since midnight) */
 export function wakeTime(def: NpcDef, day: number): number {
-  return weekday(day) >= 5 ? H(7, 15) + roll(`${def.id}wake`) * 45 : H(7) + roll(`${def.id}wake`) * 30;
+  return weekday(day) >= 5 ? H(7, 15) + habit(def, 'wake') * 45 : H(7) + habit(def, 'wake') * 30;
 }
 /** after getting up they spend a few minutes at their locker, getting dressed, before they leave the dorm */
 export const DRESS_MINUTES = 12;
 export function bedTime(def: NpcDef): number {
-  return H(21, 45) + roll(`${def.id}bed`) * 12;
+  return H(21, 45) + habit(def, 'bed') * 12;
 }
 
 export function activityOf(def: NpcDef, c: RoutineClock): Activity {
   const a = planned(def, c);
   // in the rain most of them take shelter
-  if (a.out && a.out !== 'ceremony' && a.out !== 'pe' && c.raining && roll(`${def.id}rain${c.day}`) < 0.7) {
+  if (a.out && a.out !== 'ceremony' && a.out !== 'pe' && c.raining && whim(def, 'rain', c.day) < 0.7) {
     if (a.out === 'school') return { in: 'egitim' };
     if (a.out === 'plaza') return { in: 'dorm' };
-    return { in: roll(`${def.id}shelter`) < 0.5 ? 'dorm' : 'spor' };
+    return { in: habit(def, 'shelter') < 0.5 ? 'dorm' : 'spor' };
   }
   return a;
 }
 
 function planned(def: NpcDef, c: RoutineClock): Activity {
   const m = c.minutes, wd = weekday(c.day), weekend = wd >= 5;
-  /** their own habit, the same every day */
-  const u = (k: string) => roll(def.id + k);
-  /** today's whim */
-  const ud = (k: string) => roll(def.id + k + c.day);
+  /** their habit (mostly their devre's), the same every day */
+  const u = (k: string) => habit(def, k);
+  /** today's whim (mostly their devre's); family visits are their own */
+  const ud = (k: string) => (k === 'visit' || k === 'vt' ? roll(def.id + k + c.day) : whim(def, k, c.day));
   const free: Activity = { out: 'lawn' };
   // the older students who hand out favours stay where you can find them in their free time
   const optional = !def.fixed;
@@ -74,7 +84,7 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
 
   if (c.rush) return registering(def, c);
   // match night: almost the whole school is in the Spor Salonu, cheering
-  if (matchOn(c.day, c.minutes) && c.minutes >= MATCH_SEAT + roll(def.id + 'seat') * 20 && roll(def.id + 'fan') < 0.85) return { in: 'spor' };
+  if (matchOn(c.day, c.minutes) && c.minutes >= MATCH_SEAT + habit(def, 'seat') * 20 && roll(def.id + 'fan') < 0.85) return { in: 'spor' };
 
   // home for the weekend: out by the gate on Friday after lessons, back on Sunday evening
   if (evci && ((wd === 4 && m >= BUS_BOARDING + 22 + u('bus') * 50) || wd === 5 || (wd === 6 && m < BACK_ON_SUNDAY + u('bus') * 8))) return { in: 'away' };
@@ -161,7 +171,7 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
 const DESKS: Indoors[] = ['cemiyet', 'revir', 'spor', 'kutuphane', 'dorm'];
 function registering(def: NpcDef, c: RoutineClock): Activity {
   const m = c.minutes;
-  const u = (k: string) => roll(def.id + k), ud = (k: string) => roll(def.id + k + c.day);
+  const u = (k: string) => habit(def, k), ud = (k: string) => whim(def, k, c.day);
   const wake = H(7, 30) + u('wake') * 40;
   if (m < wake || m >= RUSH_NIGHT - 10 + u('bed') * 20) return { in: 'dorm' };
   if (m < wake + 35 + u('eat') * 15) return { in: 'yemekhane' };
