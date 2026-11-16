@@ -78,9 +78,9 @@ export interface Building {
   shape: Pt[];
   /** bounding box of the outline */
   rect: Rect;
-  roof: 'grey' | 'green' | 'white';
-  /** flat with a parapet, a dome (round halls) or a barrel vault (the sports hall) */
-  roofStyle?: 'flat' | 'dome' | 'vault';
+  roof: 'grey' | 'green' | 'white' | 'tarp';
+  /** flat with a parapet, a dome (round halls), a barrel vault (the sports hall) or an inflated tarp (the balloon court) */
+  roofStyle?: 'flat' | 'dome' | 'vault' | 'balloon';
   /** open-air yard cut out of the footprint */
   courtyard?: Pt[];
   solar?: Rect[];
@@ -94,6 +94,14 @@ export interface Building {
 
 export function rectPts(r: Rect): Pt[] {
   return [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]];
+}
+
+/** a rectangle with its corners rounded off (radius `rad`, `n` points per corner) */
+export function roundRectPts(r: Rect, rad: number, n = 5): Pt[] {
+  const out: Pt[] = [];
+  const corners: Array<[number, number, number]> = [[r.x + r.w - rad, r.y + rad, -Math.PI / 2], [r.x + r.w - rad, r.y + r.h - rad, 0], [r.x + rad, r.y + r.h - rad, Math.PI / 2], [r.x + rad, r.y + rad, Math.PI]];
+  for (const [cx, cy, a0] of corners) for (let i = 0; i <= n; i++) { const a = a0 + (i / n) * (Math.PI / 2); out.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]); }
+  return out;
 }
 
 export function circlePts(cx: number, cy: number, r: number, n = 32): Pt[] {
@@ -191,8 +199,8 @@ export const BUILDINGS: Building[] = [
   bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], greenPatches: [{ x: 43, y: 18.8, w: 10.5, h: 2 }] }),
   bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [68.5, 15], [70, 16.5], [70, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
   bld({ id: 'cemiyet', shape: rectPts({ x: 42, y: 40, w: 14, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
-  // the indoor court between the boys' dorm and Eğitim, against the garden wall
-  bld({ id: 'kapali_saha', shape: rectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }), roof: 'white', skylights: [{ x: 31.2, y: 15.6, w: 5.6, h: 0.7 }, { x: 31.2, y: 16.9, w: 5.6, h: 0.7 }] }),
+  // the indoor court between the boys' dorm and Eğitim, against the garden wall: a balloon court, an air-filled dome of green tarp
+  bld({ id: 'kapali_saha', shape: roundRectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }, 1.1), roof: 'tarp', roofStyle: 'balloon' }),
 ];
 
 export const PLAZAS: Pt[][] = [
@@ -444,8 +452,8 @@ export const LOCATIONS: Location[] = [
   {
     id: 'kapali_saha', kind: 'building',
     name: { tr: 'Kapalı Saha', en: 'Kapalı Saha' }, sub: { tr: 'Futbol · hentbol · badminton · voleybol', en: 'Indoor court · football · handball · badminton · volleyball' },
-    info: { tr: 'Yurtların yanındaki kapalı saha: futbol, hentbol, badminton ve voleybol. Akşam etüt sonrası da açık.', en: 'The indoor court by the dorms: football, handball, badminton and volleyball. Open in the evening too, after study hour.' },
-    rect: { x: 30, y: 14.8, w: 8, h: 3.8 }, label: { x: 34, y: 16.4 }, doors: [{ x: 33, y: 18, side: 's' }, { x: 34, y: 18, side: 's' }], minimapColor: '#c8d6e0',
+    info: { tr: 'Yurtların yanındaki balon saha: üstü yeşil brandayla kaplı, içeriye basılan havayla ayakta duran şişme bir kubbe. Futbol, hentbol, badminton ve voleybol oynanır; yağmurda da kışın da açık. Akşam etüt sonrası da açık.', en: 'The balloon court by the dorms: an inflated dome of green tarp, held up by the air pumped inside it. Football, handball, badminton and volleyball, rain or shine, all winter long. Open in the evening too, after study hour.' },
+    rect: { x: 30, y: 14.8, w: 8, h: 3.8 }, label: { x: 34, y: 16.4 }, doors: [{ x: 33, y: 18, side: 's' }, { x: 34, y: 18, side: 's' }], minimapColor: '#4f8f4a',
   },
   {
     id: 'kortlar', kind: 'zone',
@@ -485,7 +493,7 @@ export function buildMap(): number[][] {
   for (const g of GATES) fillPoly(m, rectPts(g), T.GATE);
 
   for (const b of BUILDINGS) {
-    const roofTile = b.roof === 'green' ? T.GREEN_ROOF : T.ROOF;
+    const roofTile = b.roof === 'green' || b.roof === 'tarp' ? T.GREEN_ROOF : T.ROOF;
     fillPoly(m, b.shape, roofTile);
     if (b.courtyard) fillPoly(m, b.courtyard, T.COURTYARD);
     b.solar?.forEach((s) => fillPoly(m, rectPts(s), T.SOLAR));

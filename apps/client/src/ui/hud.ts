@@ -28,6 +28,8 @@ export interface MapView {
   target?: { x: number; y: number } | null;
   /** your friends out on the campus (tile coords) */
   friends?: Array<{ x: number; y: number; name: string }>;
+  /** the spot you marked on the big map yourself (tile coords) */
+  waypoint?: { x: number; y: number } | null;
 }
 
 /** where a location's "?" sits: its first door, or the label anchor for zones */
@@ -45,6 +47,9 @@ class MapCanvas {
   zoom = 1;
   cx = MAP_W / 2;
   cy = MAP_H / 2;
+  /** the radar (minimap): stays centred on you, unless you're looking around it (until `browseUntil`) */
+  follow = false;
+  browseUntil = 0;
 
   constructor(readonly canvas: HTMLCanvasElement, private labels: boolean, map: number[][], w: number, h: number) {
     canvas.width = w;
@@ -74,6 +79,11 @@ class MapCanvas {
   }
 
   render(v: MapView) {
+    // the radar keeps you in the middle; after you've dragged it around, it drifts back to you
+    if (this.follow && performance.now() > this.browseUntil) {
+      const back = performance.now() - this.browseUntil < 600 ? 0.35 : 1;
+      this.cx += (v.player.x - this.cx) * back; this.cy += (v.player.y - this.cy) * back;
+    }
     const img = new ImageData(new Uint8ClampedArray(this.base.data), MAP_W, MAP_H);
     for (let i = 0; i < v.revealed.length; i++) if (!v.revealed[i]) img.data.set([...FOG_RGB, 255], i * 4);
     this.scratch.getContext('2d')!.putImageData(img, 0, 0);
@@ -140,6 +150,32 @@ class MapCanvas {
         c.fillStyle = '#ffe27a'; c.fillText(`💛 ${f.name}`, fx, fy - 8);
       }
     }
+    // your own waypoint: a purple pin
+    if (v.waypoint) {
+      const wx = X(v.waypoint.x), wy = Y(v.waypoint.y), r = this.labels ? 9 : 6;
+      c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(wx, wy + 1, r * 0.7, r * 0.3, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#9b4dca'; c.strokeStyle = '#fff'; c.lineWidth = 2;
+      c.beginPath(); c.arc(wx, wy - r * 1.4, r, Math.PI * 0.85, Math.PI * 0.15); c.lineTo(wx, wy); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(wx, wy - r * 1.4, r * 0.38, 0, Math.PI * 2); c.fill();
+    }
+    // on the radar, whatever is off its edge gets an arrow on the rim pointing at it (as in GTA)
+    if (this.follow) {
+      const W = this.canvas.width, H = this.canvas.height, m = 9;
+      const edge = (tx: number, ty: number, col: string) => {
+        const sx = X(tx), sy = Y(ty);
+        if (sx >= m && sx <= W - m && sy >= m && sy <= H - m) return;
+        const dx = sx - W / 2, dy = sy - H / 2;
+        const f = Math.min((W / 2 - m) / Math.abs(dx || 1e-6), (H / 2 - m) / Math.abs(dy || 1e-6));
+        const ex = W / 2 + dx * f, ey = H / 2 + dy * f, a = Math.atan2(dy, dx);
+        c.save(); c.translate(ex, ey); c.rotate(a);
+        c.fillStyle = col; c.strokeStyle = '#fff'; c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(7, 0); c.lineTo(-5, -5.5); c.lineTo(-2.5, 0); c.lineTo(-5, 5.5); c.closePath(); c.fill(); c.stroke();
+        c.restore();
+      };
+      if (v.target) edge(v.target.x, v.target.y, '#e8453c');
+      if (v.waypoint) edge(v.waypoint.x, v.waypoint.y, '#9b4dca');
+      edge(v.player.x, v.player.y, '#ffffff');
+    }
     // player
     const px = X(v.player.x), py = Y(v.player.y);
     c.fillStyle = '#ffffff'; c.beginPath(); c.arc(px, py, this.labels ? 7 : 4.5, 0, Math.PI * 2); c.fill();
@@ -180,6 +216,8 @@ export class Hud {
   private bigTitle!: HTMLElement;
   private modal!: HTMLElement;
   private lastView: MapView | null = null;
+  /** the spot you marked on the big map (tile coords), shown on both maps until you get there */
+  private waypoint: { x: number; y: number } | null = null;
   bigOpen = false;
   modalOpen = false;
   onReset: () => void = () => {};
@@ -308,6 +346,9 @@ export class Hud {
     this.bigTitle = q('.big-title');
     this.modal = q('.modal');
     this.mini = new MapCanvas(q<HTMLCanvasElement>('.mini'), false, map, 230, 178);
+    // the minimap is a close-up radar that follows you (GTA-style); drag or scroll it to look around the whole campus
+    this.mini.follow = true;
+    this.mini.zoom = 2.6;
     this.big = new MapCanvas(q<HTMLCanvasElement>('.big'), true, map, 840, 650);
     this.setupBigMap();
     const chatForm = q<HTMLFormElement>('.chat-form');
@@ -325,8 +366,7 @@ export class Hud {
     // touch screens have no Esc: tapping away from an empty chat box closes it
     chatInput.addEventListener('blur', () => { if (this.chatOpen && !chatInput.value.trim()) setTimeout(() => this.closeChat(), 0); });
     this.prompt.addEventListener('click', () => this.onPromptTap());
-    // tapping the minimap opens the big map
-    q('.hud-mini').addEventListener('click', () => { if (!this.modalOpen && !this.chatOpen) this.toggleMap(true); });
+    this.setupMiniMap();
 
     this.langBtn.addEventListener('click', () => setLang(getLang() === 'tr' ? 'en' : 'tr'));
     q('.profile-btn').addEventListener('click', () => this.onProfile());
@@ -363,6 +403,55 @@ export class Hud {
     this.refreshStatic();
   }
 
+  /** the radar: drag to look around the campus, scroll to zoom, tap to open the big map; it comes back to you on its own */
+  private setupMiniMap() {
+    const canvas = this.mini.canvas;
+    const browse = () => { this.mini.browseUntil = performance.now() + 4000; if (this.lastView) this.mini.render(this.lastView); };
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const r = canvas.getBoundingClientRect();
+      this.mini.zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, (e.clientX - r.left) * (canvas.width / r.width), (e.clientY - r.top) * (canvas.height / r.height));
+      this.mini.zoom = Math.max(1.3, this.mini.zoom);
+      browse();
+    }, { passive: false });
+    let drag: { x: number; y: number; moved: number } | null = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      drag = { x: e.clientX, y: e.clientY, moved: 0 };
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* (the pointer is already gone) */ }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const k = canvas.width / canvas.getBoundingClientRect().width;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.moved < 5) return;
+      canvas.classList.add('dragging');
+      this.mini.panBy(dx * k, dy * k);
+      browse();
+    });
+    const end = () => {
+      const tap = drag && drag.moved < 5;
+      drag = null;
+      canvas.classList.remove('dragging');
+      // a tap (not a drag) opens the big map
+      if (tap && !this.modalOpen && !this.chatOpen) this.toggleMap(true);
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', () => { drag = null; canvas.classList.remove('dragging'); });
+    // double-click: straight back to you
+    canvas.addEventListener('dblclick', () => { this.mini.browseUntil = 0; if (this.lastView) this.mini.render(this.lastView); });
+  }
+
+  /** marks (or, on the same spot, clears) your own waypoint */
+  setWaypoint(p: { x: number; y: number } | null) {
+    if (p && this.waypoint && Math.hypot(p.x - this.waypoint.x, p.y - this.waypoint.y) < 1.5) p = null;
+    this.waypoint = p;
+    this.toast(p ? L({ tr: '📍 Hedef işaretlendi. Haritada ve radarda mor iğne olarak görünür.', en: '📍 Waypoint set. It shows as a purple pin on the map and the radar.' }) : L({ tr: 'Hedef işareti kaldırıldı.', en: 'Waypoint cleared.' }));
+    if (this.lastView) this.renderMaps(this.lastView);
+  }
+
   /** wheel / buttons / drag on the big map */
   private setupBigMap() {
     const canvas = this.big.canvas;
@@ -375,6 +464,7 @@ export class Hud {
       redraw();
     }, { passive: false });
     let drag: { x: number; y: number } | null = null;
+    let moved = 0;
     // fingers on the map (two of them = pinch to zoom)
     const fingers = new Map<number, { x: number; y: number }>();
     let spread = 0;
@@ -384,6 +474,7 @@ export class Hud {
       canvas.setPointerCapture(e.pointerId);
       if (fingers.size === 2) { drag = null; spread = pinchSpread(); return; }
       drag = { x: e.clientX, y: e.clientY };
+      moved = 0;
       canvas.classList.add('dragging');
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -399,6 +490,7 @@ export class Hud {
         return;
       }
       if (!drag) return;
+      moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
       this.big.panBy((e.clientX - drag.x) * k, (e.clientY - drag.y) * k);
       drag = { x: e.clientX, y: e.clientY };
       redraw();
@@ -409,6 +501,14 @@ export class Hud {
       drag = null;
       canvas.classList.remove('dragging');
     };
+    // a click that didn't drag the map marks a waypoint there (click it again to clear it)
+    canvas.addEventListener('pointerup', (e) => {
+      if (!drag || moved > 6 || fingers.size > 1) return;
+      const r = canvas.getBoundingClientRect(), k = canvas.width / r.width;
+      const { s, ox, oy } = this.big.view();
+      const tx = ((e.clientX - r.left) * k - ox) / s, ty = ((e.clientY - r.top) * k - oy) / s;
+      if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) this.setWaypoint({ x: tx, y: ty });
+    });
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     this.bigWrap.addEventListener('click', (e) => {
@@ -436,8 +536,8 @@ export class Hud {
     this.controls.textContent = t('controls');
     this.bigTitle.textContent = t('map_title');
     (this.root.querySelector('.big-help') as HTMLElement).textContent = isTouch()
-      ? L({ tr: 'İki parmakla ya da +/− ile yakınlaştır · sürükleyerek gez', en: 'Pinch or tap +/− to zoom · drag to pan' })
-      : L({ tr: 'Fare tekerleği veya +/− ile yakınlaştır · sürükleyerek gez', en: 'Scroll or press +/− to zoom · drag to pan' });
+      ? L({ tr: 'İki parmakla ya da +/− ile yakınlaştır · sürükleyerek gez · dokunarak hedef işaretle', en: 'Pinch or tap +/− to zoom · drag to pan · tap to set a waypoint' })
+      : L({ tr: 'Fare tekerleği veya +/− ile yakınlaştır · sürükleyerek gez · tıklayarak hedef işaretle', en: 'Scroll or press +/− to zoom · drag to pan · click to set a waypoint' });
     const icon = (sel: string, glyph: string, title: string) => { const b = this.root.querySelector(sel) as HTMLElement; b.textContent = glyph; b.title = title; };
     icon('.missions-btn', '📋', L({ tr: 'Görevler (J)', en: 'Missions (J)' }));
     icon('.rel-btn', '👥', L({ tr: 'İlişkiler (R)', en: 'People (R)' }));
@@ -526,6 +626,12 @@ export class Hud {
   }
 
   renderMaps(v: MapView) {
+    // made it to your waypoint: it's done its job
+    if (this.waypoint && Math.hypot(v.player.x - this.waypoint.x, v.player.y - this.waypoint.y) < 1.6) {
+      this.waypoint = null;
+      this.toast(L({ tr: '📍 İşaretlediğin yere vardın.', en: '📍 You reached your waypoint.' }), 'good');
+    }
+    v = { ...v, waypoint: this.waypoint };
     this.lastView = v;
     this.mini.render(v);
     if (this.bigOpen) this.big.render(v);

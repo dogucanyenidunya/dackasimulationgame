@@ -597,3 +597,7 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 .npc-profile .npc-tags .npc-type { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
 .npc-profile p { margin: 0; font-size: 13.5px; line-height: 1.5; color: #3a4246; }
 @media (max-width: 560px) { .npc-profile .npc-portrait { width: 48px; height: 48px; } }
+
+/* the radar: drag to look around, double-click to come back */
+.hud-mini canvas { touch-action: none; cursor: grab; }
+.hud-mini canvas.dragging { cursor: grabbing; }

@@ -33,6 +33,8 @@ const ROOF = {
   grey: { base: '#bcc3c9', dark: '#a6aeb5', light: '#d3d9de', rim: '#e6eaed', rimDark: '#8f979e' },
   white: { base: '#dfe3e6', dark: '#c9cfd4', light: '#eef1f3', rim: '#f7f8f9', rimDark: '#a3abb2' },
   green: { base: '#79ae5f', dark: '#62964b', light: '#93c477', rim: '#d9dfe2', rimDark: '#8f979e' },
+  /** the balloon court's green tarp */
+  tarp: { base: '#4f8f4a', dark: '#3a7137', light: '#72b064', rim: '#5f9c56', rimDark: '#2c5a2a' },
 };
 
 function rng(seed: number) {
@@ -175,6 +177,26 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     for (const f of [0.35, 0.7]) { c.beginPath(); c.ellipse(cx, cy, (bx1 - bx0) / 2 * f, (by1 - by0) / 2 * f, 0, 0, Math.PI * 2); c.stroke(); }
     c.fillStyle = '#eef1f3'; c.beginPath(); c.ellipse(cx, cy, 7, 5, 0, 0, Math.PI * 2); c.fill();
     c.strokeStyle = pal.rimDark; c.stroke();
+  } else if (style === 'balloon') {
+    // an inflated air dome: a soft pillow of tarp, brightest along its ridge and falling away at every edge
+    const grd = c.createLinearGradient(0, by0, 0, by1);
+    grd.addColorStop(0, pal.dark); grd.addColorStop(0.3, pal.light); grd.addColorStop(0.55, pal.base); grd.addColorStop(1, pal.dark);
+    c.fillStyle = grd; c.fillRect(0, 0, W, H);
+    const ends = c.createLinearGradient(bx0, 0, bx1, 0);
+    ends.addColorStop(0, 'rgba(0,0,0,0.2)'); ends.addColorStop(0.14, 'rgba(0,0,0,0)'); ends.addColorStop(0.86, 'rgba(0,0,0,0)'); ends.addColorStop(1, 'rgba(0,0,0,0.3)');
+    c.fillStyle = ends; c.fillRect(0, 0, W, H);
+    // welded seams between the tarp panels, running north–south over the top
+    for (let sx = bx0 + 12; sx < bx1; sx += 12) px(sx, 0, 1, H, 'rgba(0,0,0,0.13)');
+    // the restraint cables holding it down: a loose diamond net
+    c.strokeStyle = 'rgba(232,238,230,0.5)'; c.lineWidth = 1;
+    const span = by1 - by0;
+    for (let sx = bx0 - span; sx < bx1 + span; sx += 30) {
+      c.beginPath(); c.moveTo(sx, by0); c.lineTo(sx + span, by1); c.stroke();
+      c.beginPath(); c.moveTo(sx + span, by0); c.lineTo(sx, by1); c.stroke();
+    }
+    c.fillStyle = 'rgba(255,255,255,0.16)'; c.fillRect(0, by0 + span * 0.28, W, 3); // sheen along the ridge
+    // lit from inside at night, the whole dome glows softly through the tarp
+    L.save(); path(L, b.shape); L.clip(); L.fillStyle = 'rgba(255,236,170,0.35)'; L.fillRect(0, 0, W, H); L.restore();
   } else if (style === 'vault') {
     // a barrel vault running north–south: lit on the west, shaded on the east, with arched ribs
     const grd = c.createLinearGradient(bx0, 0, bx1, 0);
@@ -270,7 +292,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   c.lineJoin = 'round';
   path(c, b.shape);
   if (style === 'flat') { c.strokeStyle = 'rgba(0,0,0,0.13)'; c.lineWidth = 16; c.stroke(); }
-  c.strokeStyle = pal.rim; c.lineWidth = style === 'flat' ? 10 : 6; c.stroke();
+  if (style === 'balloon') { c.strokeStyle = pal.rimDark; c.lineWidth = 3; c.stroke(); }
+  else { c.strokeStyle = pal.rim; c.lineWidth = style === 'flat' ? 10 : 6; c.stroke(); }
   c.restore();
 
   // courtyard: an open well; you see its floor and the inner wall of its north side
@@ -396,6 +419,20 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     q(0, 1, 0, v(plinth), '#9aa1a6');
     q(0, 1, v(plinth) - v(1), v(plinth), '#b8bec3');
     q(0, 1, 0, v(1), '#6f767b');
+    if (style === 'balloon') {
+      // no walls at all: the tarp itself curves down to the ground, over whatever was painted here
+      L.save(); L.globalCompositeOperation = 'destination-out'; ql(0, 1, 0, 1, '#000'); L.restore();
+      q(0, 1, 0, 1, pal.base);
+      q(0, 1, 0.62, 1, pal.light);                          // the bulge catches the light high up
+      q(0, 1, 0.88, 1, pal.base);
+      q(0, 1, 0, 0.35, pal.dark);                           // and curls under towards the ground
+      if (w.nx > 0) q(0, 1, 0, 1, `rgba(0,0,0,${(0.05 + w.nx * 0.15).toFixed(3)})`);
+      for (let s = 6; s < Lpx; s += 12) q(u(s), u(s + 1), 0, 1, 'rgba(0,0,0,0.13)'); // seams
+      q(0, 1, 0.5, 0.5 + v(1), 'rgba(232,238,230,0.45)'); // the restraint cable round its waist
+      q(0, 1, 0, v(5), '#9aa1a6');                          // concrete ballast it's anchored to
+      q(0, 1, v(4), v(5), '#b8bec3');
+      q(0, 1, 0, v(1), '#6f767b');
+    }
     // entrances on this wall: canopy, glass doors (the Revir's is white with a red cross)
     for (const { t0, t1, d } of doorSpans) {
       const dh = v(30);

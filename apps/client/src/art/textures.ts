@@ -248,6 +248,41 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
     c.fillStyle = '#f4f4f0'; c.fillRect(o + 12, 9, 6, 8);
     c.fillStyle = '#8a5a32'; c.fillRect(o + 4, 18, 10, 4);
   },
+  36: (c, o) => { // study table for four, left half: one long top, a notebook for each side
+    TILE_PAINTERS[17](c, o);
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(o + 3, 25, 29, 5);
+    c.fillStyle = '#6b4426'; c.fillRect(o + 4, 20, 3, 8);
+    c.fillStyle = '#d9b47f'; c.fillRect(o + 2, 4, 30, 18);
+    c.fillStyle = '#e6c793'; c.fillRect(o + 2, 4, 30, 2);
+    c.fillStyle = '#b8915c'; c.fillRect(o + 2, 20, 30, 2); c.fillRect(o + 2, 4, 1, 18);
+    c.fillStyle = '#ffffff'; c.fillRect(o + 8, 6, 9, 5); c.fillRect(o + 9, 14, 10, 5);   // a notebook facing each way
+    c.fillStyle = '#c0392b'; c.fillRect(o + 20, 6, 5, 4);                            // a textbook
+    c.fillStyle = '#e0b04a'; c.fillRect(o + 21, 16, 7, 1);                           // a pencil
+  },
+  37: (c, o) => { // study table for four, right half
+    TILE_PAINTERS[17](c, o);
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(o, 25, 30, 5);
+    c.fillStyle = '#6b4426'; c.fillRect(o + 25, 20, 3, 8);
+    c.fillStyle = '#d9b47f'; c.fillRect(o, 4, 30, 18);
+    c.fillStyle = '#e6c793'; c.fillRect(o, 4, 30, 2);
+    c.fillStyle = '#b8915c'; c.fillRect(o, 20, 30, 2); c.fillRect(o + 29, 4, 1, 18);
+    c.fillStyle = '#ffffff'; c.fillRect(o + 14, 6, 9, 5); c.fillRect(o + 12, 14, 10, 5);
+    c.fillStyle = '#4f8fc0'; c.fillRect(o + 5, 15, 5, 4);
+    c.fillStyle = '#3d7a45'; c.fillRect(o + 5, 6, 6, 4);
+  },
+  38: (c, o) => { // folding screen (paravan) running north–south: wooden frames, cream cloth, panels hinged in a zig-zag
+    TILE_PAINTERS[17](c, o);
+    for (let i = 0; i < 2; i++) {
+      const y = i * 16, dx = i ? 3 : -3;                                       // each panel turns the other way at its hinge
+      c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(o + 23 + dx, y + 2, 5, 15);  // its shadow on the floor
+      c.fillStyle = '#6b4426'; c.fillRect(o + 9 + dx, y, 15, 16);               // frame
+      c.fillStyle = '#8a5a32'; c.fillRect(o + 9 + dx, y, 15, 2);                // top rail catching the light
+      c.fillStyle = '#f1e6cc'; c.fillRect(o + 11 + dx, y + 3, 6, 12);           // cloth, lit side
+      c.fillStyle = '#dccba5'; c.fillRect(o + 17 + dx, y + 3, 5, 12);           // cloth, shaded side
+      c.fillStyle = '#b5684a'; c.fillRect(o + 13 + dx, y + 7, 2, 2); c.fillRect(o + 18 + dx, y + 10, 2, 2); // a little pattern
+      c.fillStyle = '#d1a64a'; c.fillRect(o + 15 + dx, y + 15, 3, 1);           // brass hinge
+    }
+  },
   [T.ROAD]: (c, o) => {
     // asphalt outside the fence, with a dashed centre line
     speckle(c, o, '#5d6266', '#53585c', 18, 101);
@@ -377,7 +412,7 @@ export const FOG_FULL = 0;
 export const FOG_SOFT = 1;
 
 export function generateTextures(scene: Phaser.Scene) {
-  const count = 36;
+  const count = 39;
   // paint tiles side by side, then copy them into an "extruded" sheet: each tile gets a 1px border
   // repeating its edge pixels, so zooming never samples the neighbouring tile (no seams)
   const raw = document.createElement('canvas');

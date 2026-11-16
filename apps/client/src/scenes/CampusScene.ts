@@ -30,7 +30,7 @@ import type { NetUser } from '../main';
 import { Panel, type ActionView } from '../ui/panel';
 import { attendLesson, lessonNow, pePanel, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
-  BELLETMEN_ROUTE, BEDS, CEMIL_IN, DESKS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
+  BELLETMEN_ROUTE, BEDS, CEMIL_IN, SEATS as DORM_SEATS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
 import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
@@ -67,6 +67,8 @@ const RUSH_SPEED = 4;
 const ETUT_SPEED = 2;
 /** a night's sleep fast-forwards in about this many real milliseconds */
 const SLEEP_MS = 10_000;
+/** how much of a classmate shows above a study table when they sit on its far side */
+const DESK_CROP = 0.72;
 /** how long a meal takes at the table (game minutes), and how fast it goes by */
 const MEAL_MINUTES = 25;
 const MEAL_MS_PER_MIN = 320;
@@ -790,11 +792,14 @@ export class CampusScene extends Phaser.Scene {
     tag(MY_LOCKER[0], MY_LOCKER[1], L({ tr: 'Dolabın', en: 'Your locker' }));
     // your room is your year's: the classmates from your dorm sit at the other desks
     const sameDorm = NPCS.filter((n) => n.kind === 'classmate' && n.gender === this.save.character.gender);
-    const seats = DESKS.filter(([x, y]) => !(x === MY_DESK[0] && y === MY_DESK[1]));
-    seats.forEach(([x, y], i) => {
+    // (round the study tables, nearest yours first: the near side faces the table from below, the far side from above)
+    DORM_SEATS.forEach((seat, i) => {
       const def = sameDorm[i % sameDorm.length];
       if (!def || i >= sameDorm.length) return;
-      const sp = fitCharacter(this.physics.add.sprite((ROOM_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9)).setDepth((y + 1) * TILE + 16);
+      const sy = seat.face === 'up' ? seat.y + 0.35 : seat.y + 0.8;
+      const sp = fitCharacter(this.physics.add.sprite((ROOM_OX + seat.x + 0.5) * TILE, sy * TILE, `npc-${def.id}`, seat.face === 'up' ? 9 : 0)).setDepth(seat.face === 'up' ? (seat.y + 1) * TILE + 16 : seat.y * TILE + 8);
+      sp.setData('face', seat.face);
+      if (seat.face === 'down') sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP); // (legs behind the table)
       footBody(sp);
       sp.setImmovable(true);
       sp.setData('def', def).setData('slot', this.roomMates.length);
@@ -1437,6 +1442,7 @@ export class CampusScene extends Phaser.Scene {
       if (home && early && !night && c.minutes >= wake && c.minutes < wake + DRESS_MINUTES && !this.rushOn()) {
         const lx = (ROOM_OX + 21 + (i % 4) + 0.5) * TILE, ly = 11.35 * TILE;
         if (sp.angle !== 0) sp.setAngle(0);
+        if (sp.isCropped) sp.setCrop();
         sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
         const dx = lx - sp.x, dy = ly - sp.y, d = Math.hypot(dx, dy);
         const changed = c.minutes >= wake + DRESS_MINUTES / 2;
@@ -1460,17 +1466,20 @@ export class CampusScene extends Phaser.Scene {
         const b = beds[i];
         if (!b) { sp.setVisible(false); sp.body!.enable = false; return; }
         tex(true);
+        if (sp.isCropped) sp.setCrop();
         sp.setPosition((ROOM_OX + b[0] + 0.5) * TILE, (b[1] + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((b[1] + 1) * TILE + 4);
         sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
         return;
       }
       const [dx, dy] = sp.getData('desk') as [number, number];
       tex(false);
-      if (sp.angle !== 0 || sp.x !== dx || sp.y !== dy) sp.setAngle(0).setPosition(dx, dy).setDepth(dy + 16);
+      // on the far side of a table only head and shoulders show above it
+      if (sp.getData('face') === 'down' && !sp.isCropped) sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP);
+      if (sp.angle !== 0 || sp.x !== dx || sp.y !== dy) sp.setAngle(0).setPosition(dx, dy).setDepth(sp.getData('face') === 'down' ? dy - 2 : dy + 16);
       sp.setVisible(home);
       sp.body!.enable = home;
       // heads down, writing: a tiny bob now and then
-      sp.setFrame(9 + (study && Math.floor(time / 700 + sp.x) % 5 === 0 ? 1 : 0));
+      sp.setFrame((sp.getData('face') === 'down' ? 0 : 9) + (study && Math.floor(time / 700 + sp.x) % 5 === 0 ? 1 : 0));
     });
     this.updateZzz(night && this.room === 'dorm', time);
     const bel = this.roomBelletmen;
@@ -4075,7 +4084,7 @@ export class CampusScene extends Phaser.Scene {
       bond: this.save.state.friends.yetim ?? 0, engaged: !!this.panel?.isOpen && this.yetim.near(this.player),
     });
     this.mapTimer += delta;
-    if (this.mapTimer > 200) { this.mapTimer = 0; this.updateMaps(); }
+    if (this.mapTimer > 100) { this.mapTimer = 0; this.updateMaps(); } // (the radar follows you, so it redraws often)
     this.saveTimer += delta;
     if (this.saveTimer > 5000) { this.saveTimer = 0; this.persist(); }
   }
