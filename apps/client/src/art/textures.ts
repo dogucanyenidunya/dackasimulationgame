@@ -633,36 +633,22 @@ export function generateTextures(scene: Phaser.Scene) {
     g.addColorStop(0, 'rgba(255,214,140,0.55)'); g.addColorStop(1, 'rgba(255,214,140,0)');
     c.fillStyle = g; c.fillRect(0, 0, 128, 128);
   });
-  // central plaza fountain (2 frames of water) and the flagpole with a waving Turkish flag (3 frames)
-  if (!scene.textures.exists('fountain')) {
-    const t = scene.textures.createCanvas('fountain', 72 * 2, 56)!;
-    const c = t.getContext();
-    for (let f = 0; f < 2; f++) {
-      const o = f * 72;
-      const ell = (x: number, y: number, rx: number, ry: number, col: string) => { c.fillStyle = col; c.beginPath(); c.ellipse(o + x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); };
-      ell(41, 47, 32, 7, 'rgba(0,0,0,0.22)');
-      ell(36, 41, 33, 12.5, '#7d7466');            // outline
-      ell(36, 40, 32, 12, '#a39a8a');              // basin wall
-      ell(36, 37, 31, 10.5, '#e2dccf');            // rim, catching the sun
-      ell(37, 38, 30, 9.5, '#c9c1b2');
-      ell(36, 37, 26, 7.5, '#3f7fae');             // water
-      ell(36, 36, 24, 6, '#4f9ad0');
-      c.fillStyle = '#9fd0f0'; for (let i = 0; i < 7; i++) c.fillRect(o + 15 + ((i * 7 + f * 3) % 42), 33 + (i % 3) * 2, 4, 1);
-      c.fillStyle = '#d7eefa'; c.fillRect(o + 22 + f * 2, 35, 2, 1); c.fillRect(o + 46 - f * 2, 38, 2, 1);
-      // centre column with the upper bowl
-      c.fillStyle = '#7d7466'; c.fillRect(o + 32, 14, 8, 23);
-      c.fillStyle = '#b8b0a2'; c.fillRect(o + 33, 14, 6, 22); c.fillStyle = '#d6cfc2'; c.fillRect(o + 33, 14, 2, 22);
-      ell(36, 16, 11, 4.5, '#7d7466'); ell(36, 15, 10, 4, '#d6cfc2'); ell(36, 15, 7, 2.2, '#4f9ad0');
-      c.fillStyle = 'rgba(159, 208, 240, 0.9)';
-      const h = f ? 12 : 9;
-      c.fillRect(o + 35, 15 - h, 2, h);
-      c.fillRect(o + 27 - f, 17, 2, 14); c.fillRect(o + 43 + f, 17, 2, 14);
-      c.fillStyle = 'rgba(215, 238, 250, 0.9)'; c.fillRect(o + 26 - f, 30, 4, 1); c.fillRect(o + 42 + f, 30, 4, 1);
-      c.fillStyle = '#ffffff'; c.fillRect(o + 35, 15 - h, 2, 2); c.fillRect(o + 34 - f, 16 - h, 1, 1); c.fillRect(o + 37 + f, 16 - h, 1, 1);
-    }
-    t.refresh();
-    t.add(0, 0, 0, 0, 72, 56); t.add(1, 0, 72, 0, 72, 56);
-  }
+  // outdoor pull-up bars (barfiks): three bars at three heights on green-painted posts, sand underneath
+  canvas('pullup', 80, 56, (c) => {
+    c.fillStyle = '#d8c79f'; c.beginPath(); c.ellipse(40, 50, 39, 6, 0, 0, Math.PI * 2); c.fill();      // sand pit
+    c.fillStyle = '#c9b68a'; c.beginPath(); c.ellipse(40, 51, 33, 4, 0, 0, Math.PI * 2); c.fill();
+    const bar = (x0: number, x1: number, top: number) => {
+      c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(x0 + 3, 51, x1 - x0, 2);                              // shadow of the bar
+      for (const x of [x0, x1]) {
+        c.fillStyle = '#24502f'; c.fillRect(x - 2, top, 4, 52 - top);                                      // post
+        c.fillStyle = '#3f7a4c'; c.fillRect(x - 2, top, 1, 52 - top);
+        c.fillStyle = '#1b3a23'; c.fillRect(x - 3, 49, 6, 3);                                              // footing
+      }
+      c.fillStyle = '#9aa1a6'; c.fillRect(x0, top + 1, x1 - x0, 2);                                        // the steel bar
+      c.fillStyle = '#d7dde1'; c.fillRect(x0, top + 1, x1 - x0, 1);
+    };
+    bar(4, 28, 22); bar(28, 52, 8); bar(52, 76, 15);                                                        // low, high, middle
+  });
   if (!scene.textures.exists('flag')) {
     const t = scene.textures.createCanvas('flag', 48 * 3, 96)!;
     const c = t.getContext();

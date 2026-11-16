@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import {
-  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, FOUNTAIN, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
   MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea,
-  AGE_ZONES, CENTER_ZONES, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
+  AGE_ZONES, CENTER_ZONES, DORM_BACKS, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
   DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture, fitCharacter, footBody,
@@ -287,18 +287,16 @@ export class CampusScene extends Phaser.Scene {
       lamp.body!.setSize(6, 4).setOffset(5, 48);
       this.lightSpots.push({ x: x * TILE + 16, y: y * TILE - 12, r: 3 });
     }
-    // landmarks: fountain on the central plaza crossing, flag for ceremonies
-    if (!this.anims.exists('fountain-flow')) {
-      this.anims.create({ key: 'fountain-flow', frames: this.anims.generateFrameNumbers('fountain', { frames: [0, 1] }), frameRate: 3, repeat: -1 });
+    // landmarks: the flag for ceremonies, and the pull-up bars behind the boys' dorm
+    if (!this.anims.exists('flag-wave')) {
       this.anims.create({ key: 'flag-wave', frames: this.anims.generateFrameNumbers('flag', { frames: [0, 1, 2, 1] }), frameRate: 5, repeat: -1 });
     }
-    const fountain = trees.create(FOUNTAIN[0] * TILE, FOUNTAIN[1] * TILE + 8, 'fountain') as Phaser.Physics.Arcade.Sprite;
-    fountain.setDepth(FOUNTAIN[1] * TILE + 30).play('fountain-flow');
-    fountain.body!.setSize(56, 18).setOffset(8, 30);
+    const bars = trees.create(PULLUP_BARS[0] * TILE, PULLUP_BARS[1] * TILE, 'pullup') as Phaser.Physics.Arcade.Sprite;
+    bars.setOrigin(0.5, 1).setDepth(PULLUP_BARS[1] * TILE + 2).refreshBody();
+    bars.body!.setSize(72, 8).setOffset(4, 48);
     const flag = trees.create(FLAGPOLE[0] * TILE + 16, FLAGPOLE[1] * TILE - 16, 'flag') as Phaser.Physics.Arcade.Sprite;
     flag.setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave');
     flag.body!.setSize(6, 6).setOffset(5, 86);
-    this.lightSpots.push({ x: FOUNTAIN[0] * TILE, y: FOUNTAIN[1] * TILE, r: 2.5 });
     // the big green main gate: stone pillars, a green arch with the school's name, the leaves slid open
     // along the fence, and the guards' cabin just inside
     for (const gate of GATES) {
@@ -1729,11 +1727,12 @@ export class CampusScene extends Phaser.Scene {
     return false;
   }
 
-  /** a random open spot within `roam` tiles of home, away from doors */
-  private wanderSpot(home: [number, number], roam: number): [number, number] | null {
+  /** a random open spot within `roam` tiles of home, away from doors (and, unless you're in high school, not behind the dorms) */
+  private wanderSpot(home: [number, number], roam: number, lise = true): [number, number] | null {
     for (let i = 0; i < 8; i++) {
       const tx = Math.round(home[0]) + Phaser.Math.Between(-roam, roam), ty = Math.round(home[1]) + Phaser.Math.Between(-roam, roam);
       if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
+      if (!lise && DORM_BACKS.some((r) => tx + 0.5 >= r.x && tx + 0.5 <= r.x + r.w && ty + 0.5 >= r.y && ty + 0.5 <= r.y + r.h)) continue;
       const i2 = ty * MAP_W + tx;
       if (this.npcGrid[i2] && !this.doorClear[i2]) return this.npcSpot(tx, ty);
     }
@@ -2008,7 +2007,8 @@ export class CampusScene extends Phaser.Scene {
           if (this.steerNpc(npc, wander[0], wander[1], 55)) npc.setData('wander', undefined);
         } else if (atDoor || time > npc.getData('next')) {
           const idle = !atDoor && Math.random() < (def.kind === 'abi' || def.kind === 'belletmen' || def.kind === 'teacher' ? 0.7 : 0.4);
-          const spot = idle ? null : this.wanderSpot(plan.home, Math.max(1, plan.roam));
+          // (the backs of the dorms are the high schoolers'; younger ones and the grown-ups don't hang about there)
+          const spot = idle ? null : this.wanderSpot(plan.home, Math.max(1, plan.roam), (def.grade ?? 0) >= 9);
           if (spot) npc.setData('wander', spot);
           else { npc.setVelocity(0, 0); npc.setData('wantMove', false); }
           npc.setData('next', time + Phaser.Math.Between(1200, 3200));

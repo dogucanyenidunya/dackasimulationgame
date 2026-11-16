@@ -308,30 +308,34 @@ export const FLOWERS: Array<[number, number]> = [
   [11, 24], [22, 22], [44, 25], [51, 25], [34, 40], [60, 48], [28, 30],
 ];
 
-/** landmarks: the fountain in the Yurt Meydanı; on the Merkez Meydan the three-sided pyramid in the very centre,
+/** landmarks: on the Merkez Meydan the three-sided pyramid in the very centre,
  *  the Atatürk bust in the south-west corner and the flag on the north side */
-export const FOUNTAIN: [number, number] = [17, 24];
 export const BUST: [number, number] = [43.6, 35];
 export const FLAGPOLE: [number, number] = [50, 26];
 /** the pyramid's centre and the width of its base (tiles) */
 export const PYRAMID = { x: 47.75, y: 31.4, w: 3 };
+/** the pull-up bars on the lawn west of the boys' dorm (centre of their foot, tiles): the high schoolers' corner */
+export const PULLUP_BARS: [number, number] = [5.6, 12.8];
 
 /** daytime hangouts for students: [x, y, roam] */
 export const HANGOUTS: Array<[number, number, number]> = [
-  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [24, 26, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [5, 15, 2],
+  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [24, 26, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [20, 30, 2],
 ];
 
 /** where each age group hangs out by day (lawns between the buildings and the campus walls) */
 export type AgeGroup = 'g4' | 'g56' | 'g78' | 'lise';
+/** the back of the dorms: the lawn west of the boys' dorm (with the pull-up bars), the strip behind it to the north,
+ *  and the lawns west and south of the girls' dorm. Only high schoolers hang out there. */
+export const DORM_BACKS: Rect[] = [{ x: 4, y: 4, w: 4, h: 17 }, { x: 8, y: 4, w: 21, h: 1.5 }, { x: 4, y: 26, w: 2, h: 13 }, { x: 5, y: 36, w: 14, h: 9 }];
 export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
-  // 4th graders: the lawns west of the boys' dorm and south of the girls' dorm
-  g4: [{ x: 4, y: 9, w: 3, h: 12 }, { x: 13, y: 41, w: 5, h: 2 }],
-  // 5th–6th graders: the dorm basketball court north of Eğitim, and beside the girls' dorm
-  g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 4, y: 26, w: 2, h: 8 }],
+  // 4th graders: the lawn in front of the girls' dorm, between it and the TIM wall
+  g4: [{ x: 18, y: 29, w: 6, h: 3 }],
+  // 5th–6th graders: the dorm basketball court north of Eğitim, and the lawn by Eğitim's west wall
+  g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 25, y: 29, w: 7, h: 3 }],
   // 7th–8th graders: round the small court and the big court
   g78: [{ x: 64, y: 47, w: 7, h: 3 }, { x: 84, y: 40, w: 7, h: 2 }],
-  // high schoolers: east of the basketball court and on the south lawn
-  lise: [{ x: 86, y: 42, w: 5, h: 8 }, { x: 57, y: 49, w: 14, h: 2 }],
+  // high schoolers: east of the basketball court, on the south lawn, and the backs of the dorms (the pull-up bars)
+  lise: [{ x: 86, y: 42, w: 5, h: 8 }, { x: 57, y: 49, w: 14, h: 2 }, { x: 4, y: 10, w: 3, h: 9 }, { x: 7, y: 40, w: 9, h: 2 }],
 };
 /** the plazas: everyone mixes here */
 export const CENTER_ZONES: Rect[] = [{ x: 41, y: 24, w: 13, h: 13 }, { x: 10, y: 21, w: 14, h: 4 }];
@@ -346,12 +350,12 @@ export const PLAZA_ALLOWED: Rect[] = [PLAZA_EVENING, REVIR_WAY];
 
 /** evening (20:00–22:00) spots around the dorms, one per grade; the Yurt Meydanı in the middle is the mixed crowd */
 export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> = {
-  '4': { x: 4, y: 9, w: 3, h: 12 },       // west of the boys' dorm
+  '4': { x: 22, y: 26, w: 5, h: 2 },      // the lawn east of the Yurt Meydanı
   '5': { x: 9, y: 22.5, w: 6, h: 2 },     // west end of the Yurt Meydanı
   '6': { x: 20, y: 20, w: 6, h: 2 },      // east end of the Yurt Meydanı
   '7': { x: 30, y: 9, w: 6, h: 5 },       // the dorm basketball court
-  '8': { x: 4, y: 26, w: 2, h: 5 },       // beside the girls' dorm
-  lise: { x: 29, y: 19, w: 8, h: 1 },     // along Eğitim, in front of the Kapalı Saha
+  '8': { x: 18, y: 29, w: 6, h: 2 },      // in front of the girls' dorm
+  lise: { x: 4, y: 10, w: 3, h: 8 },      // round the pull-up bars behind the boys' dorm (the backs of the dorms are theirs)
 };
 export const EVENING_CENTER: Rect = { x: 10, y: 21, w: 15, h: 6 };
 
@@ -403,7 +407,7 @@ export const LOCATIONS: Location[] = [
   {
     id: 'yurt_meydani', kind: 'zone',
     name: { tr: 'Yurt Meydanı', en: 'Yurt Meydanı' }, sub: { tr: 'Yurtlar arası meydan', en: 'Dorm plaza' },
-    info: { tr: 'Akşam buluşma yeri. İki yurt karşılıklı bakar; ortada fıskiye var.', en: 'The evening hangout. The two dorms face each other, with the fountain in the middle.' },
+    info: { tr: 'Akşam buluşma yeri. İki yurt karşılıklı bakar; ortası açık bir meydan.', en: 'The evening hangout. The two dorms face each other across an open square.' },
     rect: { x: 8, y: 18, w: 20, h: 12 }, label: { x: 17, y: 26.6 }, minimapColor: '#a9cf95',
   },
   {
