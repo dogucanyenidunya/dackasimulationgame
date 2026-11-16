@@ -45,6 +45,8 @@ function stopMusic() { music?.pause(); }
 export const sfx = {
   /** starts the background music (call from a click/keypress so the browser allows it) */
   music: startMusic,
+  /** wakes the sound engine up inside a tap, so phone browsers let later sounds play */
+  unlock() { ac(); },
   /** silences the music while the game is paused */
   pauseMusic: stopMusic,
   /** school bell: ding-dong, twice */

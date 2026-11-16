@@ -3,14 +3,14 @@
 // and every browser arrives at the same answer (to within its own clock's accuracy).
 import { LIGHTS_OUT, WAKE_UP } from './schedule';
 
-/** real milliseconds per game minute: day (07:00–22:00) ≈ 1 game hour per 80 s; night is compressed */
+/** real milliseconds per game minute: day (07:00–22:00) ≈ 1 game hour per 80 s; night is compressed (the whole night ≈ 2 real minutes) */
 export const MS_PER_MIN_DAY = 80_000 / 60;
-export const MS_PER_MIN_NIGHT = 240_000 / (8.5 * 60);
+export const MS_PER_MIN_NIGHT = 120_000 / (8.5 * 60);
 
 const DAY_MIN = 24 * 60;
 const AWAKE = LIGHTS_OUT - WAKE_UP; // game minutes from wake-up to lights-out
 const AWAKE_MS = AWAKE * MS_PER_MIN_DAY;
-/** one whole campus day in real milliseconds (≈ 24 minutes) */
+/** one whole campus day in real milliseconds (≈ 22 minutes) */
 export const WORLD_DAY_MS = AWAKE_MS + (DAY_MIN - AWAKE) * MS_PER_MIN_NIGHT;
 /** campus day 3 (a Monday, see `weekday`) began at 07:00 at this instant; any fixed instant would do */
 const ANCHOR = Date.UTC(2026, 0, 5);

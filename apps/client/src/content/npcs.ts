@@ -92,7 +92,7 @@ const HAIRS = ['#120c09', '#2b1d14', '#3b2a20', '#5e3b22', '#7a4a24', '#a8682e',
 const GENERIC_LINES: NpcLine[] = [
   { tr: 'Bugün yemekhanede ne var biliyor musun?', en: "Do you know what's for dinner today?" },
   { tr: 'Etütte matematik ödevini birlikte yapalım mı?', en: 'Want to do the math homework together at study time?', when: 'day' },
-  { tr: 'Belletmen Ercan Bey çok sert ama aslında iyi biri.', en: 'Mr. Ercan the belletmen is strict, but he\'s actually nice.' },
+  { tr: 'Belletmen Ercan Hoca çok sert ama aslında iyi biri.', en: 'Mr. Ercan the belletmen is strict, but he\'s actually nice.' },
   { tr: 'Hafta sonu ziyaret günü, sabırsızlanıyorum!', en: "It's visiting day this weekend, I can't wait!", when: 'weekdays' },
   { tr: 'Kortta maç yapıyoruz, takıma bir kişi lazım.', en: "We're playing on the court and need one more.", when: 'day' },
   { tr: 'Müzedeki eski fotoğraflarda bir tanesi bize benziyor!', en: 'One of the old photos in the museum looks just like us!' },
@@ -166,11 +166,11 @@ export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];
 
 /** night teachers: on duty from 18:00 to 07:00 */
 export const BELLETMENS: NpcDef[] = [
-  { id: 'bel-hatice', name: 'Ayşe Hanım', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [11, 25], roam: 0,
+  { id: 'bel-hatice', name: 'Ayşe Hoca', kind: 'belletmen', gender: 'girl', role: { tr: 'Belletmen · Kız Yurdu', en: "Belletmen · girls' dorm" }, look: { skin: '#e8b98f', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#6b3a3a', bottom: '#3a3a3a', glasses: true }, home: [11, 25], roam: 0,
     lines: [{ tr: 'Etüt saatinde herkes yurtta! Ödevler bitmeden oyun yok.', en: 'Everyone in the dorm at study time! No games until homework is done.' }, { tr: 'Saat 22:00\'de ışıklar sönüyor, unutma.', en: 'Lights out at 22:00, remember.' }] },
-  { id: 'bel-mehmet', name: 'Ercan Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [23, 20], roam: 0,
+  { id: 'bel-mehmet', name: 'Ercan Hoca', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · Erkek Yurdu', en: "Belletmen · boys' dorm" }, look: { skin: '#c68e63', hair: '#3b2a20', hairStyle: 1, skirt: false, top: '#3a4a6b', bottom: '#2d3238' }, home: [23, 20], roam: 0,
     lines: [{ tr: 'Meydandan ayrılmak yok. Sizi buradan görebiliyorum!', en: 'Nobody leaves the plaza. I can see you all from here!' }, { tr: 'Yarın sabah erken kalkacaksınız, haydi bakalım.', en: 'Early start tomorrow, off you go.' }] },
-  { id: 'bel-selim', name: 'Selim Bey', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [47, 27], roam: 5,
+  { id: 'bel-selim', name: 'Selim Hoca', kind: 'belletmen', gender: 'boy', role: { tr: 'Belletmen · gece nöbeti', en: 'Belletmen · night patrol' }, look: { skin: '#d9a77d', hair: '#120c09', hairStyle: 0, skirt: false, top: '#2f4a3a', bottom: '#2d3238' }, home: [47, 27], roam: 5,
     lines: [{ tr: 'Gece nöbetindeyim. Fenerim her yeri görür!', en: "I'm on night patrol. My torch sees everything!" }] },
 ];
 
@@ -185,7 +185,7 @@ export const TEACHER_NPCS: NpcDef[] = SUBJECTS.map((s, i) => {
 
 /** the deputy head: hands out late slips in his office, and comes looking for anyone who skips a lesson */
 export const DEPUTY: NpcDef = {
-  id: 'mdr-yrd', name: 'Emel Hanım', kind: 'teacher', gender: 'girl', role: { tr: 'Müdür yardımcısı', en: 'Deputy head' },
+  id: 'mdr-yrd', name: 'Emel Hoca', kind: 'teacher', gender: 'girl', role: { tr: 'Müdür yardımcısı', en: 'Deputy head' },
   look: { skin: '#e8b98f', hair: '#2b1d14', hairStyle: 3, skirt: true, top: '#2d3238', bottom: '#2d3238', glasses: true }, home: [40, 30], roam: 1, lines: [],
 };
 

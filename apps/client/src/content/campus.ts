@@ -347,7 +347,7 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
 };
 export const EVENING_CENTER: Rect = { x: 10, y: 21, w: 15, h: 6 };
 
-/** Selim Bey's night patrol loop */
+/** Selim Hoca's night patrol loop */
 export const PATROL_ROUTE: Array<[number, number]> = [[16, 25], [30, 29], [34, 26], [40, 26], [40, 46], [40, 30], [47, 24], [56, 24], [56, 38], [40, 38], [40, 20], [40, 26], [31, 27], [20, 21]];
 
 export const LOCATIONS: Location[] = [

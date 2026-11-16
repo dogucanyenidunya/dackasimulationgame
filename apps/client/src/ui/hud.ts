@@ -3,6 +3,7 @@ import { L, t, getLang, setLang, onLangChange } from '../i18n';
 import { paintCharacter } from '../art/textures';
 import { sfx } from '../audio';
 import { askConfirm } from './confirm';
+import { isTouch, onTouchMode } from './touch';
 import {
   ATTRS, TRAITS, type CharacterData,
 } from '../content/character';
@@ -196,7 +197,9 @@ export class Hud {
     const input = form.querySelector('input') as HTMLInputElement;
     this.chatOpen = true;
     form.classList.remove('hidden');
-    input.placeholder = L({ tr: 'Mesaj yaz, Enter ile gönder (Esc: kapat)', en: 'Type a message, Enter to send (Esc: close)' });
+    input.placeholder = isTouch()
+      ? L({ tr: 'Mesaj yaz…', en: 'Type a message…' })
+      : L({ tr: 'Mesaj yaz, Enter ile gönder (Esc: kapat)', en: 'Type a message, Enter to send (Esc: close)' });
     input.focus();
   }
 
@@ -319,6 +322,11 @@ export class Hud {
     // typing must not move your character or trigger hotkeys
     chatInput.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') this.closeChat(); });
     chatInput.addEventListener('keyup', (e) => e.stopPropagation());
+    // touch screens have no Esc: tapping away from an empty chat box closes it
+    chatInput.addEventListener('blur', () => { if (this.chatOpen && !chatInput.value.trim()) setTimeout(() => this.closeChat(), 0); });
+    this.prompt.addEventListener('click', () => this.onPromptTap());
+    // tapping the minimap opens the big map
+    q('.hud-mini').addEventListener('click', () => { if (!this.modalOpen && !this.chatOpen) this.toggleMap(true); });
 
     this.langBtn.addEventListener('click', () => setLang(getLang() === 'tr' ? 'en' : 'tr'));
     q('.profile-btn').addEventListener('click', () => this.onProfile());
@@ -351,6 +359,7 @@ export class Hud {
     q('.tracker').addEventListener('click', () => this.onMissions());
     q('.reset-btn').addEventListener('click', async () => { if (await askConfirm(t('reset_confirm'), t('menu_reset'), L({ tr: 'Vazgeç', en: 'Cancel' }))) this.onReset(); });
     onLangChange(() => this.refreshStatic());
+    onTouchMode(() => this.refreshStatic());
     this.refreshStatic();
   }
 
@@ -366,16 +375,40 @@ export class Hud {
       redraw();
     }, { passive: false });
     let drag: { x: number; y: number } | null = null;
-    canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); });
+    // fingers on the map (two of them = pinch to zoom)
+    const fingers = new Map<number, { x: number; y: number }>();
+    let spread = 0;
+    const pinchSpread = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    canvas.addEventListener('pointerdown', (e) => {
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      canvas.setPointerCapture(e.pointerId);
+      if (fingers.size === 2) { drag = null; spread = pinchSpread(); return; }
+      drag = { x: e.clientX, y: e.clientY };
+      canvas.classList.add('dragging');
+    });
     canvas.addEventListener('pointermove', (e) => {
-      if (!drag) return;
+      if (fingers.has(e.pointerId)) fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const r = canvas.getBoundingClientRect();
       const k = canvas.width / r.width;
+      if (fingers.size === 2 && spread) {
+        const now = pinchSpread();
+        const [a, b] = [...fingers.values()];
+        this.big.zoomAt(now / spread, ((a.x + b.x) / 2 - r.left) * k, ((a.y + b.y) / 2 - r.top) * k);
+        spread = now;
+        redraw();
+        return;
+      }
+      if (!drag) return;
       this.big.panBy((e.clientX - drag.x) * k, (e.clientY - drag.y) * k);
       drag = { x: e.clientX, y: e.clientY };
       redraw();
     });
-    const end = () => { drag = null; canvas.classList.remove('dragging'); };
+    const end = (e: PointerEvent) => {
+      fingers.delete(e.pointerId);
+      spread = 0;
+      drag = null;
+      canvas.classList.remove('dragging');
+    };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     this.bigWrap.addEventListener('click', (e) => {
@@ -402,7 +435,9 @@ export class Hud {
     this.langBtn.textContent = getLang() === 'tr' ? 'EN' : 'TR';
     this.controls.textContent = t('controls');
     this.bigTitle.textContent = t('map_title');
-    (this.root.querySelector('.big-help') as HTMLElement).textContent = L({ tr: 'Fare tekerleği veya +/− ile yakınlaştır · sürükleyerek gez', en: 'Scroll or press +/− to zoom · drag to pan' });
+    (this.root.querySelector('.big-help') as HTMLElement).textContent = isTouch()
+      ? L({ tr: 'İki parmakla ya da +/− ile yakınlaştır · sürükleyerek gez', en: 'Pinch or tap +/− to zoom · drag to pan' })
+      : L({ tr: 'Fare tekerleği veya +/− ile yakınlaştır · sürükleyerek gez', en: 'Scroll or press +/− to zoom · drag to pan' });
     const icon = (sel: string, glyph: string, title: string) => { const b = this.root.querySelector(sel) as HTMLElement; b.textContent = glyph; b.title = title; };
     icon('.missions-btn', '📋', L({ tr: 'Görevler (J)', en: 'Missions (J)' }));
     icon('.rel-btn', '👥', L({ tr: 'İlişkiler (R)', en: 'People (R)' }));
@@ -469,9 +504,15 @@ export class Hud {
     if (button) { if (b.textContent !== button.label) b.textContent = button.label; b.onclick = button.onClick; }
   }
 
+  /** the prompt was tapped (touch screens: same as pressing E) */
+  onPromptTap: () => void = () => {};
+
   setPrompt(text: string | null) {
+    this.root.classList.toggle('has-prompt', !!text);
     if (!text) { this.prompt.classList.add('hidden'); return; }
-    this.prompt.textContent = text;
+    // on a touch screen there's no E key: the prompt itself (and the ✋ button) does it
+    const shown = isTouch() ? text.replace(/^E — /, '') : text;
+    if (this.prompt.textContent !== shown) this.prompt.textContent = shown;
     this.prompt.classList.remove('hidden');
   }
 

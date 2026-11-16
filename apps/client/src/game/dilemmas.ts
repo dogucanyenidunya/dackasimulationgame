@@ -46,7 +46,7 @@ interface Choice {
 }
 interface Dilemma { title: Text; intro: Text; question: Text; who?: NpcDef; choices: Choice[] }
 
-const belletmenOf = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? { id: 'bel-hatice', name: 'Ayşe Hanım' } : { id: 'bel-mehmet', name: 'Ercan Bey' });
+const belletmenOf = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? { id: 'bel-hatice', name: 'Ayşe Hoca' } : { id: 'bel-mehmet', name: 'Ercan Hoca' });
 const friendOf = (ctx: GameCtx, id: string) => ctx.st.friends[id] ?? 0;
 const byId = (id: string) => NPCS.find((n) => n.id === id)!;
 const markCall = (ctx: GameCtx) => { ctx.st.daily.call = ctx.clock.day; };

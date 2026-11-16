@@ -115,7 +115,7 @@ export interface ClassNow {
   /** this break's key (a new one deals out new roles), or null in a lesson */
   breakKey: string | null;
   /** the teacher is in the room during this break */
-  teacher: { name: string } | null;
+  teacher: { name: string; look?: { skirt?: boolean } } | null;
   /** is this student in the Eğitim Binası right now */
   present: (def: NpcDef) => boolean;
 }
@@ -449,7 +449,7 @@ export class ClassLife {
     const k = pick(pool);
     const kind = k.aim === 'seat' ? 'sit' : k.role.kind;
     if (kind === 'teacher') {
-      const sir = now.teacher?.name.endsWith('Hanım') ? 'Miss' : 'Sir';
+      const sir = now.teacher?.look?.skirt ? 'Miss' : 'Sir';
       this.say(k.sp, L(pick(ASK(sir))));
       this.scene.time.delayedCall(1300, () => this.teacher.visible && this.say(this.teacher, L(pick(REPLY))));
       return;

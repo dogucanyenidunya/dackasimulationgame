@@ -493,10 +493,12 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .announce-card .announce-list { overflow: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; min-height: 0; }
 .announce-card .announce-list .mission { margin: 0; padding: 10px 12px; }
 .announce-card .announce-list .m-title { font-size: 14px; }
-.announce-card .announce-list .m-desc { font-size: 12.5px; margin: 4px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.announce-card .announce-list .m-desc { font-size: 12.5px; margin: 4px 0 0; }
+.announce-card .announce-btns { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 14px; }
+.announce-card .announce-foot .announce-btns { margin-top: 0; }
 .announce-card .announce-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .announce-card .announce-foot .m-desc { margin: 0; font-size: 13px; }
-@media (max-width: 560px) { .announce-card .announce-list { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .announce-card .announce-list { grid-template-columns: 1fr; } .announce-card .announce-foot { flex-direction: column; align-items: stretch; } }
 /* cards sit above the countdown strip */
 .overlay.modal { z-index: 6; }
 .pause-overlay { position: fixed; z-index: 50; }
@@ -530,3 +532,68 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .music-btn { position: relative; }
 .music-btn.off { opacity: 0.55; }
 .music-btn.off::after { content: ''; position: absolute; left: 22%; right: 22%; top: 50%; height: 2px; background: #b03a2e; transform: rotate(-35deg); border-radius: 1px; }
+
+/* ---------- phones and tablets (ui/touch.ts) ---------- */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+#game, #game canvas { touch-action: none; }
+#hud { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#hud input, #hud textarea { -webkit-user-select: text; user-select: text; }
+button { touch-action: manipulation; }
+/* keep the HUD clear of notches and the home bar */
+#hud { top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px); bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
+.hud-mini { cursor: pointer; }
+
+.touch-ui { display: none; }
+body.touch .touch-ui { display: block; position: absolute; inset: 0; pointer-events: none; }
+body.touch .touch-ui.off { display: none; }
+body.touch .hud-controls { display: none; }
+.stick-zone { position: absolute; left: 0; bottom: 0; width: 55%; height: 46%; pointer-events: auto; touch-action: none; }
+.stick-base { position: absolute; left: 82px; width: 120px; height: 120px; margin: -60px 0 -60px -60px; border-radius: 50%;
+  background: rgba(29, 35, 38, 0.28); border: 2px solid rgba(255, 255, 255, 0.35); opacity: 0.6; transition: opacity 0.15s; }
+.stick-base:not(.active) { top: auto; bottom: 90px; }
+.stick-base.active { opacity: 1; }
+.stick-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
+  background: rgba(247, 244, 238, 0.85); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35); }
+.touch-btns { position: absolute; right: 14px; bottom: 18px; width: 150px; height: 150px; pointer-events: none; }
+.t-btn { position: absolute; pointer-events: auto; font: inherit; display: grid; place-items: center; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(29, 35, 38, 0.55); color: #fff; padding: 0; line-height: 1; touch-action: none; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); }
+.t-btn:active, .t-btn.on { background: rgba(122, 78, 42, 0.85); }
+.t-act { right: 0; bottom: 0; width: 76px; height: 76px; font-size: 32px; }
+#hud.has-prompt .t-act { background: rgba(122, 78, 42, 0.9); border-color: var(--gold); animation: t-glow 1.3s ease-in-out infinite; }
+@keyframes t-glow { 50% { box-shadow: 0 0 0 6px rgba(242, 193, 78, 0.35), 0 3px 10px rgba(0, 0, 0, 0.3); } }
+.t-run { right: 86px; bottom: 4px; width: 54px; height: 54px; font-size: 24px; }
+.t-map { right: 10px; bottom: 88px; width: 48px; height: 48px; font-size: 21px; }
+.t-fast { right: 70px; bottom: 70px; width: 44px; height: 44px; font-size: 18px; }
+.t-chat { right: 64px; bottom: 124px; width: 44px; height: 44px; font-size: 19px; }
+.t-fast:active, .t-map:active, .t-chat:active { transform: scale(0.94); }
+
+/* the "E — …" prompt is a button on touch screens, above the controls */
+body.touch .hud-prompt { bottom: 170px; pointer-events: auto; cursor: pointer; max-width: calc(100% - 32px); text-align: center; }
+body.touch .hud-prompt::before { content: '✋ '; }
+body.touch .chat { bottom: 170px; }
+body.touch .hud-countdown.with-bar { bottom: 220px; }
+/* bigger tap targets in the HUD card */
+body.touch .hud-buttons button { padding: 6px 9px; font-size: 15px; }
+body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2px; }
+
+/* phone held sideways: little height to spare */
+@media (max-height: 500px) {
+  .stick-zone { width: 45%; height: 60%; }
+  .stick-base:not(.active) { bottom: 70px; }
+  .hud-clock .discovery { display: none; }
+  body.touch .hud-prompt { bottom: 20px; }
+  body.touch .chat { bottom: 20px; left: 50%; transform: translateX(-50%); width: min(360px, 40vw); }
+  .hud-right { flex-direction: row; align-items: flex-start; width: auto; }
+  .hud-right .tracker { width: 170px; }
+  .hud-mini canvas { width: 130px; }
+}
+
+/* who you're talking to: portrait, type, tags and their story */
+.npc-profile { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0 4px; padding: 10px 12px; background: #f6f1e7; border: 1px solid var(--line); border-radius: 10px; }
+.npc-profile .npc-portrait { width: 64px; height: 64px; flex: none; background: #e8dcc6; border-radius: 10px; image-rendering: pixelated; }
+.npc-profile .npc-about { min-width: 0; }
+.npc-profile .npc-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.npc-profile .npc-tags span { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--line); color: #4b5459; }
+.npc-profile .npc-tags .npc-type { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
+.npc-profile p { margin: 0; font-size: 13.5px; line-height: 1.5; color: #3a4246; }
+@media (max-width: 560px) { .npc-profile .npc-portrait { width: 48px; height: 48px; } }

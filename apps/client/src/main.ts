@@ -244,8 +244,9 @@ function showArrival(el: HTMLElement, character: CharacterData, net: NetUser | n
 }
 
 // browsers only allow audio after a user gesture
-const kickMusic = () => { sfx.music(); window.removeEventListener('pointerdown', kickMusic); window.removeEventListener('keydown', kickMusic); };
-window.addEventListener('pointerdown', kickMusic);
-window.addEventListener('keydown', kickMusic);
+// (iOS Safari only counts touchend/click as such a gesture, not pointerdown)
+const kickEvents = ['pointerdown', 'touchend', 'click', 'keydown'] as const;
+const kickMusic = () => { sfx.music(); sfx.unlock(); for (const ev of kickEvents) window.removeEventListener(ev, kickMusic); };
+for (const ev of kickEvents) window.addEventListener(ev, kickMusic);
 
 void titleScreen();

@@ -22,8 +22,12 @@ export interface OutcomeView { title: string; body: string; shifts: Array<{ towa
 
 export interface RoomView { id: string; name: string; note?: string; actions: ActionView[]; locked?: string }
 
+/** who someone is, shown at the top of their panel: a portrait, what kind of person they are, a few tags and their story */
+export interface ProfileView { look: CharacterLook; type: string; tags: string[]; story: string }
+
 export interface PanelView {
   title: string; sub?: string; status?: string; rooms: RoomView[];
+  profile?: ProfileView;
   /** return a message to refuse leaving (e.g. during evening study) */
   canClose?: () => string | undefined;
 }
@@ -115,6 +119,13 @@ export class Panel {
           <button type="button" class="secondary close-btn">${esc(L(UI.close))} ✕</button>
         </div>
         ${v.status ? `<div class="panel-status">${esc(v.status)}</div>` : ''}
+        ${v.profile ? `<div class="npc-profile">
+          <canvas class="npc-portrait" width="96" height="96"></canvas>
+          <div class="npc-about">
+            <div class="npc-tags"><span class="npc-type">${esc(v.profile.type)}</span>${v.profile.tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
+            <p>${esc(v.profile.story)}</p>
+          </div>
+        </div>` : ''}
         ${v.rooms.length > 1 ? `<div class="tabs">${v.rooms.map((r, i) => `<button type="button" data-room="${i}" class="${i === this.room ? 'on' : ''} ${r.locked ? 'locked' : ''}">${r.locked ? '🔒 ' : ''}${esc(r.name)}</button>`).join('')}</div>` : ''}
         <div class="room">
           ${room.note ? `<p class="room-note">${esc(room.note)}</p>` : ''}
@@ -125,6 +136,8 @@ export class Panel {
             </button>`).join('')}</div>`}
         </div>
       </div>`;
+    const portrait = this.el.querySelector<HTMLCanvasElement>('canvas.npc-portrait');
+    if (portrait && v.profile) paintCharacter(portrait, v.profile.look, 0, 0, { bust: true });
     this.el.querySelectorAll<HTMLCanvasElement>('canvas[data-look]').forEach((cv) => {
       const look = room.actions[Number(cv.dataset.look)]?.look;
       if (look) paintCharacter(cv, look);
@@ -141,8 +154,8 @@ export class Panel {
       if (a.locked || this.busy) return;
       sfx.click();
       this.busy = true;
-      this.onActionStart?.();
-      try { await a.run(); this.onAction?.(v.title, a); } finally { this.busy = false; }
+      this.onActionStart?.(a);
+      try { await a.run(); this.onAction?.(v.title, a); } finally { this.busy = false; this.onActionEnd?.(); }
       if (this.isOpen) this.render();
     }));
     this.onRoomChange?.(room.id);
@@ -151,7 +164,8 @@ export class Panel {
   onRoomChange: ((roomId: string) => void) | null = null;
   /** an action was carried out (the diary keeps a note of it) */
   onAction: ((title: string, a: ActionView) => void) | null = null;
-  onActionStart: (() => void) | null = null;
+  onActionStart: ((a: ActionView) => void) | null = null;
+  onActionEnd: (() => void) | null = null;
 
   // ---------- minigames (render inside the panel card) ----------
 

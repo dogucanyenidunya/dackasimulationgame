@@ -4,7 +4,8 @@ import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, type Attributes, type CharacterData } from '../content/character';
 import { ANTHEM_LINES, BOOKS, askFor } from '../content/quiz';
 import { TEACHERS } from '../content/classroom';
-import { bioOf } from '../content/bios';
+import { bioOf, personaOf } from '../content/bios';
+import { DEFAULT_LOOK } from '../art/character';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
 import { MATCH_TIP, matchOn, ceremonyNow, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
@@ -221,7 +222,7 @@ function depoRoom(ctx: GameCtx): RoomView {
 function rehberRoom(ctx: GameCtx): RoomView {
   return {
     id: 'rehber', name: T('Rehber öğretmen', 'Counselor'),
-    note: T('Rehber öğretmen Tolga Bey\'in kapısı herkese açık.', 'Mr. Tolga, the counselor, keeps his door open for everyone.'),
+    note: T('Rehber öğretmen Tolga Hoca\'nın kapısı herkese açık.', 'Mr. Tolga, the counselor, keeps his door open for everyone.'),
     actions: [{
       id: 'talk', label: T('Biraz konuş', 'Have a talk'), hint: T('20 dk · +12 moral (günde bir)', '20 min · +12 mood (once a day)'),
       locked: doneToday(ctx, 'counselor') ? T('Bugün zaten konuştunuz.', 'You already talked today.') : undefined,
@@ -229,7 +230,7 @@ function rehberRoom(ctx: GameCtx): RoomView {
         markToday(ctx, 'counselor');
         ctx.advance(20);
         ctx.gain({ mood: 12, xp: 5 });
-        await ctx.panel.message(T('Tolga Bey', 'Mr. Tolga'), T(
+        await ctx.panel.message(T('Tolga Hoca', 'Mr. Tolga'), T(
           '"İlk haftalar herkes için zordur. Özlemek normal. Bir şeye ihtiyacın olursa buradayım."',
           '"The first weeks are hard for everyone. Missing home is normal. I\'m here whenever you need me."'));
       },
@@ -414,7 +415,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       if (pct >= 50) {
         ctx.st.examPassed = true;
         ctx.gain({ xp: 100, mood: 10, attrs: { knowledge: 2 } });
-        await ctx.panel.message(T('Geçtin!', 'You passed!'), T(`${right}/${SUBJECTS.length} doğru · sınav notun: %${pct}. Murat Bey gülümsüyor: "Aferin!"`, `${right}/${SUBJECTS.length} right · your score: ${pct}%. Mr. Murat smiles: "Well done!"`));
+        await ctx.panel.message(T('Geçtin!', 'You passed!'), T(`${right}/${SUBJECTS.length} doğru · sınav notun: %${pct}. Murat Hoca gülümsüyor: "Aferin!"`, `${right}/${SUBJECTS.length} right · your score: ${pct}%. Mr. Murat smiles: "Well done!"`));
       } else {
         markToday(ctx, 'exam');
         ctx.gain({ mood: -5, energy: -10 });
@@ -546,9 +547,9 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       },
       {
         id: 'ogretmenler', name: T('Öğretmenler odası', "Teachers' room"),
-        note: T('Sınıf öğretmenin Murat Bey çayını yudumluyor.', 'Your homeroom teacher, Mr. Murat, is sipping his tea.'),
+        note: T('Sınıf öğretmenin Murat Hoca çayını yudumluyor.', 'Your homeroom teacher, Mr. Murat, is sipping his tea.'),
         actions: [{
-          id: 'teacher', label: T('Murat Bey\'le konuş', 'Talk to Mr. Murat'), hint: T('10 dk · günde bir', '10 min · once a day'),
+          id: 'teacher', label: T('Murat Hoca\'yla konuş', 'Talk to Mr. Murat'), hint: T('10 dk · günde bir', '10 min · once a day'),
           locked: needRegistration(ctx) ?? (doneToday(ctx, 'teacher') ? T('Bugün zaten konuştunuz.', 'You already talked today.') : undefined),
           run: async () => { nudge(ctx, { rules: -1 });
             markToday(ctx, 'teacher'); ctx.advance(10); ctx.gain({ xp: 10, mood: 4 });
@@ -557,7 +558,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
               T('"Ödevlerini akşam etütte yap; etüt 18:00\'de yurdunda başlıyor."', '"Do your homework at evening study; it starts at 18:00 in your dorm."'),
               T('"Yemekleri kaçırma. Aç karnına kimse ders dinleyemez."', '"Don\'t skip meals. Nobody can learn on an empty stomach."'),
             ];
-            await ctx.panel.message('Murat Bey', tips[ctx.clock.day % tips.length]);
+            await ctx.panel.message('Murat Hoca', tips[ctx.clock.day % tips.length]);
           },
         }],
       },
@@ -844,7 +845,7 @@ export function yemekhaneClosed(ctx: GameCtx): PanelView {
 
 // ---------------- inside your dorm (walkable room) ----------------
 
-const belletmenName = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? 'Ayşe Hanım' : 'Ercan Bey');
+const belletmenName = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? 'Ayşe Hoca' : 'Ercan Hoca');
 const dormTitle = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? T('Kız Yurdu', "Girls' Dorm") : T('Erkek Yurdu', "Boys' Dorm"));
 
 /** your desk in the study room: homework, reading, drawing */
@@ -854,7 +855,7 @@ function anthemActions(ctx: GameCtx): ActionView[] {
   const a = st.anthem;
   if (a.recited) return [];
   const etut = phaseOf(ctx.clock.minutes, ctx.clock.day) === 'etut';
-  const belletmen = ctx.ch.gender === 'girl' ? 'Ayşe Hanım' : 'Ercan Bey';
+  const belletmen = ctx.ch.gender === 'girl' ? 'Ayşe Hoca' : 'Ercan Hoca';
   const notAtStudy = etut ? undefined : !hasEtut(ctx.clock.day)
     ? T('Cuma ve Cumartesi etüt yok. Pazar akşamı etütte devam edersin (18:00–20:00).', 'No evening study on Fridays and Saturdays. Carry on at Sunday evening study (18:00–20:00).')
     : T('Etüt saatinde çalışılır (18:00–20:00, Cuma ve Cumartesi hariç).', 'Done during evening study (18:00–20:00, not on Fridays or Saturdays).');
@@ -883,14 +884,14 @@ function anthemActions(ctx: GameCtx): ActionView[] {
         ctx.advance(quit ? 10 + learned * 10 : 40);
         ctx.gain({ xp: 6 + learned * 5 + clean * 3, energy: -4, attrs: { discipline: 1 } });
         ctx.toast(a.stanzas >= ANTHEM_STANZAS
-          ? T(`On kıtanın hepsi defterinde ve aklında! Şimdi ${belletmen}'e ezberden oku.`, `All ten stanzas are in your notebook and in your head! Now recite them to ${belletmen}.`)
+          ? T(`On kıtanın hepsi defterinde ve aklında! Şimdi ${belletmen}'ya ezberden oku.`, `All ten stanzas are in your notebook and in your head! Now recite them to ${belletmen}.`)
           : learned ? T(`Bu akşam ${learned} kıta daha ezberledin · ${a.stanzas}/${ANTHEM_STANZAS} kıta`, `${learned} more stanza(s) learnt tonight · ${a.stanzas}/${ANTHEM_STANZAS} stanzas`)
             : T('Bu akşam aklında kalmadı. Yarın etütte tekrar dene.', "It wouldn't stick tonight. Try again at study tomorrow."), learned ? 'good' : 'info');
       },
     }];
   }
   return [{
-    id: 'recite', label: T(`🎤 ${belletmen}'e İstiklal Marşı'nı ezberden oku`, `🎤 Recite the İstiklal Marşı to ${belletmen}`), hint: T('Ritmi kaçırma: 10 kıta, en az 7 doğru', "Keep the rhythm: 10 stanzas, at least 7 right"),
+    id: 'recite', label: T(`🎤 ${belletmen}'ya İstiklal Marşı'nı ezberden oku`, `🎤 Recite the İstiklal Marşı to ${belletmen}`), hint: T('Ritmi kaçırma: 10 kıta, en az 7 doğru', "Keep the rhythm: 10 stanzas, at least 7 right"),
     locked: notAtStudy,
     run: async () => {
       const hits = await ctx.panel.rhythm(T('İstiklal Marşı', 'İstiklal Marşı'), T('Her kıta çizgiye gelince BOŞLUK\'a bas.', 'Press SPACE as each stanza crosses the line.'), 10, 0.38);
@@ -975,7 +976,7 @@ export function matePanel(npc: NpcDef, ctx: GameCtx): PanelView {
   const bel = belletmenName(ctx);
   const hw = st.school.homework[0];
   return {
-    title: npc.name, sub: `${L(npc.role)} · ${L(friendLevel(f))} ${f}/100`, status: status(ctx),
+    title: npc.name, sub: `${L(npc.role)} · ${L(friendLevel(f))} ${f}/100`, status: status(ctx), profile: profileFor(npc, ctx, !!ctx.st.once[`met-${npc.id}`]),
     rooms: [{
       id: 'mate', name: npc.name,
       note: near ? T(`⚠ ${bel} hemen yakınında!`, `⚠ ${bel} is right nearby!`) : T(`${npc.name} defterine bir şeyler karalıyor.`, `${npc.name} is scribbling in a notebook.`),
@@ -1264,11 +1265,11 @@ function spor(ctx: GameCtx): PanelView {
       if (hits >= 2) {
         st.sport = sp.id;
         ctx.gain({ xp: 100, attrs: { fitness: 2 }, mood: 8, energy: -10 });
-        await ctx.panel.message(T('Takımdasın!', "You're on the team!"), T(`Antrenör Kemal Bey: "Hoş geldin! ${L(sp.name)} antrenmanları hafta içi 15:30–17:00 arası."`, `Coach Kemal: "Welcome aboard! ${L(sp.name)} training is on weekdays 15:30–17:00."`));
+        await ctx.panel.message(T('Takımdasın!', "You're on the team!"), T(`Antrenör Kemal Hoca: "Hoş geldin! ${L(sp.name)} antrenmanları hafta içi 15:30–17:00 arası."`, `Coach Kemal: "Welcome aboard! ${L(sp.name)} training is on weekdays 15:30–17:00."`));
       } else {
         markToday(ctx, 'tryout');
         ctx.gain({ energy: -10 });
-        await ctx.panel.message(T('Bu sefer olmadı', 'Not this time'), T('Antrenör Kemal Bey: "Fena değildi! Yarın tekrar gel."', 'Coach Kemal: "Not bad! Come back tomorrow."'));
+        await ctx.panel.message(T('Bu sefer olmadı', 'Not this time'), T('Antrenör Kemal Hoca: "Fena değildi! Yarın tekrar gel."', 'Coach Kemal: "Not bad! Come back tomorrow."'));
       }
     },
   };
@@ -1290,7 +1291,7 @@ function spor(ctx: GameCtx): PanelView {
       ...(st.school.kit ? [] : [depoRoom(ctx)]),
       {
         id: 'antrenor', name: T('Antrenör odası', "Coaches' office"),
-        note: sport ? T(`Takımın: ${L(sport.name)} (${L(sport.where)}).`, `Your team: ${L(sport.name)} (${L(sport.where)}).`) : T('Antrenör Kemal Bey: "Bir spor seç, seçmelere gir!"', 'Coach Kemal: "Pick a sport and try out!"'),
+        note: sport ? T(`Takımın: ${L(sport.name)} (${L(sport.where)}).`, `Your team: ${L(sport.name)} (${L(sport.where)}).`) : T('Antrenör Kemal Hoca: "Bir spor seç, seçmelere gir!"', 'Coach Kemal: "Pick a sport and try out!"'),
         actions: sport ? [train] : [enroll],
       },
       { id: 'salon', name: T('Ana salon', 'Main hall'), note: T('Basketbol, voleybol ve futsal sahaları. Ayakkabı gıcırtıları yankılanıyor.', 'Basketball, volleyball and futsal courts. Squeaking shoes echo everywhere.'), actions: [] },
@@ -1477,7 +1478,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
         ctx.advance(5);
         const jokes = [
           T('"Temel ile Dursun kantine gitmiş…" diye başladın.', 'You started with "So Temel and Dursun walk into the canteen…"'),
-          T('Murat Bey\'in "Sessiz olun!" deyişini taklit ettin.', 'You did an impression of Mr. Murat saying "Quiet, please!"'),
+          T('Murat Hoca\'nın "Sessiz olun!" deyişini taklit ettin.', 'You did an impression of Mr. Murat saying "Quiet, please!"'),
           T('"Neden matematik kitabı üzgünmüş? Çünkü çok problemi varmış!" dedin.', '"Why was the maths book sad? It had too many problems!"'),
         ];
         const joke = pickRandom(jokes);
@@ -1597,6 +1598,20 @@ function meetAction(npc: NpcDef, ctx: GameCtx): ActionView {
   };
 }
 
+/** the card at the top of anyone's panel: what kind of person they are and their story */
+function profileFor(npc: NpcDef, ctx: GameCtx, met: boolean) {
+  const p = personaOf(npc);
+  const kind = npc.kind === 'teacher' ? (npc.id === DEPUTY.id ? T('Müdür yardımcısı', 'Deputy head') : T('Öğretmen', 'Teacher'))
+    : npc.kind === 'belletmen' ? T('Belletmen', 'Belletmen')
+      : npc.kind === 'abi' ? (npc.gender === 'girl' ? T('Abla · lise', 'Older student · high school') : T('Abi · lise', 'Older student · high school'))
+        : npc.kind === 'classmate' ? T(`Sınıf arkadaşın${ctx.st.once.classDrawn ? ` · ${ctx.st.school.classLabel}` : ''}`, `Classmate${ctx.st.once.classDrawn ? ` · ${ctx.st.school.classLabel}` : ''}`)
+          : T(`Öğrenci${npc.grade ? ` · ${npc.grade}. sınıf` : ''}`, `Student${npc.grade ? ` · grade ${npc.grade}` : ''}`);
+  const tags = [kind];
+  // where they're from is something they tell you themselves
+  if (npc.kind !== 'teacher' && npc.kind !== 'belletmen' && met) tags.push(`📍 ${bioOf(npc).from}`);
+  return { look: { ...DEFAULT_LOOK, ...npc.look }, type: L(p.type), tags, story: L(p.about) };
+}
+
 /** talking to a classmate or an older student */
 export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
   const f = Math.round(ctx.st.friends[npc.id] ?? 0);
@@ -1681,7 +1696,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     });
   }
   return {
-    title: npc.name, sub: L(npc.role), status: status(ctx),
+    title: npc.name, sub: L(npc.role), status: status(ctx), profile: profileFor(npc, ctx, met),
     rooms: [{
       id: 'talk', name: npc.name,
       note: npc.kind === 'teacher' ? L(npc.role) : npc.kind === 'belletmen' ? T(`Gece öğretmeni · ilişkiniz: ${f}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · your relationship: ${f}. Being late hurts it; if it's low, they watch you more closely.`)

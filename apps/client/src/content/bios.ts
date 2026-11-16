@@ -2,6 +2,7 @@
 // where they are from, who they have at home, what they like and what they don't.
 import type { Text } from '../i18n';
 import type { NpcDef } from './npcs';
+import { HAND_PERSONAS, STAFF, WRITTEN, type Persona } from './stories';
 
 export interface Bio { from: string; likes: Text; story: Text }
 
@@ -73,6 +74,8 @@ const cache = new Map<string, Bio>();
 export function bioOf(npc: NpcDef): Bio {
   const hand = HAND[npc.id];
   if (hand) return hand;
+  const written = WRITTEN[npc.id];
+  if (written && written.name === npc.name) return written;
   let bio = cache.get(npc.id);
   if (!bio) {
     const town = pick(TOWNS, `${npc.id}t`), like = pick(LIKES, `${npc.id}l`), food = pick(FOODS, `${npc.id}f`);
@@ -90,4 +93,16 @@ export function bioOf(npc: NpcDef): Bio {
     cache.set(npc.id, bio);
   }
   return bio;
+}
+
+/** what kind of person they are and what the school knows about them (shown whenever you talk to them) */
+export function personaOf(npc: NpcDef): Persona {
+  const known = STAFF[npc.id] ?? HAND_PERSONAS[npc.id] ?? (WRITTEN[npc.id]?.name === npc.name ? WRITTEN[npc.id] : undefined);
+  if (known) return known;
+  // anyone without a written story yet: put one together from their bio, in the third person
+  const b = bioOf(npc);
+  return {
+    type: npc.kind === 'abi' ? { tr: 'Okulun büyüklerinden', en: 'One of the older students' } : { tr: 'Kampüs sakini', en: 'One of the campus crowd' },
+    about: { tr: `${b.from}'dan geldi; en çok ${b.likes.tr} sever.`, en: `Came here from ${b.from}; loves ${b.likes.en} most.` },
+  };
 }
