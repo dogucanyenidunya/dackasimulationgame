@@ -28,7 +28,9 @@ export interface GameCtx {
   clock: { day: number; minutes: number };
   raining: boolean;
   panel: Panel;
-  advance(minutes: number): void;
+  /** the action took this long. Offline the clock jumps ahead; online (one shared clock) it's done at once, unless
+   *  `wait` is set for time you really have to sit out (a lesson until the bell), with a banner counting it down */
+  advance(minutes: number, opts?: { wait?: boolean }): void;
   sleep(): void;
   gain(g: Gain): void;
   toast(msg: string, kind?: 'info' | 'good'): void;
@@ -518,7 +520,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       if (les!.late) score = Math.max(20, score - 10); // you missed the start
       attendLesson(ctx, les!.key, sub, score);
       ctx.gain({ xp: 10 + xp, energy: -8 });
-      ctx.advance(Math.max(0, p!.end - ctx.clock.minutes));
+      ctx.advance(Math.max(0, p!.end - ctx.clock.minutes), { wait: true }); // (in class until the bell)
       await ctx.panel.message(title, `${body} ${T(
         `(Performans notu: ${score}/100 · bu derste gösterdiğin performans; ortalaması karnendeki ${subjName(sub)} notunu belirler. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} ders · ödev: akşam etütte)`,
         `(Performance mark: ${score}/100 · how you did in this lesson; the average becomes your ${subjName(sub)} grade on your report card. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} lessons · homework: at evening study)`)}`);
@@ -616,7 +618,7 @@ export function pePanel(ctx: GameCtx): PanelView {
           ctx.log({ kind: 'pe', a: a.id, b: team.slice(0, 3).map((n) => n.name).join(', ') });
           attendLesson(ctx, les!.key, 'beden', score);
           ctx.gain({ xp: 15 + Math.round(pct * 25), energy: -15, hunger: -10, mood: pct >= 0.5 ? 8 : 2, attrs: { fitness: a.id === 'kosu' ? 3 : 2, social: a.id === 'kosu' ? 0 : 1 } });
-          ctx.advance(Math.max(0, les!.end - ctx.clock.minutes));
+          ctx.advance(Math.max(0, les!.end - ctx.clock.minutes), { wait: true }); // (on the pitch until the bell)
           const verdict = pct >= 0.75 ? T(`${tname}: "Harikaydın! Seni takıma düşünüyorum."`, `${tname}: "Brilliant! I'm thinking of you for the team."`)
             : pct >= 0.4 ? T(`${tname}: "Güzel, böyle devam."`, `${tname}: "Good, keep it up."`) : T(`${tname}: "Olsun, terledin ya, o da bir şey."`, `${tname}: "Never mind, you worked up a sweat, that's something."`);
           await ctx.panel.message(L(a.label), `${T(`${L(a.where)[0].toLocaleUpperCase('tr-TR')}${L(a.where).slice(1)}: ${team.map((n) => n.name).join(', ')} ile birlikte.`, `On ${L(a.where)} with ${team.map((n) => n.name).join(', ')}.`)} ${verdict} ${T(`(Performans notu: ${score}/100 · Beden Eğitimi: ${st.school.lessons.beden}/${LESSONS_PER_SUBJECT} ders) Zil çaldı; herkes Eğitim Binası'na dönüyor.`, `(Performance mark: ${score}/100 · PE: ${st.school.lessons.beden}/${LESSONS_PER_SUBJECT} lessons) The bell went; everyone heads back to the Eğitim Binası.`)}`);

@@ -2713,7 +2713,7 @@ export class CampusScene extends Phaser.Scene {
       clock: this.save.clock,
       raining: this.isRaining(),
       panel: this.panel,
-      advance: (m) => this.advance(m, this.actionLabel ? `⏳ ${this.actionLabel.replace(/^[^\p{L}\d"]+/u, '')}` : undefined),
+      advance: (m, o) => this.advance(m, this.actionLabel ? `⏳ ${this.actionLabel.replace(/^[^\p{L}\d"]+/u, '')}` : undefined, undefined, o?.wait ?? false),
       sleep: () => this.sleep(),
       gain: (g) => this.gain(g),
       toast: (msg, kind) => this.hud.toast(msg, kind),
@@ -2839,7 +2839,7 @@ export class CampusScene extends Phaser.Scene {
     const sp = SURPRISES[Math.floor(Math.random() * SURPRISES.length)];
     const e = sp.effect;
     if (e.mood) this.changeMood(e.mood);
-    if (e.minutes) this.advance(e.minutes);
+    if (e.minutes) this.advance(e.minutes, undefined, undefined, false);
     if (e.discipline) { st.discipline = Math.min(100, st.discipline + e.discipline); st.lastPenaltyDay = this.save.clock.day; }
     if (e.homeworkHit) { const h = st.school.homework[0]; if (h) st.school.scores[h.s].push(30); }
     if (e.gossip) NPCS.filter((n) => n.kind === 'classmate' && n.id !== who.id).sort(() => Math.random() - 0.5).slice(0, 2).forEach((n) => this.befriend(n.id, -5));
@@ -3884,9 +3884,10 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** time passes because of an action (lesson, meal, reading…); online it takes that long on the campus clock */
-  private advance(minutes: number, label?: string, onDone?: () => void) {
-    if (this.synced()) { this.busyFor(minutes, label, onDone); return; }
+  /** time passes because of an action. Offline the clock jumps ahead. Online there's one shared clock: you only wait it
+   *  out when `wait` (a lesson until the bell); everything else is simply done, there and then */
+  private advance(minutes: number, label?: string, onDone?: () => void, wait = true) {
+    if (this.synced()) { if (wait) this.busyFor(minutes, label, onDone); else onDone?.(); return; }
     for (let i = 0; i < Math.round(minutes); i++) this.stepMinute();
     this.refreshClockAndNeeds();
     onDone?.();
