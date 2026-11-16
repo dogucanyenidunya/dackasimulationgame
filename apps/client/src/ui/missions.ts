@@ -3,6 +3,7 @@ import { L } from '../i18n';
 import {
   MISSIONS, missionById, nextObjective, statusOf, trackedMission, type Mission, type MissionCtx, type MissionStatus,
 } from '../game/missions';
+import { NPCS } from '../content/npcs';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
@@ -20,9 +21,14 @@ function objectivesHtml(m: Mission, c: MissionCtx): string {
   }).join('')}</ul>`;
 }
 
+const giverName = (m: Mission) => NPCS.find((n) => n.id === m.giver)?.name ?? '';
+
 function missionHtml(m: Mission, c: MissionCtx): string {
   const s = statusOf(m, c);
-  const req = m.requires.length
+  const taken = c.st.side.taken.includes(m.id);
+  const req = m.kind === 'side'
+    ? `<div class="m-req"><b>${L({ tr: 'Veren', en: 'From' })}:</b> ${esc(giverName(m))}${m.giverAt ? ` · ${esc(L(m.giverAt))}` : ''} · ${taken ? L({ tr: '✅ görevi aldın', en: '✅ you took it' }) : L({ tr: 'yanına git ve görevi al', en: 'go and take the quest' })}</div>`
+    : m.requires.length
     ? `<div class="m-req"><b>${L({ tr: 'Gerekli', en: 'Requires' })}:</b> ${m.requires.map((r) => {
         const ok = statusOf(missionById(r), c) === 'done';
         return `${ok ? '✅' : '⬜'} ${esc(L(missionById(r).title))}`;
@@ -31,7 +37,7 @@ function missionHtml(m: Mission, c: MissionCtx): string {
   const reward = `<div class="m-reward"><b>${L({ tr: 'Ödül', en: 'Reward' })}:</b> ${m.reward.xp ? `+${m.reward.xp} XP` : ''}${m.reward.text ? `${m.reward.xp ? ' · ' : ''}${esc(L(m.reward.text))}` : ''}${!m.reward.xp && !m.reward.text ? L({ tr: 'Karne ve bir sonraki yıl', en: 'Your report card and the next year' }) : ''}</div>`;
   return `
     <div class="mission ${s}">
-      <div class="m-head"><span class="m-title">${esc(L(m.title))}</span><span class="m-badge">${L(BADGE[s])}</span></div>
+      <div class="m-head"><span class="m-title">${esc(L(m.title))}</span><span class="m-badge">${L(badgeOf(m, s))}</span></div>
       <div class="m-desc">${esc(L(m.desc))}</div>
       ${req}
       ${objectivesHtml(m, c)}
@@ -41,6 +47,9 @@ function missionHtml(m: Mission, c: MissionCtx): string {
 }
 
 const ICON: Record<MissionStatus, string> = { locked: '🔒', active: '▶', done: '✓', failed: '✕' };
+/** a side quest you haven't taken yet isn't locked: it's waiting for you at its giver */
+const badgeOf = (m: Mission, s: MissionStatus) => (m.kind === 'side' && s === 'locked' ? { tr: '📜 Alınmadı', en: '📜 Not taken' } : BADGE[s]);
+const KIND_ORDER: Record<Mission['kind'], number> = { main: 0, challenge: 1, side: 2 };
 const COLUMN_NAMES = [
   { tr: 'Başlangıç', en: 'Getting started' }, { tr: 'İlk hafta', en: 'The first week' }, { tr: 'Okula alışmak', en: 'Settling in' },
   { tr: 'Yıl boyunca', en: 'Through the year' }, { tr: 'Yıl sonu', en: 'Year end' },
@@ -64,15 +73,18 @@ export function missionsCard(c: MissionCtx): HTMLElement {
   const done = mains.filter((m) => statusOf(m, c) === 'done').length;
   const memo = new Map<string, number>();
   const cols: Mission[][] = [];
-  for (const m of MISSIONS) (cols[depthOf(m, memo)] ??= []).push(m);
-  // challenges sit at the bottom of their column
-  cols.forEach((col) => col.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'challenge' ? 1 : -1)));
+  // (side quests change every year: only this year's are shown)
+  const shown = MISSIONS.filter((m) => m.kind !== 'side' || m.year === c.st.year);
+  for (const m of shown) (cols[depthOf(m, memo)] ??= []).push(m);
+  // challenges and then side quests sit at the bottom of their column
+  cols.forEach((col) => col.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]));
   const node = (m: Mission) => {
     const st = statusOf(m, c);
+    const icon = m.kind === 'side' && st === 'locked' ? '📜' : ICON[st];
     const ok = m.objectives.filter((o) => o.done(c)).length;
     return `<button type="button" class="tnode ${st} ${m.kind}" data-id="${m.id}">
-      <span class="tn-icon">${ICON[st]}</span>
-      <span class="tn-text"><b>${esc(L(m.title))}</b><span>${m.kind === 'challenge' ? `⚑ ${L({ tr: 'Meydan okuma', en: 'Challenge' })} · ` : ''}${ok}/${m.objectives.length}${m.reward.xp ? ` · +${m.reward.xp} XP` : ''}</span></span>
+      <span class="tn-icon">${icon}</span>
+      <span class="tn-text"><b>${esc(L(m.title))}</b><span>${m.kind === 'challenge' ? `⚑ ${L({ tr: 'Meydan okuma', en: 'Challenge' })} · ` : m.kind === 'side' ? `✦ ${L({ tr: 'Yan görev', en: 'Side quest' })} · ` : ''}${ok}/${m.objectives.length}${m.reward.xp ? ` · +${m.reward.xp} XP` : ''}</span></span>
     </button>`;
   };
   el.innerHTML = `

@@ -47,7 +47,7 @@ import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
 import { CEREMONY, ETUT_START, LIGHTS_OUT, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
 import {
-  MISSIONS, missionById, nextObjective, reached, statusOf, trackedMission, type MissionCtx,
+  GIVER_IDS, MISSIONS, missionById, nextObjective, questMark, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
@@ -2017,7 +2017,9 @@ export class CampusScene extends Phaser.Scene {
       npc.setDepth(npc.y + 16);
       // friends carry a heart and a gold name you can read from right across the screen
       const friend = this.isFriend(def);
-      const star = (friend ? '💛 ' : '') + (def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : '');
+      // the dorm's abi and abla show when they have a quest for you (📜) or one to hand in (✅)
+      const mark = GIVER_IDS.includes(def.id) ? questMark(def.id, this.mc()) : null;
+      const star = (mark === 'ready' ? '✅ ' : mark === 'offer' ? '📜 ' : '') + (friend ? '💛 ' : '') + (def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : '');
       if (label.text !== star + def.name) label.setText(star + def.name);
       if (label.getData('friend') !== friend) { label.setData('friend', friend); label.setColor(friend ? '#ffe27a' : def.kind === 'belletmen' ? '#ffb3a8' : def.kind === 'teacher' ? '#cfe8ff' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff').setFontSize(friend ? 13 : 12); }
       label.setPosition(npc.x, npc.y - 24);
@@ -3447,7 +3449,8 @@ export class CampusScene extends Phaser.Scene {
           this.hud.toast(L({ tr: `✕ Meydan okuma kaçtı: ${m.title.tr}`, en: `✕ Challenge failed: ${m.title.en}` }));
         }
         if (s === 'active' && !st.announced.includes(m.id) && !this.announceQueue.includes(m.id)) {
-          if (m.kind === 'challenge') { st.announced.push(m.id); continue; }
+          // (challenges start quietly, and a side quest's giver has just told you about it)
+          if (m.kind !== 'main') { st.announced.push(m.id); continue; }
           this.announceQueue.push(m.id);
         }
       }

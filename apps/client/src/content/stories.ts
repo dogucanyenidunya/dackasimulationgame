@@ -46,6 +46,15 @@ export const HAND_PERSONAS: Record<string, Persona> = {
   ece: { type: T('Sahnenin yıldızı', 'Star of the stage'), about: T(
     'Tiyatro kulübünün başrol oyuncusu. Yağmurlu akşamlarda yurdun ortak salonunda küçüklere şiir okur. Utangaç çocukları kulübe getirmek onun gizli hobisi.',
     "The drama club's leading lady. On rainy evenings she reads poems to the younger girls in the dorm's common room. Getting shy kids into the club is her secret hobby.") },
+  kerem: { type: T('Yurdun abisi', "The dorm's big brother"), about: T(
+    'Erkek Yurdu\'nun en kıdemlilerinden; boş vaktinde hep kapının önündedir. Yeni gelenlere iş verir, abilerle tanıştırır, kimsenin köşede yalnız kalmasına izin vermez. Satrançta Cemil Emmi\'yi yenebilen tek öğrenci olduğu söylenir.',
+    "One of the most senior boys in the dorm; in his free time he's always by the door. He gives the new ones little jobs, introduces them to the older boys and never lets anyone sit alone in a corner. They say he's the only student who can beat Cemil Emmi at chess.") },
+  selin: { type: T('Yurdun ablası', "The dorm's big sister"), about: T(
+    'Kız Yurdu\'nun en kıdemlilerinden; boş vaktinde kapının önünde, elinde bir bardak çayla durur. Küçüklere ablalarını tanıtır, ilk haftasında ağlayanı bulur. Ayşe Hoca bile bir şey merak edince önce ona sorar.',
+    "One of the most senior girls in the dorm; in her free time she stands by the door with a glass of tea. She introduces the little ones to the older girls and finds whoever is crying in their first week. Even Ayşe Hoca asks her first when she wants to know something.") },
+  nazli: { type: T('Smaççı fotoğrafçı', 'Spiking photographer'), about: T(
+    'Voleybol takımının smaççısı. Boynundan eski bir fotoğraf makinesi hiç eksik olmaz; okulun yıllığındaki fotoğrafların yarısı onun. Küçüklerle oynamaya hep vakti vardır.',
+    "The volleyball team's spiker. There's always an old camera round her neck; half the photos in the school yearbook are hers. She always has time to play with the little ones.") },
 };
 
 /** the generated students, now with stories of their own (keyed by id, with the name they ended up with) */

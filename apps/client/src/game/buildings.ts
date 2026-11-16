@@ -9,7 +9,7 @@ import { DEFAULT_LOOK } from '../art/character';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
 import { MATCH_TIP, matchOn, ceremonyNow, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
-import { missionById, reached, type MissionCtx } from './missions';
+import { GIVER_IDS, MISSIONS, missionById, missionDone, oldersToMeet, questsFrom, reached, statusOf, type Mission, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
 import { activityOf } from './routine';
 import { lineFor, type Moment } from '../content/lines';
@@ -1587,7 +1587,10 @@ function meetAction(npc: NpcDef, ctx: GameCtx): ActionView {
     id: 'meet', label: T(`👋 Tanış: "Merhaba, ben ${ctx.ch.first}!"`, `👋 Introduce yourself: "Hi, I'm ${ctx.ch.first}!"`), hint: T('10 dk · kendini anlatır · +20 arkadaşlık', '10 min · they tell you about themselves · +20 friendship'),
     run: async () => {
       nudge(ctx, { heart: 1, presence: 1 });
+      const before = sideProgress(ctx);
       ctx.st.once[`met-${npc.id}`] = true;
+      const after = sideProgress(ctx);
+      for (const [id, p] of after) if (before.get(id) !== p) ctx.toast(`📜 ${L(missionById(id).title)} · ${p}`, 'good');
       ctx.log({ kind: 'met', a: npc.name, b: bioOf(npc).from, c: L(bioOf(npc).likes) });
       ctx.advance(10);
       ctx.befriend(npc.id, 20);
@@ -1596,6 +1599,75 @@ function meetAction(npc: NpcDef, ctx: GameCtx): ActionView {
       await ctx.panel.message(T(`${npc.name} ile tanıştın`, `You met ${npc.name}`), `"${L(bioOf(npc).story)}"${classmate ? T(` · ${ctx.st.school.classLabel} sınıfından, senin sınıf arkadaşın.`, ` · In ${ctx.st.school.classLabel}, your own class.`) : ''}`);
     },
   };
+}
+
+/** how far along the "meet them" step of each side quest you're on is ("2/3") */
+function sideProgress(ctx: GameCtx): Map<string, string> {
+  const c = ctx.mc();
+  const out = new Map<string, string>();
+  for (const m of MISSIONS) {
+    const o = m.kind === 'side' && statusOf(m, c) === 'active' ? m.objectives.find((x) => x.progress) : undefined;
+    if (o?.progress) out.set(m.id, o.progress(c));
+  }
+  return out;
+}
+
+const listTr = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ve ${xs[xs.length - 1]}` : xs[0] ?? '');
+const listEn = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '');
+
+/** Kerem Abi and Selin Abla: the side quests they hand out this year, and handing them back in */
+function questActions(npc: NpcDef, ctx: GameCtx, met: boolean): ActionView[] {
+  const c = ctx.mc();
+  const st = ctx.st;
+  const out: ActionView[] = [];
+  const girls = npc.gender === 'girl';
+  const word = girls ? T('abla', 'abla') : T('abi', 'abi');
+  for (const m of questsFrom(npc.id, c)) {
+    const s = statusOf(m, c);
+    if (s === 'done') continue;
+    const meet = m.objectives.find((o) => o.id !== 'report');
+    if (!st.side.taken.includes(m.id)) {
+      out.push({
+        id: `quest-${m.id}`, label: T(`📜 Görev al: ${m.title.tr}`, `📜 Take a quest: ${m.title.en}`), hint: T(`${meet ? `${meet.text.tr} · ` : ''}+${m.reward.xp} XP`, `${meet ? `${meet.text.en} · ` : ''}+${m.reward.xp} XP`),
+        locked: met ? undefined : T(`Önce ${npc.name} ile tanış.`, `Get to know ${npc.name} first.`),
+        run: async () => {
+          nudge(ctx, { presence: 1, warmth: -1 });
+          st.side.taken.push(m.id);
+          ctx.befriend(npc.id, 5);
+          const names = oldersToMeet(girls).map((n) => n.name);
+          await ctx.panel.message(npc.name, T(
+            `"Bak ${ctx.ch.first}, burada herkesin bir ${word} vardır. Git, ${girls ? 'ablalarınla' : 'abilerinle'} tanış; seni bilsinler, bir derdin olunca kime gideceğini bil. ${listTr(names)}… Üçüyle tanış, sonra gel bana anlat. Kimini burada meydanda, kimini sahaların orada bulursun; akşamları herkes meydana çıkar."`,
+            `"Listen, ${ctx.ch.first}: everyone here has an ${word}. Go and get to know the older ${girls ? 'girls' : 'boys'}; let them know who you are, so you know who to go to when something's wrong. ${listEn(names)}… Meet three of them, then come and tell me. Some you'll find here on the plaza, some out by the courts; in the evening everyone comes out to the plaza."`,
+          ));
+        },
+      });
+    } else if (meet && !meet.done(c)) {
+      out.push({ id: `quest-${m.id}`, label: T(`📜 ${m.title.tr} · ${meet.progress?.(c) ?? ''}`, `📜 ${m.title.en} · ${meet.progress?.(c) ?? ''}`), locked: T(`Önce ${meet.text.tr.toLocaleLowerCase('tr-TR')}, sonra gel.`, `${meet.text.en} first, then come back.`), run: () => {} });
+    } else {
+      out.push({
+        id: `quest-${m.id}`, label: T(`✅ Görevi teslim et: ${m.title.tr}`, `✅ Hand in: ${m.title.en}`), hint: T(`+${m.reward.xp} XP`, `+${m.reward.xp} XP`),
+        run: async () => {
+          const met3 = oldersToMeet(girls).filter((n) => st.once[`met-${n.id}`]).map((n) => n.name);
+          st.side.handed.push(m.id);
+          await ctx.panel.message(npc.name, T(
+            `"${listTr(met3)} seni sordu bana, 'Yeni gelen ${ctx.ch.first} mi o?' diye. Aferin! Artık burada seni bilen ${girls ? 'ablaların' : 'abilerin'} var. Ben de buradayım, unutma."`,
+            `"${listEn(met3)} asked me about you: 'Is that ${ctx.ch.first}, the new one?' Well done! Now there are older ${girls ? 'girls' : 'boys'} here who know you. And I'm here too, don't forget."`,
+          ));
+          // (the mission completes and pays out its XP on this check)
+          ctx.befriend(npc.id, 10);
+        },
+      });
+    }
+  }
+  return out;
+}
+
+/** a giver's note: what they're waiting for, or that this year's quests are done */
+function questNote(npc: NpcDef, ctx: GameCtx): string {
+  const c = ctx.mc();
+  const qs: Mission[] = questsFrom(npc.id, c);
+  if (!qs.length || qs.every((m) => missionDone(ctx.st, m.id))) return T(' · Bu yılın görevlerini bitirdin; yeni görevler seneye.', " · You've done this year's quests; new ones next year.");
+  return T(' · 📜 Sana bir görevi var.', ' · 📜 Has a quest for you.');
 }
 
 /** the card at the top of anyone's panel: what kind of person they are and their story */
@@ -1665,8 +1737,11 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     const st = ctx.st;
     const lock = needMission(ctx, 'abi_sandvic');
     const mine = st.favor.giver === npc.id;
+    const giver = GIVER_IDS.includes(npc.id);
     if (!met) actions.push(meetAction(npc, ctx));
-    if (st.favor.stage === 'none') {
+    if (giver) actions.push(...questActions(npc, ctx, met));
+    // (the quest givers have their own quests; the sandwich favor is for the other abis and ablas)
+    else if (st.favor.stage === 'none') {
       actions.push({
         id: 'offer', label: T('Yardım teklif et', 'Offer to help'), hint: T('Bir rica', 'A small favor'),
         locked: lock,
@@ -1700,7 +1775,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     rooms: [{
       id: 'talk', name: npc.name,
       note: npc.kind === 'teacher' ? L(npc.role) : npc.kind === 'belletmen' ? T(`Gece öğretmeni · ilişkiniz: ${f}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · your relationship: ${f}. Being late hurts it; if it's low, they watch you more closely.`)
-        : `${f >= FRIEND_AT ? '💛 ' : ''}${L(friendLevel(f))} · ${f}/100${npc.kind === 'classmate' && f < FRIEND_AT ? T(` (arkadaşlık için ${FRIEND_AT})`, ` (${FRIEND_AT} to be friends)`) : ''}${about}${met ? '' : T(' · henüz tanışmadınız', " · you haven't met yet")}`,
+        : `${f >= FRIEND_AT ? '💛 ' : ''}${L(friendLevel(f))} · ${f}/100${npc.kind === 'classmate' && f < FRIEND_AT ? T(` (arkadaşlık için ${FRIEND_AT})`, ` (${FRIEND_AT} to be friends)`) : ''}${about}${met ? '' : T(' · henüz tanışmadınız', " · you haven't met yet")}${GIVER_IDS.includes(npc.id) ? questNote(npc, ctx) : ''}`,
       actions,
     }],
   };

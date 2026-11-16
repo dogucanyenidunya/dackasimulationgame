@@ -31,6 +31,15 @@ const HAND: Record<string, Bio> = {
   ece: { from: 'Antalya', likes: { tr: 'tiyatroyu ve şiiri', en: 'theatre and poetry' }, story: {
     tr: 'Antalya\'dan geldim, yedi yıl oldu. Annemle ablam orada. Tiyatro kulübündeyim; TIM\'in sahnesine ilk çıktığımda dizlerim titriyordu. Şiir okumayı, yağmurlu havayı ve sıcak çikolatayı severim. Sen de alışacaksın, hepimiz alıştık.',
     en: "I came from Antalya seven years ago. My mum and my big sister are there. I'm in the drama club; the first time I went on stage at the TIM my knees were shaking. I like reading poetry, rainy days and hot chocolate. You'll get used to it too, we all did." } },
+  kerem: { from: 'Kayseri', likes: { tr: 'satrancı ve küçüklere yol göstermeyi', en: 'chess and showing the little ones the ropes' }, story: {
+    tr: 'Ben Kerem, Kayserili. Dokuzuncu yılım, bu yaz mezun oluyorum. Babamı ben altı yaşındayken kaybettim; annem ve kız kardeşim Kayseri\'de. Benim ilk günümde bir abi elimden tutup bütün yurdu gezdirmişti, şimdi sıra bende. Abilerinle tanış, seni bilsinler; bir gün sen de birinin abisi olacaksın.',
+    en: "I'm Kerem, from Kayseri. This is my ninth year, and I graduate this summer. I lost my dad when I was six; my mum and my little sister are in Kayseri. On my first day an older boy took my hand and showed me round the whole dorm, and now it's my turn. Get to know the older boys and let them know you; one day you'll be someone's abi too." } },
+  selin: { from: 'Rize', likes: { tr: 'çayı ve gece kitap okumayı', en: 'tea and reading at night' }, story: {
+    tr: 'Selin ben, Rize\'den. Dokuz yıldır buradayım; bu yıl son yılım. Annemi kaybettim, babam ve anneannem çay bahçesinde. İlk gecemde koridorda ağlarken bir abla yanıma oturmuştu, adını hâlâ unutmadım. Ablalarınla tanış; burada her kızın bir ablası olur.',
+    en: "I'm Selin, from Rize. I've been here nine years; this is my last. I lost my mum; my dad and my gran run a tea garden. On my first night, when I was crying in the corridor, an older girl came and sat with me. I still remember her name. Get to know the older girls; every girl here has an abla." } },
+  nazli: { from: 'Sinop', likes: { tr: 'voleybolu ve fotoğraf çekmeyi', en: 'volleyball and taking photos' }, story: {
+    tr: 'Nazlı ben, Sinop\'tan geldim. Babamı kaybettim; annem ve ağabeyim orada. Voleybol takımındayım, smaçım fena değildir! Bir de eski bir fotoğraf makinem var, okulun her köşesini çektim. Bir gün senin de fotoğrafını çekerim, söz.',
+    en: "I'm Nazlı, from Sinop. I lost my dad; my mum and my big brother are there. I'm on the volleyball team, and my spike isn't bad! I also have an old camera, and I've photographed every corner of the school. I'll take your picture one day, promise." } },
 };
 
 // (all of these take the same "-dan" ending in Turkish)

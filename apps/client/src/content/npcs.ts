@@ -45,6 +45,13 @@ const HANDMADE: Array<Omit<NpcDef, 'gender'>> = [
     lines: [{ tr: 'Hoş geldin ufaklık! Bir şeye ihtiyacın olursa söyle.', en: 'Welcome, little one! Tell me if you need anything.', when: 'first' }] },
   { id: 'ece', name: 'Ece Abla', kind: 'abi', role: { tr: '10. sınıf · abla', en: 'Grade 10 · an older student' }, look: { skin: '#f1c9a5', hair: '#5e3b22', hairStyle: 3, skirt: true, top: '#3f4a55', bottom: '#2d3238' }, home: [12, 24], roam: 1,
     lines: [{ tr: 'İlk yılım aklıma geldi… Zamanla burası evin olacak.', en: 'Reminds me of my first year… this place becomes home, you\'ll see.' }] },
+  // the two who hand out side quests (game/missions.ts), each at the door of their dorm
+  { id: 'kerem', name: 'Kerem Abi', kind: 'abi', grade: 12, role: { tr: '12. sınıf · Erkek Yurdu\'nun abisi', en: "Grade 12 · the boys' dorm's big brother" }, look: { skin: '#c68e63', hair: '#120c09', hairStyle: 1, skirt: false, top: '#2f4a6b', bottom: '#2d3238' }, home: [16.5, 21.6], roam: 0,
+    lines: [{ tr: 'Kapı benden sorulur ufaklık. Bir işin olursa buradayım.', en: "I keep an eye on the door, little one. If you need anything, I'm here." }, { tr: 'Abilerini tanı, seni de tanısınlar. Burada kimse yalnız değildir.', en: 'Get to know the older boys, and let them get to know you. Nobody is alone here.' }] },
+  { id: 'selin', name: 'Selin Abla', kind: 'abi', grade: 12, role: { tr: '12. sınıf · Kız Yurdu\'nun ablası', en: "Grade 12 · the girls' dorm's big sister" }, look: { skin: '#e8b98f', hair: '#3b2a20', hairStyle: 3, skirt: true, top: '#6b3a55', bottom: '#2d3238' }, home: [16.5, 28.6], roam: 0,
+    lines: [{ tr: 'Ben Kız Yurdu\'nun kapısındayım, kaybolursan buraya gel.', en: "I'm at the door of the girls' dorm. If you get lost, come here." }, { tr: 'Ablalarınla tanıştın mı? Hepimiz bir zamanlar senin gibiydik.', en: 'Have you met the older girls yet? We were all where you are once.' }] },
+  { id: 'nazli', name: 'Nazlı Abla', kind: 'abi', grade: 11, fixed: false, role: { tr: '11. sınıf · abla', en: 'Grade 11 · an older student' }, look: { skin: '#f1c9a5', hair: '#7a4a24', hairStyle: 2, skirt: true, top: '#3f4a55', bottom: '#2d3238' }, home: [88, 46], roam: 2,
+    lines: [{ tr: 'Voleybol antrenmanından çıktım, ayaklarım kopuyor!', en: 'Just out of volleyball practice, my feet are killing me!' }, { tr: 'Küçükken ben de hep ablaların peşinden koşardım.', en: 'When I was little I was always running after the older girls too.' }] },
 ];
 
 export type GroupId = 'kortcular' | 'kitap' | 'sanat' | 'haylaz';
@@ -159,7 +166,7 @@ function generate(): NpcDef[] {
   return shown;
 }
 
-const withGender = (h: Omit<NpcDef, 'gender'>): NpcDef => ({ ...h, group: HAND_GROUPS[h.id], grade: h.kind === 'abi' ? (h.id === 'burak' ? 11 : 10) : 4, fixed: h.kind === 'abi', gender: h.look.skirt || h.look.hairStyle === 2 || h.look.hairStyle === 3 ? 'girl' : 'boy' });
+const withGender = (h: Omit<NpcDef, 'gender'>): NpcDef => ({ ...h, group: HAND_GROUPS[h.id], grade: h.grade ?? (h.kind === 'abi' ? (h.id === 'burak' ? 11 : 10) : 4), fixed: h.fixed ?? h.kind === 'abi', gender: h.look.skirt || h.look.hairStyle === 2 || h.look.hairStyle === 3 ? 'girl' : 'boy' });
 
 /** about 30 students: the handmade cast plus generated classmates, students from other classes and older students */
 export const NPCS: NpcDef[] = [...HANDMADE.map(withGender), ...generate()];

@@ -23,7 +23,8 @@ export interface Objective {
 
 export interface Mission {
   id: string;
-  kind: 'main' | 'challenge';
+  /** side = a side quest you take from the dorm's abi or abla; they change every school year */
+  kind: 'main' | 'challenge' | 'side';
   title: Text;
   desc: Text;
   requires: string[];
@@ -33,6 +34,11 @@ export interface Mission {
   reward: { xp: number; text?: Text };
   /** challenges can fail */
   failed?: (c: MissionCtx) => boolean;
+  /** side quests: who hands it out (an npc id) and in which school year */
+  giver?: string;
+  /** where to find the giver */
+  giverAt?: Text;
+  year?: number;
 }
 
 const classmates = NPCS.filter((n) => n.kind === 'classmate');
@@ -41,6 +47,14 @@ const LESSONS_TOTAL = SUBJECTS.length * LESSONS_PER_SUBJECT;
 const at = (...ids: string[]) => () => ids;
 const ownDorm = (c: MissionCtx) => [c.ch.gender === 'girl' ? 'kiz_yurdu' : 'erkek_yurdu'];
 const mealDone = (c: MissionCtx, m: string) => c.st.meals.includes(m as never);
+
+/** the side-quest givers: an abi at the boys' dorm door, an abla at the girls' */
+export const QUEST_GIVERS = { abi: 'kerem', abla: 'selin' } as const;
+export const GIVER_IDS: string[] = Object.values(QUEST_GIVERS);
+/** the older boys (girl = false) or girls you could get to know, not counting the one who sent you */
+export const oldersToMeet = (girl: boolean) => NPCS.filter((n) => n.kind === 'abi' && (n.gender === 'girl') === girl && !GIVER_IDS.includes(n.id));
+const metCount = (c: MissionCtx, girl: boolean) => oldersToMeet(girl).filter((n) => c.st.once[`met-${n.id}`]).length;
+export const handedIn = (c: MissionCtx, id: string) => c.st.side.handed.includes(id);
 
 export const MISSIONS: Mission[] = [
   {
@@ -207,6 +221,29 @@ export const MISSIONS: Mission[] = [
     failed: (c) => c.st.everSick,
     reward: { xp: 150, text: { tr: '"Demir Gibi" madalyası · +10 Kondisyon · +50 Saygınlık', en: '"Iron Kid" medal · +10 Fitness · +50 Respect' } },
   },
+  // ---- side quests: taken from Kerem Abi (boys' dorm door) and Selin Abla (girls' dorm door), new ones every year ----
+  {
+    id: 'abilerle_tanis', kind: 'side', giver: QUEST_GIVERS.abi, giverAt: { tr: 'Erkek Yurdu önü', en: "boys' dorm door" }, year: 1,
+    title: { tr: 'Abilerini Tanı', en: 'Meet the Abis' },
+    desc: { tr: 'Kerem Abi\'nin görevi: okulun abilerinden üçüyle tanış, seni bilsinler. Sonra Erkek Yurdu\'nun önüne dön ve Kerem Abi\'ye anlat.', en: "Kerem Abi's task: get to know three of the school's older boys, so they know who you are. Then go back to the boys' dorm door and tell Kerem Abi." },
+    requires: [],
+    objectives: [
+      { id: 'meet', text: { tr: '3 abiyle tanış', en: 'Meet 3 abis' }, done: (c) => metCount(c, false) >= 3, progress: (c) => `${Math.min(3, metCount(c, false))}/3`, targets: at('yurt_meydani', 'merkez_meydan') },
+      { id: 'report', text: { tr: 'Kerem Abi\'ye anlat (Erkek Yurdu önü)', en: "Tell Kerem Abi (boys' dorm door)" }, done: (c) => handedIn(c, 'abilerle_tanis'), targets: at('erkek_yurdu') },
+    ],
+    reward: { xp: 60 },
+  },
+  {
+    id: 'ablalarla_tanis', kind: 'side', giver: QUEST_GIVERS.abla, giverAt: { tr: 'Kız Yurdu önü', en: "girls' dorm door" }, year: 1,
+    title: { tr: 'Ablalarını Tanı', en: 'Meet the Ablas' },
+    desc: { tr: 'Selin Abla\'nın görevi: okulun ablalarından üçüyle tanış, seni bilsinler. Sonra Kız Yurdu\'nun önüne dön ve Selin Abla\'ya anlat.', en: "Selin Abla's task: get to know three of the school's older girls, so they know who you are. Then go back to the girls' dorm door and tell Selin Abla." },
+    requires: [],
+    objectives: [
+      { id: 'meet', text: { tr: '3 ablayla tanış', en: 'Meet 3 ablas' }, done: (c) => metCount(c, true) >= 3, progress: (c) => `${Math.min(3, metCount(c, true))}/3`, targets: at('yurt_meydani', 'merkez_meydan') },
+      { id: 'report', text: { tr: 'Selin Abla\'ya anlat (Kız Yurdu önü)', en: "Tell Selin Abla (girls' dorm door)" }, done: (c) => handedIn(c, 'ablalarla_tanis'), targets: at('kiz_yurdu') },
+    ],
+    reward: { xp: 60 },
+  },
 ];
 
 export type MissionStatus = 'locked' | 'active' | 'done' | 'failed';
@@ -216,6 +253,8 @@ export function missionDone(st: PlayerState, id: string) { return st.missionsDon
 export function statusOf(m: Mission, c: MissionCtx): MissionStatus {
   if (missionDone(c.st, m.id)) return 'done';
   if (m.failed?.(c)) return 'failed';
+  // a side quest is open once you've taken it from its giver, in its own school year
+  if (m.kind === 'side') return m.year === c.st.year && c.st.side.taken.includes(m.id) ? 'active' : 'locked';
   if (!m.requires.every((r) => missionDone(c.st, r))) return 'locked';
   return 'active';
 }
@@ -240,6 +279,19 @@ export function trackedMission(c: MissionCtx): Mission | null {
 
 export function nextObjective(m: Mission, c: MissionCtx): Objective | null {
   return m.objectives.find((o) => !o.done(c)) ?? null;
+}
+
+/** the side quests someone hands out this school year */
+export function questsFrom(npcId: string, c: MissionCtx): Mission[] {
+  return MISSIONS.filter((m) => m.kind === 'side' && m.giver === npcId && m.year === c.st.year);
+}
+
+/** what the marker over a giver's head says: a quest to take, or one ready to hand in */
+export function questMark(npcId: string, c: MissionCtx): 'offer' | 'ready' | null {
+  const qs = questsFrom(npcId, c);
+  if (qs.some((m) => statusOf(m, c) === 'active' && m.objectives.every((o) => o.id === 'report' || o.done(c)))) return 'ready';
+  if (qs.some((m) => !c.st.side.taken.includes(m.id) && !missionDone(c.st, m.id))) return 'offer';
+  return null;
 }
 
 export function missionById(id: string): Mission {

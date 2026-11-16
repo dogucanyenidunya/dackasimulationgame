@@ -63,6 +63,8 @@ export interface PlayerState {
   friends: Record<string, number>;
   /** the abi/abla favor chain (Year 1 mission "Abi'den Sandviç") */
   favor: { giver: string | null; stage: 'none' | 'accepted' | 'done' | 'rewarded' };
+  /** side quests from the dorm's abi and abla (game/missions.ts): the ones you took, and the ones you handed back in */
+  side: { taken: string[]; handed: string[] };
   examPassed: boolean;
   missionsDone: string[];
   /** missions whose "new mission" card was already shown */
@@ -141,7 +143,7 @@ export function defaultState(): PlayerState {
     reading: { book: null, sessions: 0, finished: [] },
     meals: [], daily: {}, once: {}, lastAllowanceWeek: 1,
     health: 90, sick: false, everSick: false, friends: {},
-    favor: { giver: null, stage: 'none' }, examPassed: false, missionsDone: [], announced: [], yearDone: false,
+    favor: { giver: null, stage: 'none' }, side: { taken: [], handed: [] }, examPassed: false, missionsDone: [], announced: [], yearDone: false,
     year: 1, discipline: 0, lastPenaltyDay: 0, escaped: false, escapes: 0,
     skills: { basketball: 0, football: 0 },
     music: { mandolin: 0, mandolinDone: false, instrument: null, skill: 0, path: null, shows: [] },
@@ -168,6 +170,7 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     school: { ...d.school, ...s.school, scores: { ...d.school.scores, ...s.school?.scores }, lessons: { ...d.school.lessons, ...s.school?.lessons } },
     reading: { ...d.reading, ...s.reading },
     favor: { ...d.favor, ...s.favor },
+    side: { taken: [...(s.side?.taken ?? [])], handed: [...(s.side?.handed ?? [])] },
     skills: { ...d.skills, ...s.skills },
     music: { ...d.music, ...s.music },
     cemil: { ...d.cemil, ...s.cemil },
