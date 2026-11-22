@@ -29,8 +29,9 @@ export interface GameCtx {
   raining: boolean;
   panel: Panel;
   /** the action took this long. Offline the clock jumps ahead; online (one shared clock) it's done at once, unless
-   *  `wait` is set for time you really have to sit out (a lesson until the bell), with a banner counting it down */
-  advance(minutes: number, opts?: { wait?: boolean }): void;
+   *  `wait` is set for time you really spend (a lesson until the bell, a family visit, an afternoon in town), with a
+   *  banner counting it down and a button to finish early */
+  advance(minutes: number, opts?: { wait?: boolean; label?: string }): void;
   sleep(): void;
   gain(g: Gain): void;
   toast(msg: string, kind?: 'info' | 'good'): void;
@@ -1822,11 +1823,11 @@ export function gatePanel(ctx: GameCtx): PanelView {
   } else {
     const visitTime = isSunday(day) && minutes >= VISIT_START && minutes < VISIT_END;
     actions.push({
-      id: 'visit', label: T('👪 Ziyaretçini karşıla', '👪 Meet your visitor'), hint: T('Pazar 10:00–16:00 · +15 moral · harçlık', 'Sunday 10:00–16:00 · +15 mood · pocket money'),
+      id: 'visit', label: T('👪 Ziyaretçini karşıla', '👪 Meet your visitor'), hint: T('Pazar 10:00–16:00 · 60 dk · +15 moral · harçlık', 'Sunday 10:00–16:00 · 60 min · +15 mood · pocket money'),
       locked: !visitTime ? T('Ziyaret günü Pazar 10:00–16:00.', 'Visiting day is Sunday 10:00–16:00.') : doneToday(ctx, 'visit') ? T('Bugün ziyaretçin geldi.', 'Your visitor already came today.') : undefined,
       run: async () => {
         markToday(ctx, 'visit');
-        ctx.advance(60);
+        ctx.advance(60, { wait: true, label: T('👪 Ziyaretçinle birliktesin', '👪 With your visitor') }); // (online you spend this hour, counted down)
         ctx.gain({ mood: 15, money: 15 });
         const kept = pocket(ctx, 'kurabiye');
         await ctx.panel.message(T('Ziyaret günü', 'Visiting day'), T(`${guardian} kapıda seni bekliyordu! Bahçede oturup sohbet ettiniz; sana ev yapımı kurabiye ve 15 ₺ harçlık getirdi.${kept ? ' Kurabiyeler cebinde: dolabına koyabilirsin.' : ''}`, `${guardian} was waiting at the gate! You sat in the garden and talked; they brought homemade cookies and 15 ₺ pocket money.${kept ? ' The cookies are in your pocket: you can put them in your locker.' : ''}`));
@@ -1861,7 +1862,7 @@ function visitActions(ctx: GameCtx): ActionView[] {
     locked: doneToday(ctx, 'wedvisit') ? T('Bugün ailenle zaten görüştün.', 'You already saw your family today.') : undefined,
     run: async () => {
       markToday(ctx, 'wedvisit');
-      ctx.advance(60);
+      ctx.advance(60, { wait: true, label: T(`👪 ${g} ile kantindesin`, `👪 At the canteen with ${g}`) }); // (online you spend this hour, counted down)
       ctx.gain({ mood: 18, money: 20, hunger: 30 });
       const kept = pocket(ctx, 'kurabiye');
       await ctx.panel.message(T('Çarşı izni', 'Wednesday visit'), T(
@@ -1877,7 +1878,7 @@ function carsiAction(ctx: GameCtx): ActionView {
   const { day, minutes } = ctx.clock;
   const st = ctx.st;
   return {
-    id: 'carsi', label: T('🛍️ Çarşıya çık', '🛍️ Go into town'), hint: T(`Çarşamba ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · 6. sınıftan itibaren`, `Wednesdays ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · from the 6th grade`),
+    id: 'carsi', label: T('🛍️ Çarşıya çık', '🛍️ Go into town'), hint: T(`Çarşamba ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · 2 saat · 6. sınıftan itibaren`, `Wednesdays ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)} · 2 hours · from the 6th grade`),
     locked: st.year < CARSI_OUT_FROM_YEAR && !DEV ? T('Çarşıya 6. sınıftan itibaren çıkabilirsin.', 'You can go into town from the 6th grade.')
       : !carsiNow(day, minutes) ? T(`Çarşı izni Çarşamba ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)}.`, `Town leave is on Wednesdays ${fmtTime(CARSI_START)}–${fmtTime(CARSI_END)}.`)
         : minutes > CARSI_END - 60 ? T('Etüde yetişemezsin; bir dahaki çarşamba!', "You wouldn't be back for study; next Wednesday!")
@@ -1898,7 +1899,7 @@ function carsiAction(ctx: GameCtx): ActionView {
       if (pick === 'kirtasiye') ctx.gain({ mood: 12, attrs: { creativity: 1 } });
       if (pick === 'kafe') ctx.gain({ mood: 15, energy: -10 });
       if (pick === 'yuru') { ctx.gain({ mood: 8 }); st.health = clamp(st.health + 5); }
-      ctx.advance(120);
+      ctx.advance(120, { wait: true, label: T('🛍️ Çarşıdasın', '🛍️ Out in town') }); // (online you spend these two hours, counted down)
       await ctx.panel.message(T('Çarşı izni', 'Town leave'), T('İki saat dışarıdaydın. Kapıdaki görevli saatine baktı: "Tam zamanında, aferin."', 'You were out for two hours. The guard at the gate checked his watch: "Right on time, well done."'));
     },
   };
