@@ -337,7 +337,8 @@ function injectStyles() {
   styled = true;
   const s = document.createElement('style');
   s.textContent = `
-.yb-overlay, .pg-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(6, 8, 14, 0.78); }
+.yb-overlay, .pg-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); background: rgba(6, 8, 14, 0.78); overflow-y: auto; overscroll-behavior: contain; }
+.yb-overlay > *, .pg-overlay > * { margin: auto; }
 .yb-card, .pg-card { background: #1d2326; color: #f4f0e6; border-radius: 12px; padding: 14px; width: min(548px, 100%); box-shadow: 0 12px 40px rgba(0,0,0,0.5); font-family: system-ui, sans-serif; }
 .yb-card canvas { width: 100%; height: auto; display: block; border-radius: 8px; touch-action: manipulation; cursor: pointer; }
 .yb-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 18px; }

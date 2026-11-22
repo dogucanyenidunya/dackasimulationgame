@@ -74,7 +74,7 @@ button.primary:hover { background: #8f5c33; }
 }
 
 /* character creator */
-.creator { width: min(860px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.creator { width: min(860px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .creator-steps { display: flex; gap: 4px; padding: 12px 16px 0; font-size: 13px; color: #8a9195; flex-wrap: wrap; }
 .creator-steps div { padding: 6px 10px; border-radius: 999px; }
 .creator-steps .on { background: var(--accent-dark); color: #fff; font-weight: 700; }
@@ -122,7 +122,7 @@ button.primary:hover { background: #8f5c33; }
 .nav-error { color: #b03a2e; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 
 /* profile */
-.profile-card { width: min(520px, 100%); padding: 20px 22px; max-height: calc(100vh - 32px); overflow: auto; }
+.profile-card { width: min(520px, 100%); padding: 20px 22px; max-height: 100%; overflow: auto; }
 .profile-head { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
 .profile-head canvas { width: 72px; height: 72px; background: radial-gradient(circle at 40% 35%, #f4f8ef, #c9dfba); border-radius: 50%; }
 .profile-head h2 { margin: 0; }
@@ -162,7 +162,7 @@ button.primary:hover { background: #8f5c33; }
 
 /* building panel */
 .panel { z-index: 5; }
-.panel-card { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 18px 20px; position: relative; }
+.panel-card { width: min(640px, 100%); max-height: 100%; overflow: auto; padding: 18px 20px; position: relative; }
 .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .panel-head h2 { margin: 0; }
 .secondary { font: inherit; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
@@ -216,7 +216,7 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .need.health .nbar i { background: #d0505c; }
 .roulette { font-size: 56px; font-weight: 900; text-align: center; padding: 26px 0; letter-spacing: 0.04em; color: #8a9195; }
 .roulette.landed { color: var(--accent-dark); transform: scale(1.1); transition: transform 0.3s; }
-.missions-card { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 20px 22px; }
+.missions-card { width: min(720px, 100%); max-height: 100%; overflow: auto; padding: 20px 22px; }
 .missions-card h2 { margin: 0 0 2px; }
 .m-section { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #5b6266; margin: 18px 0 8px; }
 .mission { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: #fff; }
@@ -241,7 +241,7 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .announce-card h2 { margin: 2px 0 8px; font-size: 26px; }
 .npc-bar { height: 8px; background: #e3ddd1; border-radius: 4px; overflow: hidden; margin-top: 4px; }
 .npc-bar i { display: block; height: 100%; background: #4f8fc0; }
-.yearend-card { width: min(560px, 100%); padding: 22px; max-height: calc(100vh - 32px); overflow: auto; }
+.yearend-card { width: min(560px, 100%); padding: 22px; max-height: 100%; overflow: auto; }
 .yearend-card h2 { margin: 0; font-size: 26px; }
 .cert { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: #fbf3df; border: 1px solid #ead7a8; font-weight: 700; }
 @media (max-width: 640px) { .hud-right { width: 160px; } }
@@ -395,7 +395,7 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 
 /* dilemma moments: a card of its own, the situation on top and every choice underneath */
 .dilemma-wrap { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(20, 14, 40, 0.55), rgba(8, 6, 18, 0.88)); animation: dl-fade 0.3s ease-out; }
-.dilemma-card { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px 24px 20px; border-radius: 16px; background: linear-gradient(180deg, #2b2346 0%, #1f1a33 100%); color: #f4eefc; border: 1px solid rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.12), 0 18px 48px rgba(0,0,0,0.5); animation: dl-pop 0.35s cubic-bezier(.2,1.4,.4,1); }
+.dilemma-card { width: min(640px, 100%); max-height: 100%; overflow: auto; padding: 22px 24px 20px; border-radius: 16px; background: linear-gradient(180deg, #2b2346 0%, #1f1a33 100%); color: #f4eefc; border: 1px solid rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.12), 0 18px 48px rgba(0,0,0,0.5); animation: dl-pop 0.35s cubic-bezier(.2,1.4,.4,1); }
 .dl-tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #1f1a33; background: var(--gold); padding: 3px 10px; border-radius: 999px; }
 .dilemma-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; font-size: 28px; margin: 10px 0 8px; color: #fff; }
 .dl-intro { line-height: 1.6; font-size: 15.5px; margin: 0 0 12px; color: #e6def5; }
@@ -432,7 +432,7 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* the diary page at bedtime */
-.diary-card { width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 22px 24px; background: #fbf6e9; border: 1px solid #e0d3b4; box-shadow: 0 12px 34px rgba(0,0,0,0.35); background-image: repeating-linear-gradient(transparent 0 27px, rgba(70, 110, 160, 0.13) 27px 28px); }
+.diary-card { width: min(520px, 100%); max-height: 100%; display: flex; flex-direction: column; padding: 22px 24px; background: #fbf6e9; border: 1px solid #e0d3b4; box-shadow: 0 12px 34px rgba(0,0,0,0.35); background-image: repeating-linear-gradient(transparent 0 27px, rgba(70, 110, 160, 0.13) 27px 28px); }
 .diary-head h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 10px; color: #3a2a18; }
 .diary-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9a5b2c; }
 .diary-body { overflow: auto; padding-right: 4px; font-family: Georgia, "Times New Roman", serif; }
@@ -488,7 +488,7 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .match-line { margin: 0; font-weight: 700; font-size: 15px; min-height: 20px; }
 
 /* mission announcements always fit the screen: the list scrolls, the button stays in view */
-.announce-card { max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.announce-card { max-height: 100%; display: flex; flex-direction: column; }
 .announce-card.many { width: min(680px, 100%); }
 .announce-card .announce-list { overflow: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; min-height: 0; }
 .announce-card .announce-list .mission { margin: 0; padding: 10px 12px; }
@@ -505,7 +505,7 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .pause-card { text-align: center; }
 .pause-card button.primary { margin-top: 14px; min-width: 160px; }
 .announce-card:not(.many) { overflow: auto; }
-.modal-card { max-height: calc(100vh - 32px); overflow: auto; }
+.modal-card { max-height: 100%; overflow: auto; }
 
 /* the diary entry: handwriting-ish, on lined paper */
 .diary-card .diary-body p { margin: 0 0 12px; font-size: 16.5px; line-height: 28px; color: #2f2418; font-style: italic; font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", Georgia, serif; }
@@ -601,3 +601,81 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 /* the radar: drag to look around, double-click to come back */
 .hud-mini canvas { touch-action: none; cursor: grab; }
 .hud-mini canvas.dragging { cursor: grabbing; }
+
+/* ---------- fitting the visible screen on phones ----------
+   Cards are sized by the overlay they sit in (max-height: 100%), never by 100vh: on a phone 100vh is the height with
+   the browser's address/navigation bars hidden, so anything sized by it ends up behind those bars. Overlays scroll
+   when a card is still taller than the screen, and `margin: auto` centres without cutting off the top. */
+.overlay, .title-screen, .dilemma-wrap, .match-overlay { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.overlay > *, .title-screen > *, .dilemma-wrap > *, .match-overlay > * { margin: auto; flex-shrink: 0; }
+.overlay > .card, .title-screen > .card, .dilemma-wrap > .card, .dilemma-wrap > .dilemma-card { flex-shrink: 1; }
+/* full-screen layers on the page itself keep clear of notches and the home bar */
+.title-screen, .confirm-overlay, .pause-overlay {
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+@media (max-width: 480px), (max-height: 560px) {
+  .overlay, .title-screen, .dilemma-wrap { padding: 8px; }
+  .title-screen, .confirm-overlay, .pause-overlay {
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+  }
+  .title-card { padding: 22px 18px; }
+  .title-card h1 { font-size: 44px; }
+  .title-card .sub { margin-bottom: 14px; }
+  .modal-card, .profile-card, .missions-card, .yearend-card, .panel-card { padding: 14px 14px; }
+  .dilemma-card { padding: 16px 14px 14px; }
+  .diary-card { padding: 16px; }
+  .creator-steps { padding: 8px 10px 0; gap: 2px; }
+  .creator-steps div { padding: 4px 8px; }
+  .creator-body { padding: 10px; gap: 12px; }
+  .creator-nav { padding: 8px 10px; }
+}
+/* narrow phones (portrait): a shorter HUD card, its buttons in two rows, and the countdown clear of it */
+@media (max-width: 480px) {
+  body.touch .hud-clock .discovery { display: none; }
+  body.touch .hud-buttons { gap: 3px; }
+  body.touch .hud-buttons button { padding: 5px 5px; font-size: 14px; min-width: 32px; }
+  body.touch .hud-countdown.with-bar { font-size: 12px; padding: 6px 10px 8px; gap: 4px; bottom: 214px; }
+  .hud-toasts { width: calc(100% - 24px); }
+  .toast { max-width: 100%; text-align: center; }
+}
+/* the countdown and banner float above the campus, never above an open map, card, panel or dilemma */
+#hud:has(> .overlay:not(.hidden), > .dilemma-wrap, > .match-overlay) :is(.hud-countdown, .hud-banner) { display: none; }
+/* phone held sideways: the title card in two columns (title and sign-in | your character and the buttons) */
+@media (max-height: 500px) and (min-width: 600px) {
+  .title-card:has(> .tc-left) { width: min(780px, 100%); display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: center; padding: 16px 20px; }
+  .title-card h1 { font-size: 40px; }
+  .title-card .care { margin-bottom: 10px; }
+  .title-card .lang { margin-top: 10px; }
+  .title-card .proto { margin-top: 4px; }
+}
+/* phone held sideways, in play: a wider but shorter HUD card, and the countdown down between the controls */
+@media (max-height: 500px) {
+  body.touch .hud-clock:not(.collapsed) { width: 252px; }
+  body.touch .hud-clock .needs { grid-template-columns: repeat(4, 1fr); }
+  body.touch .hud-clock .hud-buttons { flex-wrap: nowrap; }
+  body.touch .hud-buttons button { padding: 4px 5px; font-size: 13px; min-width: 30px; }
+  body.touch .stick-base:not(.active) { bottom: 66px; }
+  body.touch .hud-countdown, body.touch .hud-countdown.with-bar { top: auto; bottom: 56px; max-width: min(380px, calc(100% - 340px)); min-width: 0; font-size: 12px; padding: 5px 10px 7px; gap: 4px; white-space: normal; text-align: center; }
+  body.touch .hud-prompt { bottom: 12px; }
+}
+/* short portrait phones (bars showing): the mission card shows just its title and step, the countdown two lines */
+@media (max-width: 480px) and (max-height: 680px) {
+  body.touch .tracker .tr-where { display: none; }
+  body.touch .hud-countdown.with-bar { bottom: 205px; }
+  body.touch .hud-countdown .cd-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  body.touch .hud-prompt { bottom: 158px; }
+}
+/* the narrowest phones: two slimmer columns so the HUD card and the minimap don't touch */
+@media (max-width: 359px) {
+  .hud-clock { width: 148px; }
+  .hud-right { width: 132px; }
+  .hud-mini canvas { width: 120px; }
+  body.touch .hud-buttons button { min-width: 29px; padding: 4px 3px; font-size: 13px; }
+  .clock-time { font-size: 20px; }
+}
+@media (max-width: 480px) and (max-height: 520px) {
+  body.touch .hud-countdown.with-bar { bottom: 188px; }
+  body.touch .hud-prompt { bottom: 146px; }
+}
+/* narrow desktop window: the countdown moves to the bottom, so it sits above the "E — …" prompt rather than on it */
+@media (max-width: 900px) { body:not(.touch) .hud-countdown.with-bar { bottom: 108px; } }

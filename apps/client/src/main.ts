@@ -97,6 +97,7 @@ async function titleScreen() {
            </form>`;
     el.innerHTML = `
       <div class="card title-card">
+        <div class="tc-left">
         <h1>Daçka</h1>
         <div class="sub">${t('title_sub')}</div>
         ${invite ? `<div class="account invite ${invite.kind}"></div>` : ''}
@@ -104,6 +105,8 @@ async function titleScreen() {
            <div class="unsub-btns"><button type="button" data-act="unsub-yes">${L({ tr: 'E-postaları kapat', en: 'Stop the emails' })}</button> · <button type="button" data-act="unsub-no">${L({ tr: 'Vazgeç', en: 'Keep them' })}</button></div></div>`
           : unsubDone ? `<div class="account">${unsubDone}</div>` : ''}
         ${account}
+        </div>
+        <div class="tc-right">
         ${existing ? '<div class="care-slot"></div>' : ''}
         <div class="stack">
           ${existing ? `<button class="primary" data-act="continue">${t('continue')}</button>` : ''}
@@ -115,6 +118,7 @@ async function titleScreen() {
           <button data-lang="en" class="${getLang() === 'en' ? 'on' : ''}">English</button>
         </div>
         <div class="proto">${online ? L({ tr: 'Prototip · çok oyunculu deneme', en: 'Prototype · multiplayer test' }) : L({ tr: 'Prototip · tek kişilik', en: 'Prototype · single-player' })}</div>
+        </div>
       </div>`;
     const b = el.querySelector('.account b');
     if (b) b.textContent = net ? net.email : linkSentTo;
