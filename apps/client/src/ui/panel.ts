@@ -571,6 +571,13 @@ export class Panel {
   }
 
   /** a short story/info card inside the panel */
+  /** a card with no button while something goes on (a lesson between moments); returns a function that removes it */
+  notice(title: string, body: string): () => void {
+    const stage = this.stage();
+    stage.innerHTML = `<div class="stage-card"><div class="stage-top"><b>${esc(title)}</b></div><p class="stage-body">${esc(body)}</p></div>`;
+    return () => stage.remove();
+  }
+
   message(title: string, body: string): Promise<void> {
     const stage = this.stage();
     return new Promise((resolve) => {

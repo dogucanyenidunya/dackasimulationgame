@@ -1,17 +1,42 @@
 // The campus clock (GDD §3.1): online, every player sees the same time of day and the same weekday.
 // It is worked out from real time, so it needs no server, keeps running when nobody is playing,
 // and every browser arrives at the same answer (to within its own clock's accuracy).
-import { LIGHTS_OUT, WAKE_UP } from './schedule';
+import { LIGHTS_OUT, PERIODS, WAKE_UP } from './schedule';
 
 /** real milliseconds per game minute: day (07:00–22:00) ≈ 1 game hour per 80 s; night is compressed (the whole night ≈ 2 real minutes) */
 export const MS_PER_MIN_DAY = 80_000 / 60;
 export const MS_PER_MIN_NIGHT = 120_000 / (8.5 * 60);
 
+/** on school days the lessons themselves run twice as fast: a lesson takes about half a minute, not a whole one */
+export const LESSON_SPEED = 2;
+
 const DAY_MIN = 24 * 60;
-const AWAKE = LIGHTS_OUT - WAKE_UP; // game minutes from wake-up to lights-out
-const AWAKE_MS = AWAKE * MS_PER_MIN_DAY;
-/** one whole campus day in real milliseconds (≈ 22 minutes) */
-export const WORLD_DAY_MS = AWAKE_MS + (DAY_MIN - AWAKE) * MS_PER_MIN_NIGHT;
+
+/** a stretch of a campus day (07:00 to the next 07:00) and how fast it runs */
+interface Stretch { from: number; to: number; ms: number }
+
+/** a campus day as stretches: lessons faster on school days, the night compressed */
+function dayPlan(schoolDay: boolean): Stretch[] {
+  const out: Stretch[] = [];
+  let t = WAKE_UP;
+  const lessons = schoolDay ? PERIODS.filter((p) => p.kind === 'lesson').sort((a, b) => a.start - b.start) : [];
+  for (const p of lessons) {
+    if (p.start > t) out.push({ from: t, to: p.start, ms: MS_PER_MIN_DAY });
+    out.push({ from: p.start, to: p.end, ms: MS_PER_MIN_DAY / LESSON_SPEED });
+    t = p.end;
+  }
+  out.push({ from: t, to: LIGHTS_OUT, ms: MS_PER_MIN_DAY });
+  out.push({ from: LIGHTS_OUT, to: DAY_MIN + WAKE_UP, ms: MS_PER_MIN_NIGHT });
+  return out;
+}
+const SCHOOL_DAY = dayPlan(true);
+const FREE_DAY = dayPlan(false);
+const length = (plan: Stretch[]) => plan.reduce((n, s) => n + (s.to - s.from) * s.ms, 0);
+/** a school day and a weekend day in real milliseconds (≈ 18 and 22 minutes) */
+export const SCHOOL_DAY_MS = length(SCHOOL_DAY);
+export const FREE_DAY_MS = length(FREE_DAY);
+/** one campus week (Monday–Friday school days, then the weekend) in real milliseconds */
+const WEEK_MS = 5 * SCHOOL_DAY_MS + 2 * FREE_DAY_MS;
 /** campus day 3 (a Monday, see `weekday`) began at 07:00 at this instant; any fixed instant would do */
 const ANCHOR = Date.UTC(2026, 0, 5);
 const ANCHOR_DAY = 3;
@@ -21,10 +46,23 @@ export interface ClockTime { day: number; minutes: number }
 /** the campus day and minute at real time `now` (day numbers follow the same calendar as a save's) */
 export function worldNow(now = Date.now()): ClockTime {
   const since = now - ANCHOR;
-  const n = Math.floor(since / WORLD_DAY_MS);
-  const into = since - n * WORLD_DAY_MS; // real ms since that day's 07:00
-  let day = ANCHOR_DAY + n;
-  let minutes = into < AWAKE_MS ? WAKE_UP + into / MS_PER_MIN_DAY : LIGHTS_OUT + (into - AWAKE_MS) / MS_PER_MIN_NIGHT;
+  // whole weeks first (days differ in length), then the day of the week (0 = Monday), then the stretch of the day
+  const weeks = Math.floor(since / WEEK_MS);
+  let rest = since - weeks * WEEK_MS;
+  let i = 0;
+  for (; i < 6; i++) {
+    const len = i < 5 ? SCHOOL_DAY_MS : FREE_DAY_MS;
+    if (rest < len) break;
+    rest -= len;
+  }
+  let day = ANCHOR_DAY + weeks * 7 + i;
+  const plan = i < 5 ? SCHOOL_DAY : FREE_DAY;
+  let minutes = plan[plan.length - 1].to;
+  for (const st of plan) {
+    const len = (st.to - st.from) * st.ms;
+    if (rest < len) { minutes = st.from + rest / st.ms; break; }
+    rest -= len;
+  }
   if (minutes >= DAY_MIN) { minutes -= DAY_MIN; day += 1; } // past midnight: tomorrow already
   return { day, minutes: Math.min(DAY_MIN - 1, Math.floor(minutes)) };
 }

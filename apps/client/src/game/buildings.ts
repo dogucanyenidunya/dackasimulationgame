@@ -22,6 +22,7 @@ import type { YbResult } from '../ui/yetimball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
+import { lessonEvent, lessonFiller, lessonOpening, type MomentResult } from './lessonMoments';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -35,6 +36,8 @@ export interface GameCtx {
    *  `wait` is set for time you really spend (a lesson until the bell, a family visit, an afternoon in town), with a
    *  banner counting it down and a button to finish early */
   advance(minutes: number, opts?: { wait?: boolean; label?: string }): void;
+  /** let this much time go by, then carry on: solo it jumps; online you wait for the campus clock (Stop cuts it short) */
+  pass(minutes: number, label?: string): Promise<void>;
   sleep(): void;
   gain(g: Gain): void;
   toast(msg: string, kind?: 'info' | 'good'): void;
@@ -442,6 +445,39 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       const mates = NPCS.filter((n) => n.kind === 'classmate');
       const mus = ctx.st.music;
       const course = ctx.st.year === 1 && !mus.mandolinDone;
+      // a lesson in three moments, with the lesson going on in between (online that's real time, so there's always something to do)
+      const marks: MomentResult[] = [];
+      const left = () => Math.max(0, p!.end - ctx.clock.minutes);
+      const between = async (share: number) => {
+        const m = Math.round(left() * share);
+        if (m <= 0 || !ctx.panel.isOpen) return;
+        const hide = ctx.panel.notice(T('📚 Ders devam ediyor', '📚 The lesson goes on'), lessonFiller(teacher));
+        await ctx.pass(m, T(`📚 ${subjName(sub)}`, `📚 ${subjName(sub)}`));
+        hide();
+      };
+      const finish = async () => {
+        if (!marks.length) return;
+        let score = Math.round(marks.reduce((n, r) => n + r.score, 0) / marks.length);
+        if (les!.late) score = Math.max(20, score - 10); // you missed the start
+        attendLesson(ctx, les!.key, sub, score);
+        ctx.gain({ xp: 10 + marks.reduce((n, r) => n + r.xp, 0), energy: -8 });
+        ctx.advance(left(), { wait: true }); // (in class until the bell)
+        const parts = marks.map((r) => `${r.title} ${r.score}`).join(' · ');
+        const text = T(
+          `Performans notu: ${score}/100 (${parts}). Bu derste gösterdiğin performans; ortalaması karnendeki ${subjName(sub)} notunu belirler. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} ders · ödev: akşam etütte.`,
+          `Performance mark: ${score}/100 (${parts}). How you did in this lesson; the average becomes your ${subjName(sub)} grade on your report card. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} lessons · homework: at evening study.`);
+        if (ctx.panel.isOpen) await ctx.panel.message(T('🔔 Zil çaldı', '🔔 The bell'), text);
+        else ctx.toast(text, 'good');
+      };
+      // late enough that the lesson's nearly over: no opening
+      if (left() > 20) {
+        const opening = await lessonOpening(ctx, subjName(sub), teacher);
+        if (!opening) return;
+        marks.push(opening);
+        await ctx.panel.message(opening.title, opening.body);
+        await between(0.4);
+        if (!ctx.panel.isOpen) { await finish(); return; }
+      }
       const choice = await ctx.panel.choose(T(`${subjName(sub)} dersi · ${teacher}: ne yapacaksın?`, `${subjName(sub)} with ${teacher}: what will you do?`), [
         // in music lessons the class plays the mandolin (the 4th-grade course: six lessons for the certificate)
         ...(sub === 'muzik' ? [{
@@ -455,7 +491,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         { id: 'tease', label: T('Bir sınıf arkadaşınla dalga geç', 'Make fun of a classmate'), hint: T('Sınıf güler ama o kişi seni sevmez ve intikam alabilir · ⚠ disiplin', "The class laughs, but they won't like you and may get revenge · ⚠ discipline") },
         { id: 'else', label: T('Başka bir şeyle ilgilen', 'Get distracted by something else'), hint: T('Defterine çizim yap · +1 Yaratıcılık · XP yok', 'Doodle in your notebook · +1 Creativity · no XP') },
       ]);
-      if (!choice) return;
+      if (!choice) { await finish(); return; }
       nudge(ctx, LESSON_NUDGE[choice] ?? {});
       focusTick(ctx, choice === 'mandolin' ? 'art' : 'study');
       let score = 50, xp = 0;
@@ -524,13 +560,15 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         if (Math.random() < 0.2) ctx.penalize(1, T(`${teacher}: "Pencereden dışarı bakmayı bırak!"`, `${teacher}: "Stop staring out of the window!"`));
         title = T('Hayal dünyası', 'Daydreaming'); body = T('Defterinin kenarına koca bir ejderha çizdin. Dersin yarısı kaçtı.', 'You drew a huge dragon in the margin of your notebook. Half the lesson slipped by.');
       }
-      if (les!.late) score = Math.max(20, score - 10); // you missed the start
-      attendLesson(ctx, les!.key, sub, score);
-      ctx.gain({ xp: 10 + xp, energy: -8 });
-      ctx.advance(Math.max(0, p!.end - ctx.clock.minutes), { wait: true }); // (in class until the bell)
-      await ctx.panel.message(title, `${body} ${T(
-        `(Performans notu: ${score}/100 · bu derste gösterdiğin performans; ortalaması karnendeki ${subjName(sub)} notunu belirler. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} ders · ödev: akşam etütte)`,
-        `(Performance mark: ${score}/100 · how you did in this lesson; the average becomes your ${subjName(sub)} grade on your report card. ${subjName(sub)}: ${s.lessons[sub]}/${LESSONS_PER_SUBJECT} lessons · homework: at evening study)`)}`);
+      marks.push({ score, xp, title, body });
+      await ctx.panel.message(title, body);
+      // near the end, something happens in class
+      await between(0.5);
+      if (ctx.panel.isOpen && left() > 3) {
+        const ev = await lessonEvent(ctx, sub, subjName(sub), teacher, choice === 'answer', pickMate);
+        if (ev) { marks.push(ev); await ctx.panel.message(ev.title, ev.body); }
+      }
+      await finish();
     },
   }];
   void lessonKey;

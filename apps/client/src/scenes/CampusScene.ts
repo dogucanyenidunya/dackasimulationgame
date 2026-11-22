@@ -2869,6 +2869,7 @@ export class CampusScene extends Phaser.Scene {
       raining: this.isRaining(),
       panel: this.panel,
       advance: (m, o) => this.advance(m, o?.label ?? (this.actionLabel ? `⏳ ${this.actionLabel.replace(/^[^\p{L}\d"]+/u, '')}` : undefined), undefined, o?.wait ?? false),
+      pass: (m, label) => new Promise<void>((resolve) => this.advance(m, label, resolve, true)),
       sleep: () => this.sleep(),
       gain: (g) => this.gain(g),
       toast: (msg, kind) => this.hud.toast(msg, kind),
