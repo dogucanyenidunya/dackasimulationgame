@@ -1,7 +1,9 @@
-// For the game's owner: everyone on the waitlist, in order: their character's name, their email, when they joined,
-// and whether they're in the lobby right now. Search, show only those in the lobby, copy all the emails.
+// For the game's owner: everyone on the waitlist, side by side: their character, name, place, email, when they
+// joined and whether they're in the lobby right now. Search, show only those in the lobby, copy all the emails.
 import './lobby.css';
 import { L } from '../i18n';
+import { drawCharacter } from '../art/character';
+import { DEFAULT_LOOK } from '../art/textures';
 import { listWaitlist, watchLobby, type WaitlistEntry } from '../net/launch';
 
 const T = (tr: string, en: string) => L({ tr, en });
@@ -48,12 +50,23 @@ export function openWaitlist() {
     const q = query.trim().toLocaleLowerCase('tr-TR');
     const shown = rows.filter((r) => (!onlyLobby || online.has(r.id)) && (!q || r.name.toLocaleLowerCase('tr-TR').includes(q) || r.email.toLowerCase().includes(q)));
     if (!shown.length) { list.innerHTML = `<div class="wl-empty">${rows.length ? T('Eşleşen kimse yok.', 'Nobody matches.') : T('Henüz kimse bekleme listesinde değil.', 'Nobody is on the waitlist yet.')}</div>`; return; }
-    list.innerHTML = shown.map((r) => `
-      <div class="wl-row">
+    list.innerHTML = `<div class="wl-grid">${shown.map((r) => `
+      <div class="wl-card${online.has(r.id) ? ' on' : ''}" title="${esc(r.email)}">
         <span class="wl-pos">#${r.pos}</span>
-        <span class="wl-who"><b>${esc(r.name || T('(isimsiz)', '(no name)'))}</b><small>${esc(r.email)}</small></span>
-        <span class="wl-when">${online.has(r.id) ? `<i class="wl-on">● ${T('lobide', 'in lobby')}</i>` : ''}<small>${esc(ago(r.joinedAt))}</small></span>
-      </div>`).join('');
+        ${online.has(r.id) ? `<span class="wl-on" title="${T('Şu an lobide', 'In the lobby right now')}">●</span>` : ''}
+        <div class="wl-kid"><canvas width="64" height="64" data-id="${esc(r.id)}"></canvas></div>
+        <b class="wl-name">${esc(r.name || T('(isimsiz)', '(no name)'))}</b>
+        <small class="wl-mail">${esc(r.email)}</small>
+        <small class="wl-ago">${esc(ago(r.joinedAt))}</small>
+      </div>`).join('')}</div>`;
+    // their characters (as they made them; the default look if their save has none)
+    list.querySelectorAll<HTMLCanvasElement>('.wl-kid canvas').forEach((cv) => {
+      const r = shown.find((x) => x.id === cv.dataset.id);
+      const c = cv.getContext('2d')!;
+      c.save(); c.scale(2, 2);
+      drawCharacter(c, 0, 0, { ...DEFAULT_LOOK, ...(r?.look ?? {}) }, 0, 0);
+      c.restore();
+    });
   };
 
   const stopWatching = watchLobby((ids) => { online = ids; render(); });

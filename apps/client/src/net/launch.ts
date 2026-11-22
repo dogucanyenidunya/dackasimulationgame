@@ -120,7 +120,7 @@ export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: 
 }
 
 /** one person on the waitlist, as the owner sees them */
-export interface WaitlistEntry { pos: number; id: string; name: string; email: string; joinedAt: string }
+export interface WaitlistEntry { pos: number; id: string; name: string; email: string; joinedAt: string; look: CharacterLook | null }
 
 /** owners only: everyone on the waitlist, in order; null if it can't be fetched (not an owner, or not set up) */
 export async function listWaitlist(): Promise<WaitlistEntry[] | null> {
@@ -128,8 +128,9 @@ export async function listWaitlist(): Promise<WaitlistEntry[] | null> {
   if (!c) return null;
   const { data, error } = await c.rpc('list_waitlist');
   if (error) { console.warn('[launch]', error.message); return null; }
-  return (data as Array<{ pos: number; user_id: string; name: string; email: string; joined_at: string }>).map((r) => ({
+  return (data as Array<{ pos: number; user_id: string; name: string; email: string; joined_at: string; look: unknown }>).map((r) => ({
     pos: Number(r.pos), id: r.user_id, name: r.name ?? '', email: r.email ?? '', joinedAt: r.joined_at,
+    look: r.look && typeof r.look === 'object' ? (r.look as CharacterLook) : null,
   }));
 }
 

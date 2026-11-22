@@ -72,7 +72,7 @@
 
 /* the owner's view of the waitlist (ui/waitlistView.ts) */
 .waitlist-overlay { position: fixed; z-index: 30; }
-.waitlist-card { background: #faf7f0; width: min(560px, 100%); text-align: left; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.waitlist-card { background: #faf7f0; width: min(720px, 100%); text-align: left; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
 .wl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .wl-head h2 { margin: 0; font-size: 20px; }
 .wl-head .linkish, .owner-panel .linkish { font: inherit; font-size: 13px; border: none; background: none; text-decoration: underline; cursor: pointer; color: #4b5459; padding: 0; }
@@ -90,3 +90,15 @@
 .wl-when { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
 .wl-on { color: #2f7d4a; font-style: normal; font-weight: 700; font-size: 12px; }
 .wl-empty { padding: 18px 4px; color: #6b7276; font-size: 13px; }
+
+/* the waitlist as a grid of characters */
+.wl-list { border-top: none; padding-top: 2px; }
+.wl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 2px 2px 6px; }
+.wl-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 8px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; min-width: 0; }
+.wl-card.on { border-color: #8cc79d; box-shadow: 0 0 0 2px rgba(47, 125, 74, 0.15); }
+.wl-card .wl-pos { position: absolute; top: 6px; left: 8px; font-size: 12px; }
+.wl-card .wl-on { position: absolute; top: 4px; right: 8px; font-size: 14px; }
+.wl-kid { width: 72px; height: 72px; border-radius: 50%; background: #efe6d4; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 4px; }
+.wl-kid canvas { width: 64px; height: 64px; image-rendering: pixelated; }
+.wl-name { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-mail, .wl-ago { font-size: 11px; color: #6b7276; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
