@@ -6,6 +6,9 @@ import { T, TILE } from '../content/campus';
 export { CHAR_RES, DEFAULT_LOOK, drawCharacter, fitCharacter, footBody, makeCharacterTexture, paintCharacter } from './character';
 export type { CharacterLook, FaceShape, HairStyle } from './character';
 
+/** texture pixels per world pixel for the smooth (non-pixel-art) world textures: ground, trees */
+export const ART_RES = 2;
+
 const PAL = {
   roof: '#c3c9cf', roofDark: '#a9b0b7', roofLight: '#d8dde2',
   wall: '#f1f2f0', wallShade: '#dcdfe0', fin: '#c98a4b', finDark: '#9c6633', window: '#4f6f8c', windowLight: '#9cc0dd',
@@ -346,32 +349,64 @@ const LEAF: Record<string, string[]> = {
   pine: ['#142f22', '#1d4430', '#27573b', '#33704a', '#4a8a5c', '#6aa676'],
 };
 
+/** a canopy of leaf clusters: a dark mass at the back, then clusters lit from the north-west, smallest and brightest on top */
 function canopy(c: Ctx, blobs: Array<[number, number, number]>, pal: string[], seed: number) {
-  const disc = (x: number, y: number, r: number, col: string) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
-  for (const [x, y, r] of blobs) disc(x + 0.5, y + 1, r + 1, pal[0]);
-  for (const [x, y, r] of blobs) disc(x, y, r, pal[1]);
-  for (const [x, y, r] of blobs) disc(x - r * 0.15, y - r * 0.2, r * 0.8, pal[2]);
-  for (const [x, y, r] of blobs) disc(x - r * 0.3, y - r * 0.38, r * 0.5, pal[3]);
-  for (const [x, y, r] of blobs) disc(x - r * 0.4, y - r * 0.5, r * 0.22, pal[4]);
-  // leaf clusters: light flecks on the sunny north-west, dark ones on the shaded south-east
   const rnd = rng(seed);
-  for (const [x, y, rad] of blobs) for (let i = 0; i < rad * 2.4; i++) {
-    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (rad - 1.5);
-    const sun = -(Math.cos(a) + Math.sin(a)) * 0.7;
-    c.fillStyle = sun > 0.2 && d > rad * 0.35 ? pal[rnd() < 0.5 ? 4 : 5] : sun < -0.2 ? pal[rnd() < 0.6 ? 1 : 0] : pal[3];
-    c.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), 2, 1);
+  // the whole crown's centre and size, for the light
+  const cx = blobs.reduce((a, b) => a + b[0], 0) / blobs.length, cy = blobs.reduce((a, b) => a + b[1], 0) / blobs.length;
+  const span = Math.max(...blobs.map(([x, y, r]) => Math.hypot(x - cx, y - cy) + r));
+  const lightAt = (x: number, y: number) => -((x - cx) + (y - cy) * 1.2) / span; // −1 shaded (south-east) … 1 sunlit (north-west)
+  // the outline and the deep shade inside the crown
+  for (const [x, y, r] of blobs) { c.fillStyle = pal[0]; c.beginPath(); c.arc(x + 0.4, y + 0.8, r + 0.9, 0, Math.PI * 2); c.fill(); }
+  for (const [x, y, r] of blobs) {
+    const g = c.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    g.addColorStop(0, pal[3]); g.addColorStop(0.55, pal[2]); g.addColorStop(1, pal[1]);
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  }
+  // leaf clusters, back to front: each a little bumpy disc with its own light and shade
+  const clusters: Array<[number, number, number, number]> = [];
+  for (const [x, y, r] of blobs) for (let i = 0; i < r * 2.2; i++) {
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (r - 1.2);
+    const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+    clusters.push([px, py, 1.6 + rnd() * 2.2, lightAt(px, py) + (rnd() - 0.5) * 0.5]);
+  }
+  clusters.sort((a, b) => a[3] - b[3]);
+  for (const [x, y, r, l] of clusters) {
+    const tone = l > 0.55 ? 4 : l > 0.1 ? 3 : l > -0.35 ? 2 : 1;
+    c.fillStyle = pal[Math.max(0, tone - 1)]; c.beginPath(); c.arc(x + 0.35, y + 0.45, r, 0, Math.PI * 2); c.fill();
+    const g = c.createRadialGradient(x - r * 0.4, y - r * 0.45, 0, x, y, r);
+    g.addColorStop(0, pal[Math.min(5, tone + 1)]); g.addColorStop(0.6, pal[tone]); g.addColorStop(1, pal[Math.max(0, tone - 1)]);
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  }
+  // single leaves catching the sun on the lit edge
+  for (let i = 0; i < blobs.length * 9; i++) {
+    const [x, y, r] = blobs[Math.floor(rnd() * blobs.length)], a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * r;
+    const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+    if (lightAt(px, py) < 0.3) continue;
+    c.fillStyle = pal[5]; c.beginPath(); c.ellipse(px, py, 0.9, 0.55, a, 0, Math.PI * 2); c.fill();
   }
 }
 
 function trunk(c: Ctx, x: number, top: number, w: number, bottom: number) {
-  c.fillStyle = '#3a2716'; c.fillRect(x - 1, top, w + 2, bottom - top); c.fillRect(x - 2, bottom - 3, w + 4, 3);
-  c.fillStyle = '#5e4027'; c.fillRect(x, top, w, bottom - top - 1);
-  c.fillStyle = '#7a5434'; c.fillRect(x, top, 2, bottom - top - 1);
-  c.fillStyle = '#4a321e'; for (let y = top + 3; y < bottom - 3; y += 5) c.fillRect(x + w - 2, y, 1, 2);
+  const p = new Path2D();
+  p.moveTo(x + 0.6, top); p.lineTo(x + w - 0.6, top);
+  p.quadraticCurveTo(x + w - 0.2, bottom - 6, x + w + 2.2, bottom);
+  p.lineTo(x - 2.2, bottom); p.quadraticCurveTo(x + 0.2, bottom - 6, x + 0.6, top); p.closePath();
+  const g = c.createLinearGradient(x - 2, 0, x + w + 2, 0);
+  g.addColorStop(0, '#8a6440'); g.addColorStop(0.35, '#6a4a2c'); g.addColorStop(1, '#3a2716');
+  c.fillStyle = g; c.fill(p);
+  c.strokeStyle = 'rgba(40,26,14,0.55)'; c.lineWidth = 0.4;
+  for (let y = top + 2; y < bottom - 2; y += 2.6) { c.beginPath(); c.moveTo(x + 0.8 + ((y * 7) % 3) * 0.4, y); c.lineTo(x + 1.6 + ((y * 7) % 3) * 0.4, y + 1.6); c.stroke(); c.beginPath(); c.moveTo(x + w - 1.2, y + 1); c.lineTo(x + w - 1.6, y + 2.4); c.stroke(); }
+  c.strokeStyle = 'rgba(30,20,10,0.6)'; c.lineWidth = 0.5; c.stroke(p);
 }
 
 function paintTree(c: Ctx, shape: TreeShape, tone: number) {
   const seed = 200 + tone * 17 + shape.length * 5;
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  // contact shadow under the trunk
+  const sg = c.createRadialGradient(24.5, 66.5, 0, 24.5, 66.5, 9);
+  sg.addColorStop(0, 'rgba(0,0,0,0.35)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+  c.save(); c.translate(0, 66.5); c.scale(1, 0.32); c.translate(0, -66.5); c.fillStyle = sg; c.beginPath(); c.arc(24.5, 66.5, 9, 0, Math.PI * 2); c.fill(); c.restore();
   if (shape === 'cypress') {
     trunk(c, 22, 52, 4, 67);
     const blobs: Array<[number, number, number]> = [[24, 52, 8], [24, 43, 10], [24, 33, 9], [24, 24, 8], [24, 15, 6], [24, 8, 4]];
@@ -388,10 +423,12 @@ function paintTree(c: Ctx, shape: TreeShape, tone: number) {
   if (broad) {
     // blossom: a judas tree in pink, a plum in white
     const rnd = rng(seed + 1);
-    for (let i = 0; i < 46; i++) {
+    for (let i = 0; i < 70; i++) {
       const [x, y, r] = blobs[Math.floor(rnd() * blobs.length)], a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (r - 1);
-      c.fillStyle = tone === 1 ? (rnd() < 0.6 ? '#f4f4f0' : '#e8d8e0') : (rnd() < 0.6 ? '#e48ab8' : '#f4b6d0');
-      c.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), 2, 2);
+      const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+      const col = tone === 1 ? (rnd() < 0.6 ? '#f6f4ee' : '#ead9e2') : (rnd() < 0.6 ? '#e48ab8' : '#f4b6d0');
+      c.fillStyle = 'rgba(60,30,40,0.25)'; c.beginPath(); c.arc(px + 0.35, py + 0.45, 0.95, 0, Math.PI * 2); c.fill();
+      c.fillStyle = col; c.beginPath(); c.arc(px, py, 0.9, 0, Math.PI * 2); c.fill();
     }
   }
 }
@@ -452,24 +489,33 @@ export function generateTextures(scene: Phaser.Scene) {
 
   // trees (48x72): tall trunk and a layered canopy, so they stand up in the 3/4 view. 'tree' is the
   // default; the scene swaps in a shape and tone per spot (see Ambient)
-  const tree = (key: string, shape: TreeShape, tone: number) => canvas(key, 48, 72, (c) => {
-    paintTree(c, shape, tone);
-    crisp(c, 48, 72);
-    c.fillStyle = 'rgba(0,0,0,0.25)'; c.beginPath(); c.ellipse(24.5, 66.5, 8, 2.5, 0, 0, Math.PI * 2); c.fill();
-  });
+  /** a smooth texture drawn ART_RES times finer than the world (show it with setScale(1 / ART_RES)) */
+  const hdCanvas = (key: string, w: number, h: number, draw: (c: Ctx) => void) => {
+    if (scene.textures.exists(key)) return;
+    const t = scene.textures.createCanvas(key, w * ART_RES, h * ART_RES)!;
+    const c = t.getContext();
+    c.setTransform(ART_RES, 0, 0, ART_RES, 0, 0);
+    draw(c);
+    t.refresh();
+    t.setFilter(Phaser.Textures.FilterMode.LINEAR);
+  };
+  // trees (48x72 in the world): tall trunk and a layered canopy, so they stand up in the 3/4 view. 'tree' is the
+  // default; the scene swaps in a shape and tone per spot (see Ambient)
+  const tree = (key: string, shape: TreeShape, tone: number) => hdCanvas(key, 48, 72, (c) => paintTree(c, shape, tone));
   tree('tree', 'round', 2);
   for (const shape of ['round', 'broad', 'cypress'] as const) for (let tone = 0; tone < 3; tone++) tree(treeKey(shape, tone), shape, tone);
-  // their shadows, cast south-east (sun from the north-west); the trunk's foot sits at (10, 6)
+  // their shadows, cast south-east (sun from the north-west), soft-edged; the trunk's foot sits at (10, 6)
   for (const [shape, rx, ry, rot] of [['round', 21, 10, 0.2], ['broad', 25, 11, 0.15], ['cypress', 22, 6, 0.5]] as const) {
-    canvas(`treeshadow-${shape}`, 80, 40, (c) => {
+    hdCanvas(`treeshadow-${shape}`, 80, 40, (c) => {
+      // drawn off to the left and thrown back in place as a blurred shadow
+      const off = 80 * ART_RES;
+      c.setTransform(ART_RES, 0, 0, ART_RES, -off, 0);
+      c.shadowColor = '#000'; c.shadowBlur = 3 * ART_RES; c.shadowOffsetX = off;
       c.fillStyle = '#000';
       c.beginPath(); c.moveTo(8, 5); c.lineTo(12, 4); c.lineTo(30, 14); c.lineTo(24, 18); c.closePath(); c.fill();
       c.beginPath(); c.ellipse(shape === 'cypress' ? 38 : 40, 19, rx, ry, rot, 0, Math.PI * 2); c.fill();
-      crisp(c, 80, 40);
     });
   }
-  // a basketball hoop at the west end of a court: pole, backboard seen edge-on, orange rim, net.
-  // The pole's foot is at (10, 53); flip it for the east end
   canvas('hoop', 40, 56, (c) => {
     c.fillStyle = '#2a2f33'; c.fillRect(5, 50, 11, 4);
     c.fillStyle = '#3d4246'; c.fillRect(8, 13, 4, 39); c.fillStyle = '#6b7378'; c.fillRect(8, 13, 1, 39);

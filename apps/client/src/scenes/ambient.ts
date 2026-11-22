@@ -2,7 +2,7 @@
 // sun, pole shadows, gulls crossing overhead, pigeons that scatter when you come close, puddles and
 // ripples in the rain, and a camera that leans a little ahead of where you walk.
 import Phaser from 'phaser';
-import { TREE_SHAPES, treeKey, type TreeShape } from '../art/textures';
+import { ART_RES, TREE_SHAPES, treeKey, type TreeShape } from '../art/textures';
 import type { GroundInfo } from '../art/ground';
 
 export interface AmbientEnv {
@@ -41,7 +41,7 @@ export class Ambient {
     for (const s of sprites.filter((o) => o.texture.key === 'tree')) {
       const h = (Math.imul(Math.round(s.x), 73856093) ^ Math.imul(Math.round(s.y), 19349663)) >>> 0;
       const shape = TREE_SHAPES[h % TREE_SHAPES.length], tone = (h >>> 8) % 3;
-      const shadow = scene.add.image(s.x, s.y + 30, `treeshadow-${shape}`).setOrigin(10 / 80, 6 / 40).setDepth(1.05).setAlpha(0.2);
+      const shadow = scene.add.image(s.x, s.y + 30, `treeshadow-${shape}`).setOrigin(10 / 80, 6 / 40).setScale(1 / ART_RES).setDepth(1.05).setAlpha(0.2);
       s.setTexture(treeKey(shape, tone));
       this.trees.push({ s, shadow, shape, tone });
     }

@@ -6,7 +6,7 @@ import {
   AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
-  DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture, fitCharacter, footBody,
+  ART_RES, DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture, fitCharacter, footBody,
 } from '../art/textures';
 import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
@@ -310,7 +310,7 @@ export class CampusScene extends Phaser.Scene {
     const trees = this.physics.add.staticGroup();
     for (const [x, y] of TREES) {
       const tree = trees.create(x * TILE + 16, y * TILE - 4, 'tree') as Phaser.Physics.Arcade.Sprite;
-      tree.setDepth(y * TILE + 30);
+      tree.setScale(1 / ART_RES).setDepth(y * TILE + 30).refreshBody();
       tree.body!.setSize(12, 8).setOffset(18, 60);
     }
     for (const [x, y] of BENCHES) this.add.image(x * TILE + 16, y * TILE + 16, 'bench').setDepth(y * TILE + 10);
