@@ -79,7 +79,7 @@ button.primary:hover { background: #8f5c33; }
 .creator-steps div { padding: 6px 10px; border-radius: 999px; }
 .creator-steps .on { background: var(--accent-dark); color: #fff; font-weight: 700; }
 .creator-steps .done { color: var(--good); font-weight: 600; }
-.creator-body { display: grid; grid-template-columns: 220px 1fr; gap: 20px; padding: 16px; overflow: auto; flex: 1; min-height: 0; }
+.creator-body { --cb-pad: 16px; display: grid; grid-template-columns: 220px 1fr; gap: 20px; padding: var(--cb-pad); overflow: auto; flex: 1; min-height: 0; }
 .creator-preview { text-align: center; background: linear-gradient(#d9e8cf, #b7d6a0); border-radius: 10px; padding: 18px 10px; align-self: start; position: sticky; top: 0; }
 .creator-preview canvas { display: block; margin: 0 auto; }
 .creator-preview .cp-bust { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f4f8ef, #c9dfba); box-shadow: inset 0 0 0 3px rgba(255,255,255,0.7), 0 2px 8px rgba(30,50,30,0.18); }
@@ -102,6 +102,18 @@ button.primary:hover { background: #8f5c33; }
 .opt { font: inherit; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
 .opt span { font-size: 13px; color: #5b6266; line-height: 1.35; }
 .opt.on { border-color: var(--accent-dark); box-shadow: 0 0 0 2px var(--accent-dark); background: #fbf5ec; }
+/* the personality mixer: share 100 points across the traits */
+.mix-intro { margin: 0 0 8px; padding: 6px 0; font-size: 13px; color: #5b6266; line-height: 1.4; position: sticky; top: calc(-1 * var(--cb-pad, 16px)); z-index: 2; background: var(--card); box-shadow: 0 6px 6px -6px rgba(0, 0, 0, 0.15); }
+.mix-left { color: var(--accent-dark); white-space: nowrap; }
+.opt.mix { cursor: default; }
+.mix-ctl { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.mix-btn { font: inherit; font-weight: 800; width: 30px; height: 30px; flex: none; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.mix-btn:disabled { opacity: 0.35; cursor: default; }
+.mix-bar { flex: 1; height: 8px; border-radius: 4px; background: #ece6da; overflow: hidden; }
+.mix-bar i { display: block; height: 100%; background: var(--accent-dark); }
+.mix-pts { width: 28px; text-align: right; }
+.opt .mix-gain { font-size: 12px; color: #8a8f92; }
+.mix-lean { margin-top: 10px; font-size: 13px; color: #5b6266; }
 .story-intro { margin: 0; padding: 12px 14px; background: #eef3ea; border-radius: 10px; line-height: 1.5; color: #2f4a3a; }
 .summary { display: flex; flex-direction: column; gap: 8px; }
 .sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
@@ -626,7 +638,7 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
   .diary-card { padding: 16px; }
   .creator-steps { padding: 8px 10px 0; gap: 2px; }
   .creator-steps div { padding: 4px 8px; }
-  .creator-body { padding: 10px; gap: 12px; }
+  .creator-body { --cb-pad: 10px; gap: 12px; }
   .creator-nav { padding: 8px 10px; }
 }
 /* narrow phones (portrait): a shorter HUD card, its buttons in two rows, and the countdown clear of it */

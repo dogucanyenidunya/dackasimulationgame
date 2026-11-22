@@ -40,7 +40,7 @@ import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, VISIT
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
-import { dilemmaDone, matchState, runDilemma, shape, temperLabel, type DilemmaId } from '../game/dilemmas';
+import { arcLine, dilemmaDone, matchState, runDilemma, shape, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
@@ -56,7 +56,7 @@ import { ATTRS, CAUSES } from '../content/character';
 import { CLASS_LETTERS, SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
 import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp, growAttr, growRespect } from '../game/state';
-import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
+import { GUARDIANS, mixBonus, mixLean, mixName, moodGuard, traitMix, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
 
 const REVEAL_RADIUS = 7;
@@ -3839,7 +3839,7 @@ export class CampusScene extends Phaser.Scene {
       <div style="margin-top:12px">${avgs.map(({ s, a }) => `<div class="sum-row"><span>${L(s.name)}</span><b>${a}</b></div>`).join('')}
       <div class="sum-row"><span><b>${L({ tr: 'Ortalama', en: 'Average' })}</b></span><b>${gpa}</b></div></div>
       ${cert ? `<div class="cert">${cert}</div>` : ''}
-      <div class="sum-row"><span>${L({ tr: 'Kim oluyorsun', en: "Who you're becoming" })}</span><b>${temperLabel(st) ?? L({ tr: 'Henüz belli değil', en: 'Not clear yet' })}</b></div>
+      <div class="sum-row"><span>${L({ tr: 'Kim oluyorsun', en: "Who you're becoming" })}</span><b>${(() => { const mix = traitMix(ch); return arcLine(st, mixName(mix), mixLean(mix)); })()}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Arkadaşların', en: 'Your friends' })}</span><b>${friends.join(', ') || '—'}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' })}</span><b>${st.everSick ? L({ tr: '✕ Hastalandın', en: '✕ You got sick' }) : L({ tr: '✓ Demir Gibi madalyası!', en: '✓ Iron Kid medal!' })}</b></div>
       <p style="line-height:1.5">${L({ tr: 'Yaz tatili başlıyor. 2. yıl (5. sınıf) bir sonraki güncellemede geliyor!', en: 'Summer break begins. Year 2 (Grade 5) arrives in a future update!' })}</p>
@@ -3857,9 +3857,9 @@ export class CampusScene extends Phaser.Scene {
     if (g.energy) st.energy = clamp(st.energy + g.energy);
     if (g.hunger) st.hunger = clamp(st.hunger + g.hunger);
     if (g.mood) this.changeMood(g.mood);
-    const traitAttr = TRAITS.find((x) => x.id === ch.trait)!.attr;
+    const mix = traitMix(ch);
     for (const [k, v] of Object.entries(g.attrs ?? {}) as Array<[AttrId, number]>) {
-      const bonus = k === traitAttr ? 1.1 : 1;
+      const bonus = mixBonus(mix, k);
       // (it slows down near this year's ceiling: you're in the 4th grade with years to grow, see growAttr)
       ch.attributes[k] = growAttr(ch.attributes[k], v * bonus, st.year);
     }
@@ -3870,6 +3870,8 @@ export class CampusScene extends Phaser.Scene {
 
   private changeMood(delta: number) {
     const st = this.save.state;
+    // a carefree streak in your personality takes the edge off bad moments (Tasasız)
+    if (delta < 0) delta *= moodGuard(traitMix(this.save.character));
     st.mood = clamp(st.mood + delta);
   }
 

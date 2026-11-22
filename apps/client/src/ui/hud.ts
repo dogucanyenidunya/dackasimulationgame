@@ -5,7 +5,7 @@ import { sfx } from '../audio';
 import { askConfirm } from './confirm';
 import { isTouch, onTouchMode } from './touch';
 import {
-  ATTRS, TRAITS, type CharacterData,
+  ATTRS, mixLabel, traitMix, type CharacterData,
 } from '../content/character';
 import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
 import { weekday } from '../game/schedule';
@@ -661,7 +661,6 @@ export class Hud {
   }
 
   showProfile(c: CharacterData, st: PlayerState) {
-    const trait = TRAITS.find((x) => x.id === c.trait)!;
     const body = document.createElement('div');
     body.className = 'card profile-card';
     const grades = SUBJECTS.map((s) => {
@@ -679,7 +678,7 @@ export class Hud {
       <div style="margin-top:14px;text-align:right"><button type="button" class="primary">${t('close')}</button></div>`;
     body.querySelector('h2')!.textContent = `${c.first} ${c.last}`;
     body.querySelector('.age')!.textContent = t('age_line', { home: c.hometown });
-    body.querySelector('.trait')!.textContent = L(trait.name);
+    body.querySelector('.trait')!.textContent = mixLabel(traitMix(c));
     paintCharacter(body.querySelector('canvas')!, c.look, 0, 0, { bust: true });
     this.openCustomModal(body, ['Enter', 'Escape', 'c', 'C', ' ']);
   }

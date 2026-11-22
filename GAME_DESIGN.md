@@ -298,7 +298,7 @@ The rest (Kütüphane, Revir, Spor Salonu, Müze, Teknik Alan, the outdoor court
 | Hair | ~15 styles × 12 colors | Styles change as you age |
 | Uniform | Fixed Daçka uniform | Authentic. You express yourself through **hair, glasses, bag, shoes, watch and pins** |
 | Hometown | Any of Turkey's 81 provinces | Flavor in dialogue, plus small hometown quests and summer trips |
-| Personality trait | Pick 1: *Curious*, *Sporty*, *Chatty*, *Creative*, *Calm* | +10% XP in one attribute family (§6.1). What you *like* |
+| Personality | Share **100 points** across 11 traits: *Curious*, *Sporty*, *Chatty*, *Creative*, *Calm*, *Shy*, *Helpful*, *Joker*, *Stubborn*, *Carefree*, *Leader* (steps of 10; all 100 on one is fine) | Each trait gives up to +10% gains in one attribute family (§6.1), in proportion to its share (*Carefree* instead takes up to 30% off mood losses), and a **starting lean** on the six temperament axes (blended by share). What you do from then on can change that lean |
 
 **Aging:** sprites change across **3 age stages**: *child* (Years 1–3), *early teen* (Years 4–6) and *teen* (Years 7–10). The player can restyle their hair at each new stage.
 
@@ -1287,3 +1287,6 @@ Students walk to a building's door and go in, and come out of the same door. The
 **Talk lines fit the moment:** what a student says depends on where and when you catch them (first days, morning, in class, at a meal, break, afternoon, evening plaza, study time, weekend), mixed with their own lines; rain, the ceremony and going home for the weekend add lines of their own (`content/lines.ts`).
 
 **Your story has no gameplay effect (for now):** how you lost your parent no longer gives a strength, a starting bonus or a perk (§5.2). Everyone starts with 10 in every attribute and 0 Respect; friendships, mood and the nurse treat every story the same; the Teknik Alan stays locked for everyone. The creator shows each answer with its calm sentence only, and the summary and profile no longer show a "Your strength" card.
+
+**Personality mix (v0.11):** the creator's single trait became a 100-point mix. Starting leans at 100 points: Meraklı *Hırslı* +10, *Haylaz* +6 · Sportif *Devreci* +10, *Gösterişli* +5 · Konuşkan *Gösterişli* +12, *Açık* +10 · Yaratıcı *Kendi yolunda* +10, *Sessiz* +5 · Sakin *Uslu* +10, *Sessiz* +8. · Utangaç *Sessiz* +12, *Kapalı* +10 · Yardımsever *Şefkatli* +12, *Açık* +6 · Şakacı *Gösterişli* +10, *Haylaz* +8 · Dik başlı *Sert* +10, *Haylaz* +6 · Tasasız *Rahat* +12, *Açık* +5 · Lider *Hırslı* +8, *Devreci* +8, *Gösterişli* +4. Every end of every axis now has at least one trait that starts you there. The karne line reads e.g. "Konuşkan ve Meraklı geldin, Sessiz · Kapalı oluyorsun". Older characters keep their single trait as 100 points and get its lean once.
+

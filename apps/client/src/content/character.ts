@@ -1,9 +1,10 @@
 // Character creation content: look options, traits, family and "Your story" (GDD §5).
 import type { CharacterLook, HairStyle } from '../art/textures';
-import { getLang, type Text } from '../i18n';
+import { L, getLang, type Text } from '../i18n';
+import type { AxisId } from '../game/state';
 
 export type Gender = 'girl' | 'boy';
-export type TraitId = 'curious' | 'sporty' | 'chatty' | 'creative' | 'calm';
+export type TraitId = 'curious' | 'sporty' | 'chatty' | 'creative' | 'calm' | 'shy' | 'helpful' | 'joker' | 'stubborn' | 'carefree' | 'leader';
 export type Loss = 'mother' | 'father' | 'both';
 export type CauseId = 'illness' | 'accident' | 'disaster' | 'work' | 'service' | 'private';
 export type GuardianId =
@@ -19,7 +20,10 @@ export interface CharacterData {
   gender: Gender;
   look: CharacterLook;
   hometown: string;
+  /** the strongest trait in your mix (older saves have only this) */
   trait: TraitId;
+  /** your personality as a mix: points per trait, adding up to 100 */
+  mix?: TraitMix;
   loss: Loss;
   guardian: GuardianId;
   cause: CauseId;
@@ -52,13 +56,90 @@ export const ATTRS: Array<{ id: AttrId; name: Text }> = [
   { id: 'creativity', name: { tr: 'Yaratıcılık', en: 'Creativity' } },
 ];
 
-export const TRAITS: Array<{ id: TraitId; name: Text; desc: Text; attr: AttrId }> = [
-  { id: 'curious', attr: 'knowledge', name: { tr: 'Meraklı', en: 'Curious' }, desc: { tr: 'Her şeyi sorarsın. Bilgi kazanımın +%10.', en: 'You ask about everything. +10% Knowledge gains.' } },
-  { id: 'sporty', attr: 'fitness', name: { tr: 'Sportif', en: 'Sporty' }, desc: { tr: 'Yerinde duramazsın. Kondisyon kazanımın +%10.', en: "You can't sit still. +10% Fitness gains." } },
-  { id: 'chatty', attr: 'social', name: { tr: 'Konuşkan', en: 'Chatty' }, desc: { tr: 'Herkesle sohbet edersin. Sosyallik kazanımın +%10.', en: 'You talk to everyone. +10% Social gains.' } },
-  { id: 'creative', attr: 'creativity', name: { tr: 'Yaratıcı', en: 'Creative' }, desc: { tr: 'Defterlerin çizim dolu. Yaratıcılık kazanımın +%10.', en: 'Your notebooks are full of drawings. +10% Creativity gains.' } },
-  { id: 'calm', attr: 'discipline', name: { tr: 'Sakin', en: 'Calm' }, desc: { tr: 'Kolay kolay telaşlanmazsın. Disiplin kazanımın +%10.', en: "You don't rattle easily. +10% Discipline gains." } },
+export type AxisLean = Partial<Record<AxisId, number>>;
+export type TraitMix = Partial<Record<TraitId, number>>;
+/** the personality mix is shared out in steps of this many points, 100 in all */
+export const MIX_STEP = 10;
+export const MIX_TOTAL = 100;
+
+/** `lean`: where you start on the six hidden temperament axes (game/dilemmas.ts); what you do from then on can change it */
+/** `attr`: the attribute it speeds up; `mood`: instead, it softens mood losses (Tasasız) */
+export const TRAITS: Array<{ id: TraitId; name: Text; desc: Text; attr?: AttrId; mood?: true; lean: AxisLean }> = [
+  { id: 'curious', attr: 'knowledge', lean: { ambition: 10, rules: 6 }, name: { tr: 'Meraklı', en: 'Curious' },
+    desc: { tr: 'Her şeyi sorar, her şeyi kurcalarsın. Hırslı ve biraz haylaz başlarsın.', en: 'You ask about everything and poke at everything. You start out ambitious and a little mischievous.' } },
+  { id: 'sporty', attr: 'fitness', lean: { loyalty: 10, presence: 5 }, name: { tr: 'Sportif', en: 'Sporty' },
+    desc: { tr: 'Yerinde duramazsın. Takım ruhuyla başlarsın.', en: "You can't sit still. You start out a team player." } },
+  { id: 'chatty', attr: 'social', lean: { presence: 12, heart: 10 }, name: { tr: 'Konuşkan', en: 'Chatty' },
+    desc: { tr: 'Herkesle sohbet edersin. Gösterişli ve açık yürekli başlarsın.', en: 'You talk to everyone. You start out showy and open-hearted.' } },
+  { id: 'creative', attr: 'creativity', lean: { loyalty: -10, presence: -5 }, name: { tr: 'Yaratıcı', en: 'Creative' },
+    desc: { tr: 'Defterlerin çizim dolu. Kendi yolunda ve biraz sessiz başlarsın.', en: 'Your notebooks are full of drawings. You start out going your own way, a little quiet.' } },
+  { id: 'calm', attr: 'discipline', lean: { rules: -10, presence: -8 }, name: { tr: 'Sakin', en: 'Calm' },
+    desc: { tr: 'Kolay kolay telaşlanmazsın. Uslu ve sessiz başlarsın.', en: "You don't rattle easily. You start out dutiful and quiet." } },
+  { id: 'shy', attr: 'creativity', lean: { presence: -12, heart: -10 }, name: { tr: 'Utangaç', en: 'Shy' },
+    desc: { tr: 'Yeni biriyle konuşmadan önce iki kere düşünürsün. Sessiz ve içine kapanık başlarsın.', en: 'You think twice before talking to someone new. You start out quiet and guarded.' } },
+  { id: 'helpful', attr: 'social', lean: { warmth: -12, heart: 6 }, name: { tr: 'Yardımsever', en: 'Helpful' },
+    desc: { tr: 'Birinin derdini görünce duramazsın. Şefkatli ve açık yürekli başlarsın.', en: "You can't walk past someone in trouble. You start out caring and open-hearted." } },
+  { id: 'joker', attr: 'social', lean: { presence: 10, rules: 8 }, name: { tr: 'Şakacı', en: 'Joker' },
+    desc: { tr: 'Sınıfı güldürmeden duramazsın. Gösterişli ve haylaz başlarsın.', en: "You can't help making the class laugh. You start out showy and mischievous." } },
+  { id: 'stubborn', attr: 'fitness', lean: { warmth: 10, rules: 6 }, name: { tr: 'Dik başlı', en: 'Stubborn' },
+    desc: { tr: 'Bir kere karar verdin mi kimse fikrini değiştiremez. Sert ve biraz haylaz başlarsın.', en: "Once you've made up your mind, nobody can change it. You start out tough and a little mischievous." } },
+  { id: 'carefree', mood: true, lean: { ambition: -12, heart: 5 }, name: { tr: 'Tasasız', en: 'Carefree' },
+    desc: { tr: 'Kötü bir gün seni pek üzmez. Rahat başlarsın; moralin daha zor bozulur.', en: "A bad day doesn't get you down much. You start out easygoing, and your mood is harder to dent." } },
+  { id: 'leader', attr: 'discipline', lean: { ambition: 8, loyalty: 8, presence: 4 }, name: { tr: 'Lider', en: 'Leader' },
+    desc: { tr: 'Oyunu kim kuracaksa o sensin. Hırslı ve takımına bağlı başlarsın.', en: "When there's a game to set up, it's you who sets it up. You start out ambitious and loyal to your team." } },
 ];
+
+/** your mix (older characters chose a single trait: that's all of it) */
+export function traitMix(ch: Pick<CharacterData, 'trait' | 'mix'>): TraitMix {
+  return ch.mix && Object.values(ch.mix).some((v) => (v ?? 0) > 0) ? ch.mix : { [ch.trait]: MIX_TOTAL };
+}
+
+/** the traits in your mix, strongest first */
+export function mixParts(mix: TraitMix): Array<{ trait: (typeof TRAITS)[number]; pts: number }> {
+  return TRAITS.map((t) => ({ trait: t, pts: mix[t.id] ?? 0 })).filter((x) => x.pts > 0).sort((a, b) => b.pts - a.pts);
+}
+
+/** where the mix starts you on the temperament axes: each trait's lean, weighted by its share */
+export function mixLean(mix: TraitMix): AxisLean {
+  const out: AxisLean = {};
+  for (const { trait, pts } of mixParts(mix)) {
+    for (const [k, v] of Object.entries(trait.lean) as Array<[AxisId, number]>) out[k] = (out[k] ?? 0) + (v * pts) / MIX_TOTAL;
+  }
+  for (const k of Object.keys(out) as AxisId[]) out[k] = Math.round(out[k]! * 10) / 10;
+  return out;
+}
+
+/** gain multiplier for an attribute: all of one trait gives ×1.1, a half share ×1.05 */
+export function mixBonus(mix: TraitMix, attr: AttrId): number {
+  return 1 + 0.1 * mixParts(mix).filter((x) => x.trait.attr === attr).reduce((a, x) => a + x.pts, 0) / MIX_TOTAL;
+}
+
+/** how much of the mix is this trait, 0–1 */
+export function mixShare(mix: TraitMix, id: TraitId): number {
+  return (mix[id] ?? 0) / MIX_TOTAL;
+}
+
+/** mood losses are multiplied by this: all of Tasasız takes 30% off them */
+export function moodGuard(mix: TraitMix): number {
+  return 1 - 0.3 * mixParts(mix).filter((x) => x.trait.mood).reduce((a, x) => a + x.pts, 0) / MIX_TOTAL;
+}
+
+/** e.g. "Konuşkan %60 · Meraklı %40" */
+export function mixLabel(mix: TraitMix): string {
+  const tr = getLang() === 'tr';
+  return mixParts(mix).map(({ trait, pts }) => (tr ? `${L(trait.name)} %${pts}` : `${L(trait.name)} ${pts}%`)).join(' · ');
+}
+
+/** the one or two strongest traits, e.g. "Konuşkan ve Meraklı" */
+export function mixName(mix: TraitMix): Text {
+  const top = mixParts(mix).slice(0, 2).map((x) => x.trait.name);
+  return { tr: top.map((n) => n.tr).join(' ve '), en: top.map((n) => n.en).join(' and ') };
+}
+
+/** the strongest trait in a mix (stored as `trait` for older code and other players) */
+export function mainTrait(mix: TraitMix): TraitId {
+  return mixParts(mix)[0]?.trait.id ?? 'curious';
+}
 
 export const LOSSES: Array<{ id: Loss; name: Text }> = [
   { id: 'mother', name: { tr: 'Annemi', en: 'My mother' } },

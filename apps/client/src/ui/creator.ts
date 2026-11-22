@@ -1,10 +1,11 @@
 // Character creator (GDD §5): look → about you → your story → summary.
 import { paintCharacter, type CharacterLook, type HairStyle } from '../art/textures';
 import {
-  ATTRS, BOARDING_OPTIONS, CAUSES, EYE_COLORS, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
-  defaultGuardian, startingAttributes, guardianOptions,
-  type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId,
+  ATTRS, BOARDING_OPTIONS, CAUSES, EYE_COLORS, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, MIX_STEP, MIX_TOTAL, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
+  defaultGuardian, startingAttributes, guardianOptions, mainTrait, mixLabel, mixLean,
+  type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId, type TraitMix,
 } from '../content/character';
+import { leanings } from '../game/dilemmas';
 import { L, getLang, onLangChange, type Text } from '../i18n';
 
 const S = {
@@ -46,13 +47,17 @@ const S = {
   randomize: { tr: 'Rastgele', en: 'Random' },
   nameError: { tr: 'Lütfen adını ve soyadını yaz.', en: 'Please enter your first and last name.' },
   storyError: { tr: 'Lütfen "Nasıl oldu?" sorusuna bir cevap seç.', en: 'Please choose an answer for "How did it happen?".' },
-  traitError: { tr: 'Lütfen bir kişilik seç.', en: 'Please choose a personality.' },
+  traitError: { tr: 'Kişiliğine {n} puan daha dağıt (toplam 100).', en: 'Share out {n} more points across your personality (100 in all).' },
+  mixIntro: { tr: '100 puanı özellikler arasında paylaştır. Hepsini tek bir özelliğe de verebilirsin.', en: 'Share 100 points across these traits. You can also give them all to one.' },
+  mixLeft: { tr: 'Kalan', en: 'Left' },
+  mixLean: { tr: 'Başlangıçta', en: 'You start out' },
+  mixLeanNone: { tr: 'Henüz bir eğilimin yok', en: 'No leaning yet' },
   age: { tr: '9 yaşında · 4. sınıf', en: 'Age 9 · Grade 4' },
 };
 
 interface Draft {
   first: string; last: string; gender: Gender;
-  look: CharacterLook; hometown: string; trait: TraitId | null;
+  look: CharacterLook; hometown: string; mix: TraitMix;
   loss: Loss; guardian: GuardianId; cause: CauseId | null; boarding: Boarding;
 }
 
@@ -69,7 +74,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     const d: Draft = {
       first: '', last: '', gender: 'girl',
       look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false, eyes: EYE_COLORS[1], freckles: false },
-      hometown: 'İstanbul', trait: null, loss: 'father', guardian: 'mother', cause: null, boarding: 'evci',
+      hometown: 'İstanbul', mix: {}, loss: 'father', guardian: 'mother', cause: null, boarding: 'evci',
     };
 
     host.innerHTML = `
@@ -118,6 +123,56 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     const field = (label: Text, inner: string, help?: Text) =>
       `<div class="field"><div class="field-label">${esc(L(label))}</div>${inner}${help ? `<div class="field-help">${esc(L(help))}</div>` : ''}</div>`;
 
+    /** points not yet shared out */
+
+    const mixLeft = () => MIX_TOTAL - Object.values(d.mix).reduce((a, v) => a + (v ?? 0), 0);
+
+    /** the personality step: share 100 points across the traits */
+
+    const mixer = (): string => {
+
+      const left = mixLeft();
+
+      const lean = leanings(mixLean(d.mix));
+
+      // what the share does: speeds up one attribute, or (Tasasız) softens mood losses
+      const effect = (tr: (typeof TRAITS)[number], pts: number) => tr.attr
+        ? `${L(ATTRS.find((a) => a.id === tr.attr)!.name)} +%${pts / 10}`
+        : L({ tr: `Moral kaybı −%${(pts * 0.3).toFixed(0)}`, en: `Mood losses −${(pts * 0.3).toFixed(0)}%` });
+
+      return `<p class="mix-intro">${esc(L(S.mixIntro))} <b class="mix-left">${esc(L(S.mixLeft))}: ${left}</b></p>
+
+        <div class="cards">${TRAITS.map((tr) => {
+
+          const pts = d.mix[tr.id] ?? 0;
+
+          return `<div class="opt mix ${pts > 0 ? 'on' : ''}">
+
+            <b>${esc(L(tr.name))}</b><span>${esc(L(tr.desc))}</span>
+
+            <div class="mix-ctl">
+
+              <button type="button" class="mix-btn" data-act="mix-" data-v="${tr.id}" ${pts === 0 ? 'disabled' : ''} aria-label="−">−</button>
+
+              <div class="mix-bar"><i style="width:${pts}%"></i></div>
+
+              <b class="mix-pts">${pts}</b>
+
+              <button type="button" class="mix-btn" data-act="mix+" data-v="${tr.id}" ${left === 0 ? 'disabled' : ''} aria-label="+">+</button>
+
+            </div>
+
+            <span class="mix-gain">${esc(effect(tr, pts))}</span>
+
+          </div>`;
+
+        }).join('')}</div>
+
+        <div class="mix-lean">${esc(L(S.mixLean))}: <b>${esc(lean.length ? lean.join(' · ') : L(S.mixLeanNone))}</b></div>`;
+
+    };
+
+
     const render = () => {
       stepsEl.innerHTML = S.steps.map((s, i) => `<div class="${i === step ? 'on' : i < step ? 'done' : ''}">${i + 1}. ${esc(L(s))}</div>`).join('');
       const full = `${d.first} ${d.last}`.trim();
@@ -140,9 +195,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
           `<div class="row2">${field(S.first, `<input type="text" maxlength="16" data-input="first" value="${esc(d.first)}" autocomplete="off">`)}` +
           `${field(S.last, `<input type="text" maxlength="16" data-input="last" value="${esc(d.last)}" autocomplete="off">`)}</div>` +
           field(S.hometown, `<select data-input="hometown">${PROVINCES.map((p) => `<option ${p === d.hometown ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>`) +
-          field(S.trait, `<div class="cards">${TRAITS.map((tr) => `
-            <button type="button" class="opt ${d.trait === tr.id ? 'on' : ''}" data-field="trait" data-v="${tr.id}">
-              <b>${esc(L(tr.name))}</b><span>${esc(L(tr.desc))}</span></button>`).join('')}</div>`);
+          field(S.trait, mixer());
       } else if (step === 2) {
         const gOpts = guardianOptions(d.loss).map((id) => GUARDIANS.find((g) => g.id === id)!);
         form.innerHTML =
@@ -157,14 +210,13 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
               <b>${esc(L(b.name))}</b><span>${esc(L(b.desc))}</span></button>`).join('')}</div>`);
       } else {
         const cause = CAUSES.find((c) => c.id === d.cause)!;
-        const trait = TRAITS.find((x) => x.id === d.trait)!;
         const { attributes, respect } = startingAttributes();
         const guardian = GUARDIANS.find((g) => g.id === d.guardian)!;
         const loss = LOSSES.find((l) => l.id === d.loss)!;
         form.innerHTML = `
           <div class="summary">
             <div class="sum-row"><span>${esc(L(S.hometown))}</span><b>${esc(d.hometown)}</b></div>
-            <div class="sum-row"><span>${esc(L(S.trait))}</span><b>${esc(L(trait.name))}</b></div>
+            <div class="sum-row"><span>${esc(L(S.trait))}</span><b>${esc(mixLabel(d.mix))}</b></div>
             <div class="sum-row"><span>${esc(L(S.lost))}</span><b>${esc(L(loss.name))}</b></div>
             <div class="sum-row"><span>${esc(L(S.family))}</span><b>${esc(L(guardian.name))}</b></div>
             <div class="sum-row"><span>${esc(L({ tr: 'Hafta sonları', en: 'Weekends' }))}</span><b>${esc(L(BOARDING_OPTIONS.find((b) => b.id === d.boarding)!.name))}</b></div>
@@ -185,7 +237,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
 
     const validate = (): string => {
       if (step === 1 && (!d.first.trim() || !d.last.trim())) return L(S.nameError);
-      if (step === 1 && !d.trait) return L(S.traitError);
+      if (step === 1 && mixLeft() > 0) return L(S.traitError).replace('{n}', String(mixLeft()));
       if (step === 2 && !d.cause) return L(S.storyError);
       return '';
     };
@@ -208,6 +260,13 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         d.look.glasses = Math.random() < 0.25; d.look.eyes = pick(EYE_COLORS); d.look.freckles = Math.random() < 0.2;
         render(); return;
       }
+      if (act === 'mix+' || act === 'mix-') {
+        const id = btn.dataset.v as TraitId, cur = d.mix[id] ?? 0;
+        const next = act === 'mix+' ? cur + Math.min(MIX_STEP, mixLeft()) : Math.max(0, cur - MIX_STEP);
+        if (next > 0) d.mix[id] = next; else delete d.mix[id];
+        error = '';
+        render(); return;
+      }
       if (act === 'back') { error = ''; step--; render(); return; }
       if (act === 'menu') { window.clearInterval(timer); window.location.reload(); return; }
       if (act === 'next') {
@@ -218,7 +277,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         const { attributes, respect } = startingAttributes();
         resolve({
           first: d.first.trim(), last: d.last.trim(), gender: d.gender, look: { ...d.look },
-          hometown: d.hometown, trait: d.trait!, loss: d.loss, guardian: d.guardian, cause: d.cause!,
+          hometown: d.hometown, trait: mainTrait(d.mix), mix: { ...d.mix }, loss: d.loss, guardian: d.guardian, cause: d.cause!,
           boarding: d.boarding, attributes, respect,
         });
         return;
@@ -240,7 +299,6 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         case 'freckles': d.look.freckles = v === 'yes'; break;
         case 'skirt': d.look.skirt = v === 'yes'; break;
         case 'glasses': d.look.glasses = v === 'yes'; break;
-        case 'trait': d.trait = v as TraitId; error = ''; break;
         case 'loss':
           d.loss = v as Loss;
           if (!guardianOptions(d.loss).includes(d.guardian)) d.guardian = defaultGuardian(d.loss);

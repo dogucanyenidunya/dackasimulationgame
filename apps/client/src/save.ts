@@ -1,7 +1,7 @@
 // Prototype persistence: browser localStorage. Replaced by server-side saves in M2 (GDD §18.5).
 import { LAYOUT, MAP_H, MAP_W, SPAWN } from './content/campus';
 import type { Lang } from './i18n';
-import type { AttrId, CauseId, CharacterData } from './content/character';
+import { mixLean, traitMix, type AttrId, type CauseId, type CharacterData } from './content/character';
 import { defaultState, growAttr, growRespect, growSkill, withDefaults, type PlayerState } from './game/state';
 
 export interface SaveData {
@@ -28,19 +28,28 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     v: 2,
     lang,
     character,
-    state: defaultState(),
+    state: withLean(defaultState(), character),
     player: { x: SPAWN.x, y: SPAWN.y, dir: 3 },
     // the story starts on the Saturday morning of the registration weekend
     clock: { day: 1, minutes: 9 * 60 },
     fog: '',
     seen: [],
     discovered: [],
-    flags: { [STORY_BONUS_REMOVED]: true, [PACED_TO_GRADE]: true },
+    flags: { [STORY_BONUS_REMOVED]: true, [PACED_TO_GRADE]: true, [TRAIT_LEAN]: true },
     layout: LAYOUT,
   };
 }
 
 const STORY_BONUS_REMOVED = 'storyBonusRemoved';
+/** your trait sets where you start on the temperament axes (v0.11): older characters get it once */
+const TRAIT_LEAN = 'traitLean';
+
+/** adds your personality mix's starting lean to the temperament axes */
+function withLean(st: PlayerState, ch: CharacterData): PlayerState {
+  const lean = mixLean(traitMix(ch));
+  for (const [k, v] of Object.entries(lean) as Array<[keyof PlayerState['temper'], number]>) st.temper[k] = Math.max(-100, Math.min(100, st.temper[k] + v));
+  return st;
+}
 /** stats now grow at a pace that lasts from the 4th grade to the 12th (v0.11): older characters are brought into line once */
 const PACED_TO_GRADE = 'pacedToGrade';
 
@@ -84,6 +93,10 @@ export function upgradeSave(data: SaveData): SaveData {
     ch.respect = repace(ch.respect, 0, 5, (v, g) => growRespect(v, g, year));
     for (const k of Object.keys(st.skills) as Array<keyof typeof st.skills>) st.skills[k] = repace(st.skills[k], 0, 4, (v, g) => growSkill(v, g, year));
     data.flags[PACED_TO_GRADE] = true;
+  }
+  if (!data.flags[TRAIT_LEAN]) {
+    withLean(data.state, data.character);
+    data.flags[TRAIT_LEAN] = true;
   }
   return data;
 }

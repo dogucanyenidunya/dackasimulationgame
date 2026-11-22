@@ -31,11 +31,24 @@ export function shape(st: PlayerState, d: Partial<Record<AxisId, number>>) {
 
 export const dilemmaDone = (st: PlayerState, id: DilemmaId) => st.memories.some((m) => m.id === id);
 
-/** the two strongest leanings, e.g. "Şefkatli · Açık"; null while nothing stands out yet */
+/** the two strongest leanings, e.g. ["Şefkatli", "Açık"]; empty while nothing stands out yet */
+export function leanings(t: Partial<Record<AxisId, number>>): string[] {
+  return AXES.map((a) => ({ a, v: t[a.id] ?? 0 })).filter((x) => Math.abs(x.v) >= 5)
+    .sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 2).map(({ a, v }) => L(v < 0 ? a.lo : a.hi));
+}
+
+/** e.g. "Şefkatli · Açık"; null while nothing stands out yet */
 export function temperLabel(st: PlayerState): string | null {
-  const top = AXES.map((a) => ({ a, v: st.temper[a.id] })).filter((x) => Math.abs(x.v) >= 5)
-    .sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 2);
-  return top.length ? top.map(({ a, v }) => L(v < 0 ? a.lo : a.hi)).join(' · ') : null;
+  return leanings(st.temper).join(' · ') || null;
+}
+
+/** the karne line: who you were when you arrived (your trait's lean) and who you are becoming */
+export function arcLine(st: PlayerState, trait: Text, lean: Partial<Record<AxisId, number>>): string {
+  const now = leanings(st.temper), start = leanings(lean), name = L(trait);
+  if (!now.length) return T(`${name} geldin; kim olacağın henüz belli değil`, `You arrived ${name.toLowerCase()}; who you'll be isn't clear yet`);
+  const label = now.join(' · ');
+  if (now.length === start.length && now.every((x) => start.includes(x))) return T(`${name} geldin, hâlâ öylesin: ${label}`, `You arrived ${name.toLowerCase()} and still are: ${label}`);
+  return T(`${name} geldin, ${label} oluyorsun`, `You arrived ${name.toLowerCase()}, now becoming ${label}`);
 }
 
 interface Choice {
