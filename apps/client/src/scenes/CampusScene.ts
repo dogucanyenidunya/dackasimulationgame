@@ -40,7 +40,8 @@ import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, VISIT
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
-import { arcLine, dilemmaDone, matchState, runDilemma, shape, type DilemmaId } from '../game/dilemmas';
+import { SECRETS, dueSecrets, hasSecret } from '../game/secrets';
+import { AXES, arcLine, dilemmaDone, matchState, runDilemma, shape, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
@@ -3005,7 +3006,7 @@ export class CampusScene extends Phaser.Scene {
     const st = this.save.state;
     const sp = SURPRISES[Math.floor(Math.random() * SURPRISES.length)];
     const e = sp.effect;
-    if (e.mood) this.changeMood(e.mood);
+    if (e.mood) this.changeMood(e.mood * (hasSecret(st, 'icKale') ? 0.5 : 1));
     if (e.minutes) this.advance(e.minutes, undefined, undefined, false);
     if (e.discipline) { st.discipline = Math.min(100, st.discipline + e.discipline); st.lastPenaltyDay = this.save.clock.day; }
     if (e.homeworkHit) { const h = st.school.homework[0]; if (h) st.school.scores[h.s].push(30); }
@@ -3049,7 +3050,7 @@ export class CampusScene extends Phaser.Scene {
       if (phase !== 'night') { st.escaped = false; this.penalize(10, L({ tr: 'Sabah yoklamasında yatağında değildin!', en: "You weren't in bed at the morning roll call!" })); return; }
       const patrol = this.npcs.find((n) => (n.getData('def') as NpcDef).id === 'bel-selim');
       // sneaking out is the one time you can stay out: only Selim Hoca's torch ends it, and then he walks you back
-      if (patrol?.visible && Phaser.Math.Distance.Between(patrol.x, patrol.y, this.player.x, this.player.y) < 3.5 * TILE) {
+      if (patrol?.visible && Phaser.Math.Distance.Between(patrol.x, patrol.y, this.player.x, this.player.y) < (hasSecret(st, 'sessizAdim') ? 2.5 : 3.5) * TILE) {
         this.caught(patrol, 15, L({ tr: 'Selim Hoca seni fenerle yakaladı! Doğru yatağa.', en: 'Mr. Selim caught you in his torchlight! Straight to bed.' }));
       }
       return;
@@ -3213,7 +3214,7 @@ export class CampusScene extends Phaser.Scene {
     const d = Math.hypot(me.x - npc.x, me.y - npc.y);
     // (down in the tunnel under the Meydan you're out of sight, and out of reach of anyone up on the square)
     if (!this.inTunnel && d < (out ? 1.3 : 1.6) * TILE) { this.caught(npc); return; }
-    if (out && !this.inTunnel && d < SPOT_RANGE * TILE) { h.spotted = true; h.seen = me; }
+    if (out && !this.inTunnel && d < this.spotRange() * TILE) { h.spotted = true; h.seen = me; }
     // they start at a walk and keep speeding up, so in the end they outpace you
     const speed = Math.min(SEARCH_SPEED_MAX, SEARCH_SPEED + h.t / 400 + (h.spotted ? 40 : 0));
     if (d < 2 * TILE) {
@@ -3222,7 +3223,7 @@ export class CampusScene extends Phaser.Scene {
       npc.setData('wantMove', true);
       return;
     }
-    if (d < SPOT_RANGE * TILE) { npc.setData('huntGoal', undefined); this.steerNpc(npc, me.x, me.y, speed); return; }
+    if (d < this.spotRange() * TILE) { npc.setData('huntGoal', undefined); this.steerNpc(npc, me.x, me.y, speed); return; }
     // otherwise comb the area where you were last seen, in ever smaller circles
     let goal = npc.getData('huntGoal') as [number, number] | undefined;
     if (!goal || time > (npc.getData('huntUntil') ?? 0)) {
@@ -3665,6 +3666,7 @@ export class CampusScene extends Phaser.Scene {
     const def = NPCS.find((n) => n.id === id);
     let bonus = 1;
     if (amount > 0 && def?.group && def.group === myGroup(st)) bonus *= 1.25; // your group
+    if (amount > 0 && hasSecret(st, 'devre')) bonus *= 1.15; // Devre Ruhu
     st.friends[id] = Math.max(-100, Math.min(100, Math.round(before + amount * bonus)));
     const g = myGroup(st);
     if (g !== this.groupId) {
@@ -3755,6 +3757,31 @@ export class CampusScene extends Phaser.Scene {
       const tx = this.player.x / TILE, ty = this.player.y / TILE, r = PLAZA_EVENING;
       if (tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) this.openDilemma('arka');
     }
+  }
+
+  /** how close a searching belletmen has to be to see you (Sessiz Adım shortens it) */
+  private spotRange(): number {
+    return SPOT_RANGE - (hasSecret(this.save.state, 'sessizAdim') ? 2 : 0);
+  }
+
+  /** who you are becoming opens secret skills: one at a time, when nothing else is on screen */
+  private checkSecrets() {
+    if (this.blocked() || this.sleeping) return;
+    const st = this.save.state;
+    const s = dueSecrets(st)[0];
+    if (!s) return;
+    st.secrets.push(s.id);
+    const axis = AXES.find((a) => a.id === s.axis)!;
+    const pole = L(s.dir > 0 ? axis.hi : axis.lo);
+    sfx.success();
+    this.hud.showModal({
+      title: `✨ ${L({ tr: 'Gizli yetenek', en: 'Secret skill' })}: ${L(s.name)}`,
+      sub: L({ tr: `${pole} yanın sana bir şey öğretti`, en: `Being ${pole.toLowerCase()} taught you something` }),
+      body: L(s.effect),
+      note: L({ tr: `Bu yetenek gizli: başkaları göremez. (${st.secrets.length}/${SECRETS.length})`, en: `This skill is secret: nobody else can see it. (${st.secrets.length}/${SECRETS.length})` }),
+      button: t('close'),
+    });
+    this.persist();
   }
 
   private openDilemma(id: DilemmaId) {
@@ -3872,7 +3899,9 @@ export class CampusScene extends Phaser.Scene {
     const st = this.save.state;
     // a carefree streak in your personality takes the edge off bad moments (Tasasız)
     if (delta < 0) delta *= moodGuard(traitMix(this.save.character));
-    st.mood = clamp(st.mood + delta);
+    const next = clamp(st.mood + delta);
+    // Kendi Kendine Yeter: never below 20 (unless it already was)
+    st.mood = delta < 0 && hasSecret(st, 'yalniz') ? Math.max(next, Math.min(st.mood, 20)) : next;
   }
 
   /** what happens at a door depends on who you are (dorms by gender) */
@@ -3952,7 +3981,7 @@ export class CampusScene extends Phaser.Scene {
     const asleep = this.sleepRun !== null && this.sleepRun.kind !== 'busy' && this.sleepRun.kind !== 'home';
     const awakeLate = !asleep && (c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP);
     st.hunger = clamp(st.hunger - (asleep ? 0.03 : 0.1));
-    st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035)));
+    st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035) * (hasSecret(st, 'keyif') ? 0.75 : 1)));
     // health (GDD §6.2.1)
     let dh = 0;
     if (st.hunger < 20) dh -= 0.08;
@@ -4044,12 +4073,12 @@ export class CampusScene extends Phaser.Scene {
       this.penalize(late.length * 3, L({ tr: `Murat Hoca: "Ödevin nerede?" (${late.length} yapılmamış ödev → 0 puan)`, en: `Mr. Murat: "Where's your homework?" (${late.length} missing → 0 points)` }));
       this.changeMood(-4);
     } else if (st.discipline > 0 && st.lastPenaltyDay < c.day - 1) {
-      st.discipline = Math.max(0, st.discipline - 2); // a clean day helps your record
+      st.discipline = Math.max(0, st.discipline - (hasSecret(st, 'gozde') ? 4 : 2)); // a clean day helps your record
     }
     // people who don't like you sometimes make your life harder
     const foes = dislikers(st);
     const shield = myGroup(st) ? 0.5 : 1;
-    if (foes.length && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
+    if (foes.length && !hasSecret(st, 'kalkan') && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
     // weekly pocket money every Monday
     const week = weekOf(c.day);
     if (weekdayOf(c.day) === 0 && st.lastAllowanceWeek < week) {
@@ -4335,6 +4364,7 @@ export class CampusScene extends Phaser.Scene {
     this.showNextAnnouncement();
     this.updateRush();
     this.checkDilemmas();
+    this.checkSecrets();
     this.enforceCurfew();
     this.updateHunt(delta);
     this.updateCountdown();

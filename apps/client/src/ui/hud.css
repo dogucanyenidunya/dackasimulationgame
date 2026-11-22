@@ -691,3 +691,7 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 }
 /* narrow desktop window: the countdown moves to the bottom, so it sits above the "E — …" prompt rather than on it */
 @media (max-width: 900px) { body:not(.touch) .hud-countdown.with-bar { bottom: 108px; } }
+
+/* secret skills in the profile */
+.secret-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.secret-row span, .secret-none { font-size: 13px; color: #5b6266; line-height: 1.35; }

@@ -1290,3 +1290,20 @@ Students walk to a building's door and go in, and come out of the same door. The
 
 **Personality mix (v0.11):** the creator's single trait became a 100-point mix. Starting leans at 100 points: Meraklı *Hırslı* +10, *Haylaz* +6 · Sportif *Devreci* +10, *Gösterişli* +5 · Konuşkan *Gösterişli* +12, *Açık* +10 · Yaratıcı *Kendi yolunda* +10, *Sessiz* +5 · Sakin *Uslu* +10, *Sessiz* +8. · Utangaç *Sessiz* +12, *Kapalı* +10 · Yardımsever *Şefkatli* +12, *Açık* +6 · Şakacı *Gösterişli* +10, *Haylaz* +8 · Dik başlı *Sert* +10, *Haylaz* +6 · Tasasız *Rahat* +12, *Açık* +5 · Lider *Hırslı* +8, *Devreci* +8, *Gösterişli* +4. Every end of every axis now has at least one trait that starts you there. The karne line reads e.g. "Konuşkan ve Meraklı geldin, Sessiz · Kapalı oluyorsun". Older characters keep their single trait as 100 points and get its lean once.
 
+**Secret skills (v0.11, after Popmundo's secret skills):** leaning 25 points towards one end of a temperament axis opens a small, lasting ability (`game/secrets.ts`). A card announces it, it is listed in your profile ("Gizli yeteneklerin · n/12"), you keep it even if you change later, and nobody else can see it.
+
+| End | Secret skill | Effect |
+|---|---|---|
+| Haylaz | Sessiz Adım | The night patrol and searching belletmens only spot you from closer up |
+| Uslu | Öğretmenin Gözdesi | A clean day takes 4 discipline points off instead of 2 |
+| Hırslı | Azim | +5 points in exams |
+| Rahat | Keyif Ehli | Energy runs down 25% more slowly while awake |
+| Gösterişli | Sahne Işığı | Jokes and nicknames land much more often |
+| Sessiz | Derin Odak | Homework and reading give +1 more Knowledge |
+| Şefkatli | Teselli | A new "Comfort them" action: once a day per friend, +15 friendship |
+| Sert | Kimse Bulaşamaz | People who dislike you stop playing nasty tricks on you |
+| Devreci | Devre Ruhu | Friendships grow 15% faster |
+| Kendi yolunda | Kendi Kendine Yeter | Mood never drops below 20 |
+| Açık | Sırdaş | Share secrets with any friend (40+), and the counselor gives +20 mood instead of +12 |
+| Kapalı | İç Kale | Nasty tricks hurt your mood only half as much |
+

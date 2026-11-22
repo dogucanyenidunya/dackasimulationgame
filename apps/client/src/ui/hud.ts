@@ -8,6 +8,7 @@ import {
   ATTRS, mixLabel, traitMix, type CharacterData,
 } from '../content/character';
 import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
+import { SECRETS } from '../game/secrets';
 import { weekday } from '../game/schedule';
 
 const TILE_COLORS: Record<number, [number, number, number]> = {
@@ -197,6 +198,15 @@ class MapCanvas {
     const { s } = this.view();
     this.cx -= dxPx / s; this.cy -= dyPx / s;
   }
+}
+
+/** your secret skills in the profile: the ones you've opened, and how many are still hidden */
+function secretsHtml(st: PlayerState): string {
+  const esc = (v: string) => v.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
+  const mine = SECRETS.filter((s) => st.secrets.includes(s.id));
+  const head = `<div class="field-label" style="margin-top:12px">${L({ tr: 'Gizli yeteneklerin', en: 'Your secret skills' })} · ${mine.length}/${SECRETS.length}</div>`;
+  if (!mine.length) return `${head}<div class="secret-none">${L({ tr: 'Henüz yok. Nasıl biri olduğun bazılarını açacak.', en: 'None yet. Who you become will open some.' })}</div>`;
+  return head + mine.map((s) => `<div class="secret-row"><b>✨ ${esc(L(s.name))}</b><span>${esc(L(s.effect))}</span></div>`).join('');
 }
 
 export class Hud {
@@ -670,6 +680,7 @@ export class Hud {
     body.innerHTML = `
       <div class="profile-head"><canvas width="144" height="144"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
       <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
+      ${secretsHtml(st)}
       ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
       <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
       <div class="sum-row" style="margin-top:10px"><span>${L({ tr: 'Disiplin puanı (düşük iyidir)', en: 'Discipline points (lower is better)' })}</span><b>${st.discipline} · ${L(behaviorGrade(st.discipline))}</b></div>

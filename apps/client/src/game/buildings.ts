@@ -20,6 +20,7 @@ import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
 import type { PhoneRunResult } from '../ui/phoneRun';
+import { hasSecret } from './secrets';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -235,7 +236,7 @@ function rehberRoom(ctx: GameCtx): RoomView {
       run: async () => { nudge(ctx, { heart: 2 });
         markToday(ctx, 'counselor');
         ctx.advance(20);
-        ctx.gain({ mood: 12, xp: 5 });
+        ctx.gain({ mood: hasSecret(ctx.st, 'sirdas') ? 20 : 12, xp: 5 });
         await ctx.panel.message(T('Tolga Hoca', 'Mr. Tolga'), T(
           '"İlk haftalar herkes için zordur. Özlemek normal. Bir şeye ihtiyacın olursa buradayım."',
           '"The first weeks are hard for everyone. Missing home is normal. I\'m here whenever you need me."'));
@@ -340,7 +341,7 @@ function libraryActionsFor(ctx: GameCtx): ActionView[] {
       locked: ctx.st.energy < 8 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
       run: () => {
         nudge(ctx, { loyalty: -1 }); // a book of your own, in the quiet
-        reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: 1 } });
+        reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } });
         ctx.toast(reading.sessions >= 3 ? T('Kitabı bitirdin! Kütüphaneciyle konuş.', 'You finished the book! Talk to the librarian.') : T(`Okuma ${reading.sessions}/3`, `Reading ${reading.sessions}/3`), 'good');
       },
     });
@@ -416,7 +417,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         const q = askFor(sub.id, Math.floor(Math.random() * 1000));
         if (await ctx.panel.quiz(T(`Yıl sonu sınavı · ${L(sub.name)}`, `Year-end exam · ${L(sub.name)}`), L(q.q), q.options.map(L), q.answer, `${i + 1}/${SUBJECTS.length}`)) right++;
       }
-      const pct = Math.min(100, Math.round((right / SUBJECTS.length) * 100 + ctx.ch.attributes.knowledge / 4));
+      const pct = Math.min(100, Math.round((right / SUBJECTS.length) * 100 + ctx.ch.attributes.knowledge / 4 + (hasSecret(ctx.st, 'azim') ? 5 : 0)));
       ctx.advance(60);
       if (pct >= 50) {
         ctx.st.examPassed = true;
@@ -940,7 +941,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
             st.school.homework.shift();
             st.school.scores[hw.s].push(score);
             ctx.advance(30);
-            ctx.gain({ xp: 10 + Math.round(score / 5), energy: -6, mood: -2, attrs: { discipline: 1 } });
+            ctx.gain({ xp: 10 + Math.round(score / 5), energy: -6, mood: -2, attrs: { discipline: 1, knowledge: hasSecret(st, 'odak') ? 1 : 0 } });
             ctx.toast(T('Ödev bitti. Yarın öğretmenin memnun olacak.', 'Homework done. Your teacher will be pleased tomorrow.'), 'good');
           },
         },
@@ -949,7 +950,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
           hint: T('45 dk · +1 Bilgi · −5 enerji', '45 min · +1 Knowledge · −5 energy'),
           locked: !book ? T('Okuyacak kitabın yok. Kütüphane\'den ödünç al.', 'You have no book. Borrow one from the library.') : st.reading.sessions >= 3 ? T('Kitabı bitirdin; kütüphaneciyle konuş.', 'You finished it; talk to the librarian.') : undefined,
           run: () => {
-            st.reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: 1 } });
+            st.reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } });
             ctx.toast(T(`Okuma ${st.reading.sessions}/3`, `Reading ${st.reading.sessions}/3`), 'good');
           },
         },
@@ -1490,7 +1491,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
           T('"Neden matematik kitabı üzgünmüş? Çünkü çok problemi varmış!" dedin.', '"Why was the maths book sad? It had too many problems!"'),
         ];
         const joke = pickRandom(jokes);
-        if (Math.random() < 0.6) { ctx.befriend(npc.id, 10); ctx.gain({ mood: 4, attrs: { social: 1 } }); await ctx.panel.message(npc.name, `${joke} ${T(`${npc.name} gülmekten yere yattı! 😂`, `${npc.name} is rolling on the floor laughing! 😂`)}`); }
+        if (Math.random() < (hasSecret(st, 'sahne') ? 0.85 : 0.6)) { ctx.befriend(npc.id, 10); ctx.gain({ mood: 4, attrs: { social: 1 } }); await ctx.panel.message(npc.name, `${joke} ${T(`${npc.name} gülmekten yere yattı! 😂`, `${npc.name} is rolling on the floor laughing! 😂`)}`); }
         else { ctx.befriend(npc.id, -3); ctx.gain({ mood: -2 }); await ctx.panel.message(npc.name, `${joke} ${T(`${npc.name}: "…Anlamadım." Cırcır böcekleri öttü. 🦗`, `${npc.name}: "…I don't get it." Crickets. 🦗`)}`); }
       },
     },
@@ -1500,7 +1501,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       run: async () => { nudge(ctx, { presence: 1, warmth: 1 });
         mark('nickname');
         const nick = pickRandom(['Kirpi', 'Uzay Adam', 'Profesör', 'Turbo', 'Fasulye', 'Şimşek', 'Kaptan', 'Pamuk']);
-        if (Math.random() < 0.5) { ctx.befriend(npc.id, 8); await say(`"${nick}" mı? Bayıldım! Artık herkes bana böyle desin!`, `"${nick}"? I love it! Everyone has to call me that now!`); }
+        if (Math.random() < (hasSecret(st, 'sahne') ? 0.75 : 0.5)) { ctx.befriend(npc.id, 8); await say(`"${nick}" mı? Bayıldım! Artık herkes bana böyle desin!`, `"${nick}"? I love it! Everyone has to call me that now!`); }
         else { ctx.befriend(npc.id, -12); ctx.gain({ mood: -2 }); await say(`"${nick}" mı?! Bir daha sakın bana öyle deme!`, `"${nick}"?! Don't you dare call me that again!`); }
       },
     },
@@ -1572,7 +1573,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       },
     });
   }
-  if (f >= 60) {
+  if (f >= (hasSecret(st, 'sirdas') ? 40 : 60)) {
     list.push({
       id: 'secret', label: T('🤫 Bir sırrını paylaş', '🤫 Share a secret'), hint: T('Yakın arkadaşlar için · +15', 'For close friends · +15'),
       locked: lock ?? once('secret'),
@@ -1738,6 +1739,14 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
         ctx.gain({ money: -5, mood: 3 });
         ctx.befriend(npc.id, 12);
         ctx.toast(T(`${npc.name}: "Teşekkürler, çok naziksin!"`, `${npc.name}: "Thanks, that's so kind!"`), 'good');
+      },
+    });
+    if (hasSecret(ctx.st, 'teselli')) actions.push({
+      id: 'comfort', label: T('🤗 Teselli et', '🤗 Comfort them'), hint: T('Gizli yetenek · 10 dk · +15 arkadaşlık · günde bir', 'Secret skill · 10 min · +15 friendship · once a day'),
+      locked: lock ?? (doneToday(ctx, `comfort-${npc.id}`) ? T('Bugün zaten teselli ettin.', 'You already comforted them today.') : undefined),
+      run: async () => {
+        markToday(ctx, `comfort-${npc.id}`); nudge(ctx, { warmth: -1 }); ctx.advance(10); ctx.befriend(npc.id, 15); ctx.gain({ mood: 4 });
+        await ctx.panel.message(npc.name, T('Yanına oturdun ve sadece dinledin. "…Sağ ol. Buna ihtiyacım vardı."', 'You sat with them and just listened. "…Thanks. I needed that."'));
       },
     });
     actions.push(...socialActions(npc, ctx, f, lock));

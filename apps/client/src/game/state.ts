@@ -104,6 +104,8 @@ export interface PlayerState {
   temper: Record<AxisId, number>;
   /** the choices you made at dilemma moments, kept so later years can call back to them */
   memories: Memory[];
+  /** secret skills you have opened (game/secrets.ts) */
+  secrets: string[];
   /** what you're wearing (see content/wardrobe.ts); `borrowed` is a friend's outfit, handed back the next morning */
   wardrobe: { wearing: string; borrowed: { from: string; name: string; top: string; bottom: string; day: number } | null };
   /** snacks: in your pockets, and put away in your locker */
@@ -154,6 +156,7 @@ export function defaultState(): PlayerState {
     council: { year: 0, stage: 'none', day: 0, support: 0, titles: [] },
     temper: { rules: 0, ambition: 0, presence: 0, warmth: 0, loyalty: 0, heart: 0 },
     memories: [],
+    secrets: [],
     wardrobe: { wearing: 'sivil', borrowed: null },
     food: { bag: [], locker: [] },
     journal: [],
@@ -178,6 +181,7 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     council: { ...d.council, ...s.council },
     temper: { ...d.temper, ...s.temper },
     memories: s.memories ?? [],
+    secrets: s.secrets ?? [],
     wardrobe: { ...d.wardrobe, ...s.wardrobe },
     food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
     journal: [...(s.journal ?? [])],
