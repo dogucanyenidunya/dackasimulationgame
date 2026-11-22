@@ -1307,3 +1307,14 @@ Students walk to a building's door and go in, and come out of the same door. The
 | Açık | Sırdaş | Share secrets with any friend (40+), and the counselor gives +20 mood instead of +12 |
 | Kapalı | İç Kale | Nasty tricks hurt your mood only half as much |
 
+**Term focus (Dönem odağı, v0.11, after Popmundo's Focus):** right after the class draw you choose what the term is about (`game/focus.ts`); you can change it at your desk any time, but you lose your progress towards the old goal. The focused attribute grows ×1.3 and the others ×0.9. Each focus has a goal for the year; meeting it gives +10 respect, +60 XP, +10 mood and +2 in that attribute, once per focus per year. The profile and the karne show your focus and progress.
+
+| Focus | Grows faster | Goal | What counts |
+|---|---|---|---|
+| 📚 Dersler | Bilgi | 10 | lessons, homework, reading, the anthem |
+| ⚽ Spor | Kondisyon | 4 | trainings, court matches, Kapalı Saha games, Yetimball |
+| 🤝 Arkadaşlar | Sosyallik | 10 | chats, games together, meals with others, treats, comforting, hanging out |
+| 🎨 Sanat ve müzik | Yaratıcılık | 4 | drawing at your desk, mandolin in music lessons, practice, shows, campaign posters |
+| 🗂️ Düzen | Disiplin | 3 | whole days without a discipline point |
+| ⚖️ Dengeli | — | — | no bonus, no drag, no goal |
+

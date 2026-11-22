@@ -9,6 +9,7 @@ import {
 } from '../content/character';
 import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
 import { SECRETS } from '../game/secrets';
+import { focusLine } from '../game/focus';
 import { weekday } from '../game/schedule';
 
 const TILE_COLORS: Record<number, [number, number, number]> = {
@@ -680,6 +681,7 @@ export class Hud {
     body.innerHTML = `
       <div class="profile-head"><canvas width="144" height="144"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
       <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
+      <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
       ${secretsHtml(st)}
       ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
       <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>

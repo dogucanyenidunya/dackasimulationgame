@@ -41,6 +41,7 @@ import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, 
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
 import { SECRETS, dueSecrets, hasSecret } from '../game/secrets';
+import { chooseFocus, focusLine, focusMult, focusTick } from '../game/focus';
 import { AXES, arcLine, dilemmaDone, matchState, runDilemma, shape, type DilemmaId } from '../game/dilemmas';
 import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
@@ -3759,6 +3760,17 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
+  /** once you know your class, you're asked what this term will be about (once; later, at your desk) */
+  private checkFocus() {
+    const st = this.save.state;
+    if (st.focus || st.once.focusAsked || !st.once.classDrawn || this.drawing || this.blocked() || this.sleeping) return;
+    st.once.focusAsked = true;
+    this.player.setVelocity(0, 0);
+    const title = L({ tr: '🎯 Dönem odağı', en: '🎯 Term focus' });
+    this.panel.open(() => ({ title, rooms: [{ id: 'focus', name: title, actions: [] }] }));
+    void chooseFocus(this.gameCtx()).then(() => { if (this.panel.isOpen) this.panel.close(); this.persist(); });
+  }
+
   /** how close a searching belletmen has to be to see you (Sessiz Adım shortens it) */
   private spotRange(): number {
     return SPOT_RANGE - (hasSecret(this.save.state, 'sessizAdim') ? 2 : 0);
@@ -3866,6 +3878,7 @@ export class CampusScene extends Phaser.Scene {
       <div style="margin-top:12px">${avgs.map(({ s, a }) => `<div class="sum-row"><span>${L(s.name)}</span><b>${a}</b></div>`).join('')}
       <div class="sum-row"><span><b>${L({ tr: 'Ortalama', en: 'Average' })}</b></span><b>${gpa}</b></div></div>
       ${cert ? `<div class="cert">${cert}</div>` : ''}
+      <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Kim oluyorsun', en: "Who you're becoming" })}</span><b>${(() => { const mix = traitMix(ch); return arcLine(st, mixName(mix), mixLean(mix)); })()}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Arkadaşların', en: 'Your friends' })}</span><b>${friends.join(', ') || '—'}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' })}</span><b>${st.everSick ? L({ tr: '✕ Hastalandın', en: '✕ You got sick' }) : L({ tr: '✓ Demir Gibi madalyası!', en: '✓ Iron Kid medal!' })}</b></div>
@@ -3886,7 +3899,7 @@ export class CampusScene extends Phaser.Scene {
     if (g.mood) this.changeMood(g.mood);
     const mix = traitMix(ch);
     for (const [k, v] of Object.entries(g.attrs ?? {}) as Array<[AttrId, number]>) {
-      const bonus = mixBonus(mix, k);
+      const bonus = mixBonus(mix, k) * focusMult(st, k);
       // (it slows down near this year's ceiling: you're in the 4th grade with years to grow, see growAttr)
       ch.attributes[k] = growAttr(ch.attributes[k], v * bonus, st.year);
     }
@@ -4075,6 +4088,8 @@ export class CampusScene extends Phaser.Scene {
     } else if (st.discipline > 0 && st.lastPenaltyDay < c.day - 1) {
       st.discipline = Math.max(0, st.discipline - (hasSecret(st, 'gozde') ? 4 : 2)); // a clean day helps your record
     }
+    // a whole day under your focus without a discipline point counts towards Düzen
+    if (st.lastPenaltyDay < c.day - 1 && st.focus && st.focus.since <= c.day - 1) focusTick(this.gameCtx(), 'order');
     // people who don't like you sometimes make your life harder
     const foes = dislikers(st);
     const shield = myGroup(st) ? 0.5 : 1;
@@ -4365,6 +4380,7 @@ export class CampusScene extends Phaser.Scene {
     this.updateRush();
     this.checkDilemmas();
     this.checkSecrets();
+    this.checkFocus();
     this.enforceCurfew();
     this.updateHunt(delta);
     this.updateCountdown();

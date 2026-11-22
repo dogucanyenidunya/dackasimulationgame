@@ -106,6 +106,10 @@ export interface PlayerState {
   memories: Memory[];
   /** secret skills you have opened (game/secrets.ts) */
   secrets: string[];
+  /** this term's focus (game/focus.ts) and how far you've got towards its goal; null until you choose */
+  focus: { id: string; progress: number; since: number } | null;
+  /** focus goals already met, as `${year}:${focus}` */
+  focusDone: string[];
   /** what you're wearing (see content/wardrobe.ts); `borrowed` is a friend's outfit, handed back the next morning */
   wardrobe: { wearing: string; borrowed: { from: string; name: string; top: string; bottom: string; day: number } | null };
   /** snacks: in your pockets, and put away in your locker */
@@ -157,6 +161,8 @@ export function defaultState(): PlayerState {
     temper: { rules: 0, ambition: 0, presence: 0, warmth: 0, loyalty: 0, heart: 0 },
     memories: [],
     secrets: [],
+    focus: null,
+    focusDone: [],
     wardrobe: { wearing: 'sivil', borrowed: null },
     food: { bag: [], locker: [] },
     journal: [],
@@ -182,6 +188,8 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     temper: { ...d.temper, ...s.temper },
     memories: s.memories ?? [],
     secrets: s.secrets ?? [],
+    focus: s.focus ?? null,
+    focusDone: s.focusDone ?? [],
     wardrobe: { ...d.wardrobe, ...s.wardrobe },
     food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
     journal: [...(s.journal ?? [])],

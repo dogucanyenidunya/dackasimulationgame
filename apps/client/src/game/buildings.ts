@@ -21,6 +21,7 @@ import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
+import { chooseFocus, focusLine, focusTick } from './focus';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -341,7 +342,7 @@ function libraryActionsFor(ctx: GameCtx): ActionView[] {
       locked: ctx.st.energy < 8 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
       run: () => {
         nudge(ctx, { loyalty: -1 }); // a book of your own, in the quiet
-        reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } });
+        reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
         ctx.toast(reading.sessions >= 3 ? T('Kitabı bitirdin! Kütüphaneciyle konuş.', 'You finished the book! Talk to the librarian.') : T(`Okuma ${reading.sessions}/3`, `Reading ${reading.sessions}/3`), 'good');
       },
     });
@@ -456,6 +457,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
       ]);
       if (!choice) return;
       nudge(ctx, LESSON_NUDGE[choice] ?? {});
+      focusTick(ctx, choice === 'mandolin' ? 'art' : 'study');
       let score = 50, xp = 0;
       let title = '', body = '';
       const pickMate = async (q: string) => {
@@ -669,6 +671,7 @@ export function washHands(ctx: GameCtx) {
 export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates: NpcDef[], friendsElsewhere: NpcDef[] = []) {
   markToday(ctx, `meal-${meal}`);
   nudge(ctx, tablemates.length ? { loyalty: 1 } : { presence: -1, loyalty: -1 }); // with friends, or on your own
+  if (tablemates.length) focusTick(ctx, 'friends');
   // every meal you eat counts toward "Three Meals", even before that mission opens
   if (!ctx.st.meals.includes(meal)) {
     ctx.st.meals.push(meal);
@@ -798,7 +801,7 @@ function kantinRoom(ctx: GameCtx): RoomView {
       {
         id: 'hangout', label: T('Masada takıl', 'Hang out at a table'), hint: T('30 dk · +4 moral', '30 min · +4 mood'),
         locked: !kantinOpen ? T('Kapalı', 'Closed') : undefined,
-        run: () => { nudge(ctx, { loyalty: 1 });
+        run: () => { nudge(ctx, { loyalty: 1 }); focusTick(ctx, 'friends');
           ctx.advance(30); ctx.gain({ mood: 4, attrs: { social: Math.random() < 0.3 ? 1 : 0 } });
           const pals = NPCS.filter((n) => (ctx.st.friends[n.id] ?? 0) > 0);
           const pal = pals[Math.floor(Math.random() * pals.length)];
@@ -873,6 +876,7 @@ function anthemActions(ctx: GameCtx): ActionView[] {
       locked: needRegistration(ctx) ?? notAtStudy ?? (doneToday(ctx, 'anthem') ? T('Bugünkü kıtalarını çalıştın.', "You've done today's stanzas.") : undefined),
       run: async () => {
         markToday(ctx, 'anthem');
+        focusTick(ctx, 'study');
         // up to four stanzas an evening: one line of each, its words scattered
         const steps = Math.min(4, ANTHEM_STANZAS - a.stanzas);
         let learned = 0, clean = 0, quit = false;
@@ -932,10 +936,15 @@ export function deskPanel(ctx: GameCtx): PanelView {
         : T('Defterlerin ve kalemlerin burada.', 'Your notebooks and pencils are here.'),
       actions: [
         {
+          id: 'focus', label: st.focus ? `🎯 ${T('Dönem odağı', 'Term focus')}: ${focusLine(st)}` : T('🎯 Dönem odağını seç', '🎯 Choose your term focus'),
+          hint: st.focus ? T('Değiştirebilirsin; o hedefteki ilerlemen sıfırlanır', "You can change it; you'll lose your progress towards its goal") : T('Bir alana odaklan: o alan daha hızlı gelişir', 'Focus on one area: it grows faster'),
+          run: async () => { await chooseFocus(ctx); },
+        },
+        {
           id: 'homework', label: hw ? T(`Ödev yap: ${subjName(hw.s)}`, `Do homework: ${subjName(hw.s)}`) : T('Ödev yap', 'Do homework'),
           hint: T('Tahmin oyunu · 30 dk · −6 enerji · notun ve disiplinin için iyi', 'Guessing game · 30 min · −6 energy · good for grades and discipline'),
           locked: !hw ? T('Bekleyen ödevin yok. 🎉', 'No homework due. 🎉') : phase === 'night' ? T('Işıklar söndü.', 'Lights are out.') : sickLock(ctx),
-          run: async () => { nudge(ctx, { rules: -1, ambition: 1 });
+          run: async () => { nudge(ctx, { rules: -1, ambition: 1 }); focusTick(ctx, 'study');
             const r = await ctx.panel.guessScore(T(`Ödev: ${subjName(hw.s)}`, `Homework: ${subjName(hw.s)}`), T('Cevap 1 ile 20 arasında bir sayı. İpuçlarını takip et: 4 hakkın var.', 'The answer is a number from 1 to 20. Follow the hints: you have 4 tries.'), 20, 4);
             const score = Math.min(100, (r.ok ? [100, 85, 70, 55][r.used - 1] : 30) + Math.round(ctx.ch.attributes.knowledge / 4));
             st.school.homework.shift();
@@ -950,7 +959,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
           hint: T('45 dk · +1 Bilgi · −5 enerji', '45 min · +1 Knowledge · −5 energy'),
           locked: !book ? T('Okuyacak kitabın yok. Kütüphane\'den ödünç al.', 'You have no book. Borrow one from the library.') : st.reading.sessions >= 3 ? T('Kitabı bitirdin; kütüphaneciyle konuş.', 'You finished it; talk to the librarian.') : undefined,
           run: () => {
-            st.reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } });
+            st.reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
             ctx.toast(T(`Okuma ${st.reading.sessions}/3`, `Reading ${st.reading.sessions}/3`), 'good');
           },
         },
@@ -963,7 +972,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
         {
           id: 'create', label: T('Yaratıcı ol: resim çiz, hikâye yaz', 'Get creative: draw, write a story'),
           hint: T('40 dk · +2 Yaratıcılık · +5 moral', '40 min · +2 Creativity · +5 mood'),
-          run: () => { nudge(ctx, { presence: -1 });
+          run: () => { nudge(ctx, { presence: -1 }); focusTick(ctx, 'art');
             ctx.advance(40); ctx.gain({ mood: 5, energy: -4, xp: 10, attrs: { creativity: 2 } });
             const ideas = [T('Okulun 1863\'teki hâlini çizdin.', 'You drew the school as it looked in 1863.'), T('Gece kaçan bir öğrenci hakkında bir hikâye yazdın.', 'You wrote a story about a student who sneaks out at night.'), T('Bölümün için bir bayrak tasarladın.', 'You designed a flag for your dorm section.')];
             ctx.toast(ideas[ctx.clock.day % ideas.length], 'good');
@@ -1287,7 +1296,7 @@ function spor(ctx: GameCtx): PanelView {
     hint: T('1 saat · −15 enerji · +2 Kondisyon · +15 XP', '1 hour · −15 energy · +2 Fitness · +15 XP'),
     locked: sickLock(ctx) ?? (!trainingTime ? T('Antrenmanlar hafta içi 15:30–17:00 (hafta sonu 10:00–17:00).', 'Training is weekdays 15:30–17:00 (weekends 10:00–17:00).')
       : ctx.st.energy < 15 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
-    run: () => { nudge(ctx, { ambition: 1, loyalty: TEAM_SPORTS.includes(st.sport!) ? 1 : -1 });
+    run: () => { nudge(ctx, { ambition: 1, loyalty: TEAM_SPORTS.includes(st.sport!) ? 1 : -1 }); focusTick(ctx, 'sport');
       ctx.st.health = clamp(ctx.st.health + 2);
       st.trainings++; ctx.advance(60); ctx.gain({ xp: 15, energy: -15, mood: 4, attrs: { fitness: 2 } });
       ctx.toast(T(`Antrenman tamam (${st.trainings}).`, `Training done (${st.trainings}).`), 'good');
@@ -1353,7 +1362,7 @@ function kapaliSaha(ctx: GameCtx): PanelView {
         : !st.school.kit ? T('Spor ayakkabın yok. Spor Salonu\'ndaki depodan al.', 'You have no sports shoes. Get them at the stores in the Spor Salonu.')
           : doneToday(ctx, 'kapali_saha') ? T('Bugün zaten oynadın.', 'You already played today.')
             : st.energy < 20 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
-    run: async () => { nudge(ctx, { loyalty: 1 });
+    run: async () => { nudge(ctx, { loyalty: 1 }); focusTick(ctx, 'sport');
       const id = await ctx.panel.choose(T('Ne oynanıyor?', "What's on?"), games.map((g) => ({ id: g.id, label: g.name })));
       const g = games.find((x) => x.id === id);
       if (!g) return;
@@ -1432,7 +1441,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       id: 'play', label: T('🎮 Birlikte oyun oyna', '🎮 Play a game together'),
       hint: indoors ? T(`Taş-kâğıt-makas${place === 'dining' ? '' : ', misket'} · yakar top ve saklambaç ${where} oynanmaz`, `Rock-paper-scissors${place === 'dining' ? '' : ', marbles'} · no dodgeball or hide-and-seek ${where}`) : T('Taş-kâğıt-makas, misket, yakar top, saklambaç', 'Rock-paper-scissors, marbles, dodgeball, hide-and-seek'),
       locked: lock ?? once('play'),
-      run: async () => { nudge(ctx, { heart: 1 });
+      run: async () => { nudge(ctx, { heart: 1 }); focusTick(ctx, 'friends');
         const games = [
           { id: 'rps', label: T('✊ Taş-kâğıt-makas', '✊ Rock-paper-scissors'), hint: T('5 dk', '5 min') },
           ...(place === 'dining' ? [] : [{ id: 'misket', label: T('🔵 Misket', '🔵 Marbles'), hint: T('20 dk · misketini kaybedebilirsin', '20 min · you might lose a marble') }]),
@@ -1477,7 +1486,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       id: 'yetimball', label: T('🪢 Yetimball oyna', '🪢 Play Yetimball'),
       hint: T(`Karşılıklı ip sarma · doğru açı + doğru güç kazandırır · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'iyi oyuncu' : yetimballSkill(npc) >= 0.56 ? 'fena değil' : 'pek iyi değil'}`, `A rope-winding duel · the right angle and strength win · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'a strong player' : yetimballSkill(npc) >= 0.56 ? 'not bad' : 'not much good'}`),
       locked: lock ?? (indoors ? T(`Yetimball dışarıda, direğin başında oynanır (${where} olmaz).`, `Yetimball is played outside at the pole (not ${where}).`) : once('yetimball')),
-      run: async () => { nudge(ctx, { heart: 1 }); mark('yetimball'); await yetimballWith(npc, ctx); },
+      run: async () => { nudge(ctx, { heart: 1 }); focusTick(ctx, 'sport'); mark('yetimball'); await yetimballWith(npc, ctx); },
     },
     {
       id: 'joke', label: T('😂 Şaka yap', '😂 Tell a joke'), hint: T('Güldürürsen +10 · tutmazsa −3', 'If they laugh +10 · if it flops −3'),
@@ -1723,7 +1732,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     actions.push({
       id: 'chat', label: T('Sohbet et', 'Chat'), hint: T('+15 arkadaşlık · günde 2 kez', '+15 friendship · twice a day'),
       locked: lock ?? (talks >= 2 ? T(`${npc.name} şimdilik başka işlerle meşgul. Yarın tekrar konuş.`, `${npc.name} is busy for now. Talk again tomorrow.`) : undefined),
-      run: async () => { nudge(ctx, { heart: 1 });
+      run: async () => { nudge(ctx, { heart: 1 }); focusTick(ctx, 'friends');
         ctx.st.daily[`talk-${npc.id}-${talks + 1}`] = ctx.clock.day;
         ctx.advance(10);
         ctx.befriend(npc.id, 15);
@@ -1734,7 +1743,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
     actions.push({
       id: 'treat', label: T('Simit ikram et (5 ₺)', 'Share a simit (5 ₺)'), hint: T('+12 arkadaşlık · günde bir', '+12 friendship · once a day'),
       locked: lock ?? (doneToday(ctx, `treat-${npc.id}`) ? T('Bugün zaten ikram ettin.', 'You already shared a treat today.') : ctx.st.money < 5 ? T('Paran yetmiyor.', "You can't afford it.") : undefined),
-      run: () => { nudge(ctx, { warmth: -2 });
+      run: () => { nudge(ctx, { warmth: -2 }); focusTick(ctx, 'friends');
         markToday(ctx, `treat-${npc.id}`);
         ctx.gain({ money: -5, mood: 3 });
         ctx.befriend(npc.id, 12);
@@ -1745,7 +1754,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
       id: 'comfort', label: T('🤗 Teselli et', '🤗 Comfort them'), hint: T('Gizli yetenek · 10 dk · +15 arkadaşlık · günde bir', 'Secret skill · 10 min · +15 friendship · once a day'),
       locked: lock ?? (doneToday(ctx, `comfort-${npc.id}`) ? T('Bugün zaten teselli ettin.', 'You already comforted them today.') : undefined),
       run: async () => {
-        markToday(ctx, `comfort-${npc.id}`); nudge(ctx, { warmth: -1 }); ctx.advance(10); ctx.befriend(npc.id, 15); ctx.gain({ mood: 4 });
+        markToday(ctx, `comfort-${npc.id}`); nudge(ctx, { warmth: -1 }); focusTick(ctx, 'friends'); ctx.advance(10); ctx.befriend(npc.id, 15); ctx.gain({ mood: 4 });
         await ctx.panel.message(npc.name, T('Yanına oturdun ve sadece dinledin. "…Sağ ol. Buna ihtiyacım vardı."', 'You sat with them and just listened. "…Thanks. I needed that."'));
       },
     });
@@ -1988,7 +1997,7 @@ function musicRoom(ctx: GameCtx): RoomView {
     actions.push({
       id: 'practice', label: T(`🎵 ${L(inst!.name)} çalış (seviye ${m.skill})`, `🎵 Practise ${L(inst!.name).toLowerCase()} (level ${m.skill})`), hint: T('45 dk · ritim oyunu · günde bir', '45 min · rhythm game · once a day'),
       locked: lessonNow ? T('Ders saatinde müzik odası boş değil.', 'The music room is busy during lessons.') : doneToday(ctx, 'practice') ? T('Bugün yeterince çalıştın.', "You've practised enough today.") : undefined,
-      run: async () => { nudge(ctx, { ambition: 1 });
+      run: async () => { nudge(ctx, { ambition: 1 }); focusTick(ctx, 'art');
         markToday(ctx, 'practice');
         const hits = await ctx.panel.rhythm(L(inst!.name), T('Ritmi yakala!', 'Catch the beat!'), 10, 0.42 + m.skill / 300);
         ctx.advance(45);
@@ -2016,7 +2025,7 @@ function musicRoom(ctx: GameCtx): RoomView {
         hint: T(`Yılda bir · seviye ${SHOW_SKILL}+`, `Once a year · level ${SHOW_SKILL}+`),
         locked: m.shows.includes(st.year) ? T('Bu yılki sahneni yaptın.', "You've had your stage moment this year.")
           : m.skill < SHOW_SKILL ? T(`Önce seviye ${SHOW_SKILL}\'a ulaş (${m.skill}).`, `Reach level ${SHOW_SKILL} first (${m.skill}).`) : undefined,
-        run: async () => { nudge(ctx, { presence: 3, ambition: 2 });
+        run: async () => { nudge(ctx, { presence: 3, ambition: 2 }); focusTick(ctx, 'art');
           const hits = await ctx.panel.rhythm(band ? T('Final şarkısı', 'Final song') : T('Resital', 'Recital'), T('Sahnedesin, herkes seni izliyor!', "You're on stage, everyone is watching!"), 14, 0.5 + m.skill / 250);
           m.shows.push(st.year);
           ctx.advance(120);
@@ -2121,6 +2130,7 @@ function councilRoom(ctx: GameCtx): RoomView {
         { id: 'help', label: T('📚 Arkadaşlarına ödevde yardım et', '📚 Help friends with homework'), hint: T('Bilgi', 'Knowledge') },
       ]);
       if (!how) return;
+      if (how === 'poster') focusTick(ctx, 'art');
       markToday(ctx, 'campaign');
       const a = ctx.ch.attributes;
       const boost = 2 + Math.round((how === 'poster' ? a.creativity : how === 'talk' ? a.social : a.knowledge) / 10);
@@ -2286,6 +2296,7 @@ export function courtPanel(ctx: GameCtx, sport: CourtSport): PanelView {
 /** the match itself, once enough friends have arrived */
 export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]) {
   const st = ctx.st;
+  focusTick(ctx, 'sport');
   const skill = st.skills[sport];
   const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800;
   const rounds = 5;
