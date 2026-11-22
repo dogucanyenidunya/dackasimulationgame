@@ -431,21 +431,21 @@ export class CampusScene extends Phaser.Scene {
     }) as typeof this.keys;
     kb.on('keydown-E', () => this.interact());
     kb.on('keydown-M', () => { if (!this.hud.modalOpen && !this.panel.isOpen) this.hud.toggleMap(); });
-    kb.on('keydown-C', () => { if (!this.blocked()) this.hud.showProfile(this.save.character, this.save.state); });
-    kb.on('keydown-J', () => { if (!this.blocked()) this.showMissions(); });
-    kb.on('keydown-R', () => { if (!this.blocked()) this.showRelationships(); });
-    kb.on('keydown-F', () => { if (!this.blocked()) this.showFriends(); });
+    kb.on('keydown-C', () => { if (!this.menuBlocked()) this.hud.showProfile(this.save.character, this.save.state); });
+    kb.on('keydown-J', () => { if (!this.menuBlocked()) this.showMissions(); });
+    kb.on('keydown-R', () => { if (!this.menuBlocked()) this.showRelationships(); });
+    kb.on('keydown-F', () => { if (!this.menuBlocked()) this.showFriends(); });
     kb.on('keydown-ESC', () => this.hud.toggleMap(false));
     kb.on('keydown-T', () => this.toggleFast());
 
     // HUD
     this.hud = new Hud(this.map);
     this.hud.onReset = () => { this.persist(); backupSave(); clearSave(); window.location.reload(); };
-    this.hud.onProfile = () => { if (!this.blocked()) this.hud.showProfile(this.save.character, this.save.state); };
+    this.hud.onProfile = () => { if (!this.menuBlocked()) this.hud.showProfile(this.save.character, this.save.state); };
     void ATTRS; void CAUSES;
-    this.hud.onMissions = () => { if (!this.blocked()) this.showMissions(); };
-    this.hud.onRelationships = () => { if (!this.blocked()) this.showRelationships(); };
-    this.hud.onFriends = () => { if (!this.blocked()) this.showFriends(); };
+    this.hud.onMissions = () => { if (!this.menuBlocked()) this.showMissions(); };
+    this.hud.onRelationships = () => { if (!this.menuBlocked()) this.showRelationships(); };
+    this.hud.onFriends = () => { if (!this.menuBlocked()) this.showFriends(); };
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
     this.panel.onAction = (title, a) => this.logAction(title, a);
@@ -2623,6 +2623,9 @@ export class CampusScene extends Phaser.Scene {
   /** on-screen joystick and buttons (touch screens only) */
   private touch: TouchControls | null = null;
   private blocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
+  /** the menu pages (profile, missions, relationships, friends) only look things up, so they open while you sleep or
+   *  wait something out too; just not over another window, the chat, or while you're being marched back to the dorm */
+  private menuBlocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.escort !== null; }
 
   private findNearNpc(): NpcDef | null {
     let best: NpcDef | null = null, bestD = 1.7 * TILE;
@@ -4051,7 +4054,8 @@ export class CampusScene extends Phaser.Scene {
       s.left--;
       this.stepMinute();
       changed = true;
-      const ev = s.events.find((e) => !e.done && s.total - s.left >= e.at);
+      // (something that happens in the night waits until you've closed the menu or the map you're looking at)
+      const ev = this.hud.modalOpen || this.hud.bigOpen ? undefined : s.events.find((e) => !e.done && s.total - s.left >= e.at);
       if (ev) {
         ev.done = true; s.busy = true;
         void ev.run().finally(() => { s.busy = false; s.acc = 0; });
