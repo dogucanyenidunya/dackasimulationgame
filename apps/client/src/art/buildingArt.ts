@@ -4,8 +4,10 @@
 // as a quad between its foot on the ground and its top at roof level, with windows laid out along it.
 // The roof is squashed towards the footprint so you can walk "behind" a building; the scene slices
 // the picture into narrow columns, each sorted by the building's front edge in that column. A second
-// canvas holds only the window panes, which glow at night.
+// canvas holds only the window panes, which glow at night. Both are drawn ART_RES times finer than the world and
+// shown smoothly scaled (the scene scales the images by 1 / ART_RES).
 import Phaser from 'phaser';
+import { ART_RES } from './textures';
 import { LOCATIONS, T, TILE, doorInPassage, inBuilding, nearestEdge, type Building, type Door, type Pt, type Rect } from '../content/campus';
 
 /** how many tiles the roof rises above the footprint (0 when an entrance faces north: it's drawn on the roof edge) */
@@ -137,9 +139,10 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   const key = `bld-${b.id}`, litKey = `bld-${b.id}-lit`;
   const art: BuildingArt = { key, litKey, x: ox, y: oy, w: W, h: H, base: (r.y + r.h) * TILE };
   if (scene.textures.exists(key)) return art;
-  const tex = scene.textures.createCanvas(key, W, H)!;
-  const lit = scene.textures.createCanvas(litKey, W, H)!;
+  const tex = scene.textures.createCanvas(key, W * ART_RES, H * ART_RES)!;
+  const lit = scene.textures.createCanvas(litKey, W * ART_RES, H * ART_RES)!;
   const c = tex.getContext(), L = lit.getContext();
+  c.setTransform(ART_RES, 0, 0, ART_RES, 0, 0); L.setTransform(ART_RES, 0, 0, ART_RES, 0, 0);
   const rand = rng(b.id.length * 977 + Math.round(r.x * 31 + r.y));
   const pal = ROOF[b.roof];
   const wall = wallColor(b.id);
@@ -155,8 +158,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     pts.forEach(([x, y], i) => { const [px, py] = P(x, y, h); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
     ctx.closePath();
   };
-  const px = (x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
-  const glow = (x: number, y: number, w: number, h: number, col = '#ffd57e') => { L.fillStyle = col; L.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+  const px = (x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+  const glow = (x: number, y: number, w: number, h: number, col = '#ffd57e') => { L.fillStyle = col; L.fillRect(x, y, w, h); };
   /** a roof-level rect (tiles) in canvas pixels */
   const toCanvas = (s: Rect) => { const [x0, y0] = P(s.x, s.y), [x1, y1] = P(s.x + s.w, s.y + s.h); return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }; };
   const [bx0, by0] = P(r.x, r.y), [bx1, by1] = P(r.x + r.w, r.y + r.h);
@@ -209,28 +212,56 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     c.fillStyle = 'rgba(0,0,0,0.08)'; for (let y = by0 + 6; y < by1; y += 14) c.fillRect(0, y, W, 2);
     c.fillStyle = 'rgba(255,255,255,0.5)'; c.fillRect(bx0 + (bx1 - bx0) * 0.3, 0, 2, H);
   } else {
-    // gravel / membrane texture and seams
-    for (let i = 0; i < (r.w * r.h) * 5; i++) px(bx0 + rand() * (bx1 - bx0), by0 + rand() * (by1 - by0), 2, 1, rand() < 0.5 ? pal.dark : pal.light);
-    for (let sx = bx0 + 32; sx < bx1; sx += 32) px(sx, 0, 1, H, pal.dark);
-    for (let sy = by0 + 32; sy < by1; sy += 32) px(0, sy, W, 1, pal.dark);
-    if (b.roof === 'green') for (let i = 0; i < r.w * r.h * 3; i++) px(bx0 + rand() * (bx1 - bx0), by0 + rand() * (by1 - by0), 2, 2, rand() < 0.5 ? '#88bb6b' : '#5d8f46');
+    // the membrane catches the light towards the north-west and darkens to the south-east
+    const sky = c.createLinearGradient(bx0, by0, bx1, by1);
+    sky.addColorStop(0, 'rgba(255,255,255,0.16)'); sky.addColorStop(0.5, 'rgba(255,255,255,0)'); sky.addColorStop(1, 'rgba(0,0,0,0.08)');
+    c.fillStyle = sky; c.fillRect(0, 0, W, H);
+    // fine gravel, and soft stains where water pools
+    for (let i = 0; i < (r.w * r.h) * 26; i++) {
+      c.fillStyle = rand() < 0.5 ? 'rgba(80,90,98,0.16)' : 'rgba(255,255,255,0.3)';
+      c.beginPath(); c.arc(bx0 + rand() * (bx1 - bx0), by0 + rand() * (by1 - by0), 0.35 + rand() * 0.45, 0, Math.PI * 2); c.fill();
+    }
+    for (let i = 0; i < r.w * r.h * 0.12; i++) {
+      const sx0 = bx0 + rand() * (bx1 - bx0), sy0 = by0 + rand() * (by1 - by0), sr = 8 + rand() * 18;
+      const st = c.createRadialGradient(sx0, sy0, 0, sx0, sy0, sr);
+      st.addColorStop(0, 'rgba(70,80,88,0.09)'); st.addColorStop(1, 'rgba(70,80,88,0)');
+      c.fillStyle = st; c.fillRect(sx0 - sr, sy0 - sr, sr * 2, sr * 2);
+    }
+    // membrane seams, each with a lit lip
+    c.lineWidth = 0.7;
+    for (let sx = bx0 + 32; sx < bx1; sx += 32) { c.strokeStyle = 'rgba(90,100,108,0.35)'; c.beginPath(); c.moveTo(sx, 0); c.lineTo(sx, H); c.stroke(); c.strokeStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.moveTo(sx + 0.8, 0); c.lineTo(sx + 0.8, H); c.stroke(); }
+    for (let sy = by0 + 32; sy < by1; sy += 32) { c.strokeStyle = 'rgba(90,100,108,0.35)'; c.beginPath(); c.moveTo(0, sy); c.lineTo(W, sy); c.stroke(); c.strokeStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.moveTo(0, sy + 0.8); c.lineTo(W, sy + 0.8); c.stroke(); }
+    if (b.roof === 'green') for (let i = 0; i < r.w * r.h * 5; i++) { c.fillStyle = rand() < 0.5 ? '#88bb6b' : '#5d8f46'; c.beginPath(); c.arc(bx0 + rand() * (bx1 - bx0), by0 + rand() * (by1 - by0), 0.8 + rand() * 1.2, 0, Math.PI * 2); c.fill(); }
   }
 
   const features: Rect[] = [];
   // green roof patches
   for (const g of b.greenPatches ?? []) {
     const q = toCanvas(g); features.push(g);
-    px(q.x, q.y, q.w, q.h, '#7fb466');
-    for (let i = 0; i < q.w * q.h / 25; i++) px(q.x + rand() * (q.w - 2), q.y + rand() * (q.h - 2), 2, 2, rand() < 0.5 ? '#94c77a' : '#679d50');
+    const gg = c.createLinearGradient(q.x, q.y, q.x + q.w, q.y + q.h);
+    gg.addColorStop(0, '#8fc372'); gg.addColorStop(1, '#6a9f52');
+    px(q.x, q.y, q.w, q.h, '#7fb466'); c.fillStyle = gg; c.fillRect(q.x, q.y, q.w, q.h);
+    // low sedum plants: little rosettes in several greens, a few in flower
+    c.save(); c.beginPath(); c.rect(q.x, q.y, q.w, q.h); c.clip();
+    for (let i = 0; i < q.w * q.h / 6; i++) {
+      const gx = q.x + rand() * q.w, gy = q.y + rand() * q.h, gr = 0.9 + rand() * 1.4, tone = rand();
+      c.fillStyle = 'rgba(40,70,30,0.25)'; c.beginPath(); c.arc(gx + 0.4, gy + 0.5, gr, 0, Math.PI * 2); c.fill();
+      c.fillStyle = tone < 0.4 ? '#9fd083' : tone < 0.8 ? '#79ad5c' : '#5d8f46'; c.beginPath(); c.arc(gx, gy, gr, 0, Math.PI * 2); c.fill();
+      if (rand() < 0.06) { c.fillStyle = rand() < 0.5 ? '#f0d15a' : '#e9a3c4'; c.beginPath(); c.arc(gx, gy, 0.6, 0, Math.PI * 2); c.fill(); }
+    }
+    c.restore();
     px(q.x, q.y + q.h - 2, q.w, 2, 'rgba(0,0,0,0.15)');
   }
   // skylights: glass ridges
   for (const s of b.skylights ?? []) {
     const q = toCanvas(s); features.push(s);
     px(q.x, q.y + 4, q.w, q.h, 'rgba(0,0,0,0.18)');
-    px(q.x, q.y, q.w, q.h, '#8fb6d4');
-    if (q.w > q.h) { px(q.x, q.y, q.w, 3, '#cfe5f4'); for (let sx = q.x; sx < q.x + q.w; sx += 16) px(sx, q.y, 2, q.h, '#6d8fac'); }
-    else { px(q.x, q.y, 3, q.h, '#cfe5f4'); for (let sy = q.y; sy < q.y + q.h; sy += 12) px(q.x, sy, q.w, 2, '#6d8fac'); }
+    const sg = c.createLinearGradient(q.x, q.y, q.x + q.w * 0.6, q.y + q.h);
+    sg.addColorStop(0, '#d4e8f5'); sg.addColorStop(0.35, '#97bcd8'); sg.addColorStop(1, '#6d92b0');
+    c.fillStyle = sg; c.fillRect(q.x, q.y, q.w, q.h);
+    if (q.w > q.h) { px(q.x, q.y, q.w, 2, 'rgba(255,255,255,0.7)'); for (let sx = q.x; sx < q.x + q.w; sx += 16) px(sx, q.y, 1.4, q.h, '#5f7f99'); }
+    else { px(q.x, q.y, 2, q.h, 'rgba(255,255,255,0.7)'); for (let sy = q.y; sy < q.y + q.h; sy += 12) px(q.x, sy, q.w, 1.4, '#5f7f99'); }
+    c.strokeStyle = '#e6eaed'; c.lineWidth = 1.2; c.strokeRect(q.x, q.y, q.w, q.h);
     glow(q.x, q.y, q.w, q.h, '#ffe7a8');
   }
   // solar panels: tilted rows with a raised edge and a shadow
@@ -238,10 +269,14 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     const q = toCanvas(s); features.push(s);
     for (let y = q.y; y + 12 <= q.y + q.h; y += 15) {
       px(q.x + 2, y + 11, q.w - 4, 3, 'rgba(0,0,0,0.22)');
-      px(q.x, y, q.w, 11, '#2f4f84');
-      px(q.x, y, q.w, 2, '#7c9dd0');
-      for (let sx = q.x + 10; sx < q.x + q.w; sx += 10) px(sx, y + 2, 1, 9, '#4c6fa8');
-      px(q.x, y + 6, q.w, 1, '#4c6fa8');
+      const pg = c.createLinearGradient(q.x, y, q.x + q.w * 0.4, y + 11);
+      pg.addColorStop(0, '#5576ad'); pg.addColorStop(0.5, '#2c4a7c'); pg.addColorStop(1, '#22395f');
+      c.fillStyle = pg; c.fillRect(q.x, y, q.w, 11);
+      px(q.x, y, q.w, 1.6, '#a9c0e4');
+      c.fillStyle = 'rgba(160,190,230,0.35)';
+      for (let sx = q.x + 10; sx < q.x + q.w; sx += 10) c.fillRect(sx, y + 1.6, 0.6, 9.4);
+      c.fillRect(q.x, y + 6, q.w, 0.6);
+      c.strokeStyle = '#c9d0d6'; c.lineWidth = 0.6; c.strokeRect(q.x, y, q.w, 11);
     }
   }
   // rooftop units (vents, a stair box) where there's room on a flat roof
@@ -295,9 +330,12 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   // parapet: light coping along the edge with a darker inside lip (so the roof reads as recessed)
   c.lineJoin = 'round';
   path(c, b.shape);
-  if (style === 'flat') { c.strokeStyle = 'rgba(0,0,0,0.13)'; c.lineWidth = 16; c.stroke(); }
+  if (style === 'flat') { c.strokeStyle = 'rgba(0,0,0,0.06)'; c.lineWidth = 22; c.stroke(); c.strokeStyle = 'rgba(0,0,0,0.1)'; c.lineWidth = 15; c.stroke(); }
   if (style === 'balloon') { c.strokeStyle = pal.rimDark; c.lineWidth = 3; c.stroke(); }
-  else { c.strokeStyle = pal.rim; c.lineWidth = style === 'flat' ? 10 : 6; c.stroke(); }
+  else {
+    c.strokeStyle = pal.rim; c.lineWidth = style === 'flat' ? 10 : 6; c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 1.2; c.stroke(); // the coping's sunlit edge
+  }
   c.restore();
 
   // courtyard: an open well; you see its floor and the inner wall of its north side
@@ -332,7 +370,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     const len = Math.hypot(B[0] - A[0], B[1] - A[1]);
     return { A, B, i, nx: (B[1] - A[1]) / len, ny: -(B[0] - A[0]) / len };
   }).filter((w) => w.ny > 0.05).sort((p, q) => Math.max(p.A[1], p.B[1]) - Math.max(q.A[1], q.B[1]));
-  const quadOn = (ctx: CanvasRenderingContext2D, G: (t: number, h: number) => [number, number], t0: number, t1: number, h0: number, h1: number, col: string) => {
+  const quadOn = (ctx: CanvasRenderingContext2D, G: (t: number, h: number) => [number, number], t0: number, t1: number, h0: number, h1: number, col: string | CanvasGradient) => {
     ctx.fillStyle = col; ctx.beginPath();
     for (const [t, h] of [[t0, h0], [t1, h0], [t1, h1], [t0, h1]] as const) { const [qx, qy] = G(t, h); ctx.lineTo(qx, qy); }
     ctx.closePath(); ctx.fill();
@@ -340,7 +378,21 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   for (const w of walls) {
     const [ax, ay] = w.A, [bx, by] = w.B;
     const G = (t: number, h: number) => P(ax + (bx - ax) * t, ay + (by - ay) * t, h);
-    const q = (t0: number, t1: number, h0: number, h1: number, col: string) => quadOn(c, G, t0, t1, h0, h1, col);
+    const q = (t0: number, t1: number, h0: number, h1: number, col: string | CanvasGradient) => quadOn(c, G, t0, t1, h0, h1, col);
+    /** a gradient running up the wall, from height h0 to h1 */
+    const up = (h0: number, h1: number, stops: Array<[number, string]>) => {
+      const [x0, y0] = G(0.5, h0), [x1, y1] = G(0.5, h1);
+      const g = c.createLinearGradient(x0, y0, x1, y1);
+      for (const [o, col] of stops) g.addColorStop(o, col);
+      return g;
+    };
+    /** a gradient running along the wall, from t0 to t1 */
+    const along = (t0: number, t1: number, stops: Array<[number, string]>) => {
+      const [x0, y0] = G(t0, 0.5), [x1, y1] = G(t1, 0.5);
+      const g = c.createLinearGradient(x0, y0, x1, y1);
+      for (const [o, col] of stops) g.addColorStop(o, col);
+      return g;
+    };
     const ql = (t0: number, t1: number, h0: number, h1: number, col = '#ffd57e') => quadOn(L, G, t0, t1, h0, h1, col);
     const Lpx = Math.hypot((bx - ax) * TILE, (by - ay) * TILE);
     const hpx = G(0.5, 0)[1] - G(0.5, 1)[1];
@@ -349,9 +401,10 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     // sun from the north-west: east-facing walls sit in shade
     q(0, 1, 0, 1, wall);
     if (w.nx > 0) q(0, 1, 0, 1, `rgba(0,0,0,${(0.03 + w.nx * 0.13).toFixed(3)})`);
-    // plaster grain, and the wall darkening towards the ground
-    for (let i = 0; i < (Lpx * hpx) / 70; i++) { const [gx, gy] = G(rand(), rand()); c.fillStyle = rand() < 0.5 ? shade(wall, 0.95) : shade(wall, 1.03); c.fillRect(Math.round(gx), Math.round(gy), 1, 1); }
-    q(0, 1, 0, v(26), 'rgba(0,0,0,0.04)'); q(0, 1, 0, v(16), 'rgba(0,0,0,0.05)');
+    // skylight from above, bounced light fading out, and the wall darkening into the ground (ambient occlusion)
+    q(0, 1, 0, 1, up(0, 1, [[0, 'rgba(40,30,20,0.16)'], [0.18, 'rgba(40,30,20,0.04)'], [0.6, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0.12)']]));
+    // fine plaster grain
+    for (let i = 0; i < (Lpx * hpx) / 22; i++) { const [gx, gy] = G(rand(), rand()); c.fillStyle = rand() < 0.5 ? 'rgba(60,45,30,0.06)' : 'rgba(255,255,255,0.18)'; c.beginPath(); c.arc(gx, gy, 0.3 + rand() * 0.35, 0, Math.PI * 2); c.fill(); }
     q(0, 1, 1 - v(4), 1, 'rgba(0,0,0,0.16)'); // shadow under the coping
     q(0, 1, 1 - v(9), 1 - v(5), shade(wall, 0.95)); // cornice band
     q(0, 1, 1 - v(10), 1 - v(9), 'rgba(0,0,0,0.12)');
@@ -385,7 +438,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
         if (f > 0) { q(0, 1, hi - v(1), hi + v(2), shade(wall, 0.95)); q(0, 1, hi + v(1), hi + v(2), shade(wall, 1.02)); q(0, 1, hi - v(2), hi - v(1), 'rgba(0,0,0,0.12)'); } // slab band
         if (b.id === 'spor' || b.id === 'kapali_saha') {
           // tall curtain wall of the sports hall
-          q(u(8), 1 - u(8), lo + v(2), hi - v(4), '#5f819f');
+          q(u(8), 1 - u(8), lo + v(2), hi - v(4), up(lo + v(2), hi - v(4), [[0, '#3f6280'], [0.6, '#5f819f'], [1, '#9cbdd6']]));
           q(u(8), 1 - u(8), hi - v(8), hi - v(4), '#a9c9e2');
           for (let s = 8; s < Lpx - 8; s += 18) q(u(s), u(s + 2), lo + v(2), hi - v(4), '#e8ecef');
           q(u(8), 1 - u(8), (lo + hi) / 2, (lo + hi) / 2 + v(2), '#e8ecef');
@@ -400,16 +453,18 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
           if (ground && [...doorSpans, ...mouths].some((s) => t1 + u(6) > s.t0 && t0 - u(6) < s.t1)) continue;
           // window with frame, sky reflection and a wooden fin beside it (as in the aerial render)
           q(t0 - u(1), t1 + u(1), w0 - v(1), w1 + v(1), '#c3c8cb'); // frame
-          q(t0, t1, w0, w1, '#4f6f8c');
-          q(t0, t1, w1 - v(3), w1, '#2f475c');               // reveal shadow along the top
-          q(t0, t0 + u(1), w0, w1, '#2f475c');
-          q(t0 + u(9), t0 + u(14), w1 - v(7), w1 - v(5), '#7fa3c2'); // sky reflection
+          // glass: the sky reflected, bright at the top and deepening downwards, with a diagonal glint
+          q(t0, t1, w0, w1, up(w0, w1, [[0, '#2f4a63'], [0.55, '#4f7392'], [1, '#8fb3cf']]));
+          q(t0, t1, w0, w1, along(t0, t1, [[0, 'rgba(255,255,255,0)'], [0.55, 'rgba(255,255,255,0)'], [0.62, 'rgba(255,255,255,0.22)'], [0.72, 'rgba(255,255,255,0.05)'], [1, 'rgba(255,255,255,0)']]));
+          q(t0, t1, w1 - v(3), w1, 'rgba(20,32,44,0.55)');   // reveal shadow along the top
+          q(t0, t0 + u(1), w0, w1, 'rgba(20,32,44,0.5)');
           const curtain = rand() < 0.45 ? ['#e8d8b0', '#c9d6e3', '#e6c3b8', '#d8e4c8', '#f0e6d2'][Math.floor(rand() * 5)] : null;
           const cside = rand() < 0.5;
           if (curtain) q(cside ? t0 + u(1) : t1 - u(5), cside ? t0 + u(5) : t1 - u(1), w0 + v(1), w1 - v(3), curtain);
           q(t0 + u(7), t0 + u(8), w0, w1, '#e8ecef');
           q(t0 - u(1), t1 + u(1), w0 - v(2), w0, '#d9dde0');  // sill
           q(t0 - u(1), t1 + u(1), w0 - v(3), w0 - v(2), 'rgba(0,0,0,0.15)');
+          q(t0 - u(1), t1 + u(1), w0 - v(6), w0 - v(3), up(w0 - v(6), w0 - v(3), [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.08)']])); // sill drip shadow
           q(t1 + u(1), t1 + u(4), w0 - v(2), w1 + v(2), '#c98a4b'); // fin
           q(t1 + u(3), t1 + u(4), w0 - v(2), w1 + v(2), '#9c6633');
           if (rand() < 0.72) ql(t0, t1, w0 + v(1), w1 - v(3), rand() < 0.2 ? '#fff0c4' : '#ffd57e');
@@ -445,7 +500,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       q(t0 - u(4), t1 + u(4), dh + v(7), dh + v(8), '#c9ced2');
       q(t0 - u(2), t1 + u(2), dh - v(1), dh + v(2), 'rgba(0,0,0,0.25)');
       q(t0, t1, 0, dh, d.revir ? '#f4f4f2' : '#3e4a52');          // door frame
-      q(t0 + u(2), t1 - u(2), v(1), dh - v(2), d.revir ? '#d8e8f0' : '#6f93ad');
+      q(t0 + u(2), t1 - u(2), v(1), dh - v(2), d.revir ? '#d8e8f0' : up(v(1), dh - v(2), [[0, '#4d6f88'], [1, '#9cbdd6']]));
       q(t0 + u(2), t1 - u(2), dh - v(5), dh - v(2), '#cfe5f4');
       if (t1 - t0 > u(20)) { const m = (t0 + t1) / 2; q(m - u(1), m + u(1), v(1), dh - v(2), '#3e4a52'); }
       ql(t0 + u(2), t1 - u(2), v(1), dh - v(5), '#fff0c4');
@@ -463,8 +518,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       q(t0 - u(2), t1 + u(2), oh, oh + v(1), 'rgba(0,0,0,0.3)');
     }
     // crisp outline of the wall's foot and ends
-    c.strokeStyle = 'rgba(40, 46, 52, 0.55)'; c.lineWidth = 1;
-    c.beginPath(); for (const [t, h] of [[0, 1], [0, 0], [1, 0], [1, 1]] as const) { const [qx, qy] = G(t, h); c.lineTo(qx + 0.5, qy - 0.5); } c.stroke();
+    c.strokeStyle = 'rgba(40, 46, 52, 0.45)'; c.lineWidth = 0.7;
+    c.beginPath(); for (const [t, h] of [[0, 1], [0, 0], [1, 0], [1, 1]] as const) { const [qx, qy] = G(t, h); c.lineTo(qx, qy); } c.stroke();
   }
 
   // ---------- entrances on walls you can't see: a glass vestibule at the roof edge or the side ----------
@@ -529,9 +584,10 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     }
   }
 
-  // crisp dark outline around the roof (pixel-art style)
-  path(c, b.shape); c.strokeStyle = 'rgba(40, 46, 52, 0.55)'; c.lineWidth = 1; c.stroke();
+  // a fine dark outline around the roof
+  path(c, b.shape); c.strokeStyle = 'rgba(40, 46, 52, 0.45)'; c.lineWidth = 0.7; c.stroke();
   tex.refresh(); lit.refresh();
+  tex.setFilter(Phaser.Textures.FilterMode.LINEAR); lit.setFilter(Phaser.Textures.FilterMode.LINEAR);
   return art;
 }
 
@@ -541,8 +597,13 @@ export function makeShadowArt(scene: Phaser.Scene, b: Building, reach: number): 
   const dx = reach * TILE, dy = reach * 0.6 * TILE;
   const x = Math.floor(r.x * TILE), y = Math.floor(r.y * TILE);
   if (!scene.textures.exists(key)) {
-    const tex = scene.textures.createCanvas(key, Math.ceil(r.w * TILE + dx) + 2, Math.ceil(r.h * TILE + dy) + 2)!;
+    const cw = Math.ceil(r.w * TILE + dx) + 8, ch = Math.ceil(r.h * TILE + dy) + 8;
+    const tex = scene.textures.createCanvas(key, cw * ART_RES, ch * ART_RES)!;
     const c = tex.getContext();
+    // drawn off to the left and thrown back in place as a blurred shadow, so its edge is soft
+    const off = cw * ART_RES;
+    c.setTransform(ART_RES, 0, 0, ART_RES, -off, 0);
+    c.shadowColor = '#000'; c.shadowBlur = 4 * ART_RES; c.shadowOffsetX = off;
     c.fillStyle = '#000';
     const at = ([px, py]: Pt, sx = 0, sy = 0): [number, number] => [px * TILE - x + sx, py * TILE - y + sy];
     const poly = (pts: Array<[number, number]>) => { c.beginPath(); pts.forEach(([qx, qy], i) => (i ? c.lineTo(qx, qy) : c.moveTo(qx, qy))); c.closePath(); c.fill(); };
@@ -551,6 +612,7 @@ export function makeShadowArt(scene: Phaser.Scene, b: Building, reach: number): 
     // sweep every edge from the footprint to its shifted copy, so the silhouette has no gaps
     b.shape.forEach((p, i) => { const q = b.shape[(i + 1) % b.shape.length]; poly([at(p), at(q), at(q, dx, dy), at(p, dx, dy)]); });
     tex.refresh();
+    tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
   }
   return { key, x, y };
 }

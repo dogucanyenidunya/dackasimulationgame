@@ -2254,7 +2254,7 @@ export class CampusScene extends Phaser.Scene {
       // sun from the north-west: a soft outer shadow and a darker inner one, falling east and a little south
       for (const [reach, alpha] of [[0.95, 0.1], [0.7, 0.2]] as const) {
         const sh = makeShadowArt(this, b, reach);
-        this.add.image(sh.x, sh.y, sh.key).setOrigin(0, 0).setDepth(1).setAlpha(alpha);
+        this.add.image(sh.x, sh.y, sh.key).setOrigin(0, 0).setScale(1 / ART_RES).setDepth(1).setAlpha(alpha);
       }
       const art = makeBuildingArt(this, b);
       const imgs: Phaser.GameObjects.Image[] = [], lits: Phaser.GameObjects.Image[] = [];
@@ -2264,8 +2264,9 @@ export class CampusScene extends Phaser.Scene {
         const fronts = [1, SLICE / 2, SLICE - 1].map((d) => frontAt(b.shape, (art.x + sx + d) / TILE)).filter((v): v is number => v !== null);
         const base = fronts.length ? Math.max(...fronts) * TILE : last;
         last = base;
-        imgs.push(this.add.image(art.x, art.y, art.key).setOrigin(0, 0).setCrop(sx, 0, SLICE, art.h).setDepth(base));
-        lits.push(this.add.image(art.x, art.y, art.litKey).setOrigin(0, 0).setCrop(sx, 0, SLICE, art.h).setDepth(base + 0.5).setAlpha(0));
+        // (the building's picture is ART_RES times finer than the world: crop in its pixels, show it scaled down)
+        imgs.push(this.add.image(art.x, art.y, art.key).setOrigin(0, 0).setScale(1 / ART_RES).setCrop(sx * ART_RES, 0, SLICE * ART_RES, art.h * ART_RES).setDepth(base));
+        lits.push(this.add.image(art.x, art.y, art.litKey).setOrigin(0, 0).setScale(1 / ART_RES).setCrop(sx * ART_RES, 0, SLICE * ART_RES, art.h * ART_RES).setDepth(base + 0.5).setAlpha(0));
       }
       this.buildingArt.push({ art, b, imgs, lits, alpha: 1 });
     }
@@ -2456,7 +2457,7 @@ export class CampusScene extends Phaser.Scene {
       // lit windows punch through the darkness
       if (!this.room) {
         c.globalCompositeOperation = 'destination-out';
-        c.imageSmoothingEnabled = false;
+        c.imageSmoothingEnabled = true;
         c.globalAlpha = Math.min(0.9, (a - 0.25) * 2);
         for (const { art, alpha } of this.buildingArt) {
           if (alpha < 0.9) continue;
