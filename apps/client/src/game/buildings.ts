@@ -19,6 +19,7 @@ import { DEPUTY, NPCS, ablativeTr, dativeTr, friendLevel, genitiveTr, type NpcDe
 import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
+import type { PhoneRunResult } from '../ui/phoneRun';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
 
@@ -67,6 +68,8 @@ export interface GameCtx {
   watchMatch(): void;
   /** a game of Yetimball against a classmate of this skill (0–1); resolves with how it ended */
   playYetimball(opponent: string, skill: number): Promise<YbResult>;
+  /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
+  runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
 
 /** reason text when a feature is still locked behind a mission */

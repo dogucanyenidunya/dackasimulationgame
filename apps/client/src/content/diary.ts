@@ -34,6 +34,10 @@ const DILEMMA: Record<string, Record<string, Pair>> = {
     stay: ['Kartım bitmişti ama ağlayan arkadaşla sırada bekledim. "İyi ki bekledin" dedi.', 'My card had run out, but I waited in the queue with the kid who was crying. "I\'m glad you waited," they said.'],
     bed: ['Telefon sırasından çıkıp yattım. Koridordaki hıçkırıkları duymamaya çalıştım.', 'I left the phone queue and went to bed, and tried not to hear the sobbing in the corridor.'],
   },
+  arama: {
+    run: ['Yatmadan önce evden aradılar! Telefona yetişmek için koridoru baştan sona koştum. Sesini duyunca içim ısındı.', 'Home rang just before bed! I ran the whole length of the corridor to catch the call. Hearing their voice warmed me right up.'],
+    skip: ['Yatmadan önce evden aradılar ama gitmedim; sesini duyarsam ağlarım diye korktum. Şimdi keşke gitseydim diyorum.', "Home rang just before bed but I didn't go; I was scared I'd cry if I heard their voice. Now I wish I had."],
+  },
   arka: {
     tell: ['Yurdun arkasında gördüklerimi belletmene söyledim. Doğrusu bu muydu, bilmiyorum; büyükler bana tuhaf bakıyor.', "I told the belletmen what I saw behind the dorm. I don't know if that was right; the older kids look at me strangely now."],
     quiet: ['Yurdun arkasında bir şey gördüm ama kimseye söylemedim. O benim sırrım değil.', "I saw something behind the dorm but I didn't tell anyone. It isn't my secret."],

@@ -16,7 +16,7 @@ export interface ActionView {
 }
 
 /** a dilemma moment: the situation on top, the choices underneath, all at once */
-export interface DilemmaView { title: string; intro: string; question: string; choices: Array<{ id: string; label: string }>; later: string }
+export interface DilemmaView { title: string; intro: string; question: string; choices: Array<{ id: string; label: string }>; later?: string }
 /** what came of it: the story, how it shaped you (which way each trait moved) and what you gained or lost */
 export interface OutcomeView { title: string; body: string; shifts: Array<{ towards: string; from: string; amount: number }>; effects: Array<{ text: string; good: boolean }> }
 
@@ -540,12 +540,12 @@ export class Panel {
           <div class="dl-shape">✦ ${esc(L({ tr: 'Doğru cevap yok. Vereceğin karar, kim olacağını şekillendirecek ve hatırlanacak.', en: 'There is no right answer. What you decide will shape who you become, and it will be remembered.' }))}</div>
           <div class="dl-q">${esc(v.question)}</div>
           <div class="dl-choices">${v.choices.map((c, i) => `<button type="button" data-id="${esc(c.id)}" style="animation-delay:${0.15 + i * 0.08}s"><i>${i + 1}</i><span>${esc(c.label)}</span></button>`).join('')}</div>
-          <button type="button" class="dl-later">${esc(v.later)}</button>
+          ${v.later ? `<button type="button" class="dl-later">${esc(v.later)}</button>` : ''}
         </div>`;
       sfx.discover();
       const done = (id: string | null) => { wrap.remove(); resolve(id); };
       wrap.querySelectorAll<HTMLButtonElement>('[data-id]').forEach((b) => b.addEventListener('click', () => { sfx.click(); done(b.dataset.id!); }));
-      wrap.querySelector('.dl-later')!.addEventListener('click', () => done(null));
+      wrap.querySelector('.dl-later')?.addEventListener('click', () => done(null));
     });
   }
 

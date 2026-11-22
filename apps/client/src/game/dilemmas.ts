@@ -19,7 +19,7 @@ export const AXES: Array<{ id: AxisId; lo: Text; hi: Text }> = [
   { id: 'heart', lo: { tr: 'Kapalı', en: 'Guarded' }, hi: { tr: 'Açık', en: 'Open' } },
 ];
 
-export type DilemmaId = 'telefon' | 'arka' | 'parti' | 'mac';
+export type DilemmaId = 'telefon' | 'arka' | 'parti' | 'mac' | 'arama';
 
 /** the score at half-time on match night (the match screen sets it before the dilemma) */
 export const matchState = { home: 0, away: 0 };
@@ -41,10 +41,11 @@ export function temperLabel(st: PlayerState): string | null {
 interface Choice {
   id: string;
   label: Text;
-  /** applies the effects and returns what happened */
-  run: () => Text;
+  /** applies the effects and returns what happened (it may play something out first) */
+  run: () => Text | Promise<Text>;
 }
-interface Dilemma { title: Text; intro: Text; question: Text; who?: NpcDef; choices: Choice[] }
+/** `urgent`: it can't wait, so there's no "I can't decide right now" */
+interface Dilemma { title: Text; intro: Text; question: Text; who?: NpcDef; choices: Choice[]; urgent?: boolean }
 
 const belletmenOf = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? { id: 'bel-hatice', name: 'Ayşe Hoca' } : { id: 'bel-mehmet', name: 'Ercan Hoca' });
 const friendOf = (ctx: GameCtx, id: string) => ctx.st.friends[id] ?? 0;
@@ -260,7 +261,69 @@ function mac(ctx: GameCtx): Dilemma {
   };
 }
 
-const BUILD: Record<DilemmaId, (ctx: GameCtx) => Dilemma> = { telefon, arka, parti, mac };
+/** one of the first nights, just before bed: home is on the phone, and the phone is at the far end of the corridor */
+function arama(ctx: GameCtx): Dilemma {
+  const st = ctx.st;
+  const bel = belletmenOf(ctx);
+  const gd = GUARDIANS.find((x) => x.id === ctx.ch.guardian)!.your;
+  const g = L(gd);
+  const gl = L({ tr: gd.tr.toLocaleLowerCase('tr-TR'), en: gd.en.toLowerCase() });
+  const first = ctx.ch.first;
+  // the classmate you've got closest to so far, to tell home about
+  const pal = NPCS.filter((n) => n.kind === 'classmate' && friendOf(ctx, n.id) > 0).sort((a, b) => friendOf(ctx, b.id) - friendOf(ctx, a.id))[0];
+  return {
+    title: { tr: '📞 Telefonun var!', en: '📞 There’s a call for you!' },
+    intro: {
+      tr: `Yatmadan önce lavabo sırasında dişlerini fırçalıyorsun. Koridorun öbür ucundan ${genitiveTr(bel.name)} sesi geliyor: "${first}! Telefonun var, ${gl} arıyor!" Belletmen odası koridorun ta sonunda. Koridor şimdi terliklerle, çamaşır sepetleriyle ve diş fırçalayan çocuklarla dolu. Bir de… ${gl} sesini duyunca ağlarsan ne olacak?`,
+      en: `You're brushing your teeth in the queue at the sinks before bed. From the far end of the corridor comes ${bel.name}'s voice: "${first}! Phone for you, it's ${gl}!" The belletmen's room is right at the end of the corridor, and right now the corridor is full of slippers, laundry baskets and kids brushing their teeth. And… what if you cry when you hear ${gl}'s voice?`,
+    },
+    question: { tr: 'Telefona koşar mısın?', en: 'Do you run for the phone?' },
+    urgent: true,
+    choices: [
+      {
+        id: 'run', label: { tr: '🏃 Koş, telefona yetiş!', en: '🏃 Run and catch the call!' },
+        run: async () => {
+          const r = await ctx.runToPhone(g, bel.name);
+          markCall(ctx);
+          shape(st, { heart: 7 });
+          ctx.befriend(bel.id, r.late ? 5 : 2);
+          ctx.advance(15);
+          ctx.gain({ mood: r.late ? 12 : 16 });
+          const pals = pal
+            ? { tr: `${pal.name} diye bir arkadaşın olduğunu anlattın; "Bir gün onu da eve getir" dedi.`, en: `You told them about your friend ${pal.name}; "Bring them home one day," came the reply.` }
+            : { tr: '"Arkadaş edindin mi?" diye sordu; "Daha yeni geldim ama sanırım edineceğim" dedin.', en: '"Have you made any friends?" You said, "I\'ve only just got here, but I think I will."' };
+          const run = r.stumbles === 0
+            ? { tr: 'Hiçbir şeye takılmadan koridoru bir uçtan öbür uca koştun.', en: 'You ran the whole corridor without tripping over a thing.' }
+            : r.stumbles >= 6
+              ? { tr: 'Koridorda neredeyse her şeye çarptın: terliklere, sepetlere, havlulara… ama vazgeçmedin.', en: 'You bumped into nearly everything in the corridor: slippers, baskets, towels… but you kept going.' }
+              : { tr: `Koridorda ${r.stumbles} kez bir şeylere çarptın, ama vazgeçmedin.`, en: `You bumped into things ${r.stumbles} time${r.stumbles > 1 ? 's' : ''} on the way down the corridor, but you kept going.` };
+          return r.late
+            ? {
+                tr: `${run.tr} Vardığında zil çoktan susmuştu; ${bel.name} ahizeyi kulağında tutuyordu: "Geldi, geldi!" ${g} seni beklemişti. "Nefes nefesesin, koşma öyle!" dedi, güldünüz. Yemekleri, yatağının rahat olup olmadığını sordu. ${pals.tr} Kapatırken sesin biraz titredi ama içinde koca bir sıcaklık vardı.`,
+                en: `${run.en} By the time you got there the ringing had long stopped; ${bel.name} was holding the receiver to their ear: "Here they are!" ${g} had waited for you. "You're out of breath, don't run like that!" and you both laughed. They asked about the food and whether your bed was comfy. ${pals.en} Your voice shook a little as you hung up, but you felt warm all over.`,
+              }
+            : {
+                tr: `${run.tr} Telefon hâlâ çalıyordu; ahizeyi nefes nefese kaptın. "${first}? Koşarak mı geldin sen?" ${g} güldü. Yemekleri, yatağının rahat olup olmadığını, derslerin ne zaman başlayacağını sordu. ${pals.tr} "Seni çok seviyorum" diyerek kapattınız. Yatağına dönerken gülümsüyordun.`,
+                en: `${run.en} It was still ringing; you grabbed the receiver, panting. "${first}? Did you run all the way?" ${g} laughed, and asked about the food, whether your bed was comfy and when lessons start. ${pals.en} You hung up with "I love you." You were smiling all the way back to bed.`,
+              };
+        },
+      },
+      {
+        id: 'skip', label: { tr: `Gitme: "Uyudu" desinler`, en: 'Don’t go: let them say you’re asleep' },
+        run: () => {
+          shape(st, { heart: -7, warmth: 3 });
+          ctx.gain({ mood: -4 });
+          return {
+            tr: `Dişlerini fırçalamaya devam ettin, sonra yatağına girip yorganı başına çektin. Biraz sonra ${genitiveTr(bel.name)} telefonda "Uyumuş galiba, yarın sizi arar" dediğini duydun. Gözlerini sıkıca kapadın. Ağlamadın, ama uyuman uzun sürdü.`,
+            en: `You carried on brushing your teeth, then got into bed and pulled the duvet over your head. A little later you heard ${bel.name} on the phone: "I think they're asleep, they'll call you tomorrow." You squeezed your eyes shut. You didn't cry, but it took you a long time to fall asleep.`,
+          };
+        },
+      },
+    ],
+  };
+}
+
+const BUILD: Record<DilemmaId, (ctx: GameCtx) => Dilemma> = { telefon, arka, parti, mac, arama };
 
 /** what a choice changed, read off the state before and after it ran */
 function snapshot(ctx: GameCtx) {
@@ -276,12 +339,12 @@ export async function runDilemma(ctx: GameCtx, id: DilemmaId): Promise<boolean> 
   const pick = await ctx.panel.dilemma({
     title: L(d.title), intro: L(d.intro), question: L(d.question),
     choices: d.choices.map((c) => ({ id: c.id, label: L(c.label) })),
-    later: T('Şimdi karar veremiyorum', "I can't decide right now"),
+    later: d.urgent ? undefined : T('Şimdi karar veremiyorum', "I can't decide right now"),
   });
   const c = d.choices.find((x) => x.id === pick);
   if (!c) return false;
   const before = snapshot(ctx);
-  const outcome = c.run();
+  const outcome = await c.run();
   ctx.st.memories.push({ id, choice: c.id, day: ctx.clock.day, year: ctx.st.year, who: d.who?.id });
   ctx.log({ kind: 'dilemma', a: id, b: c.id });
   const after = snapshot(ctx);

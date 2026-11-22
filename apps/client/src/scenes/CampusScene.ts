@@ -22,6 +22,7 @@ import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '.
 import { PeerPlay } from '../game/peerPlay';
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
+import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
 import { askConfirm } from '../ui/confirm';
@@ -78,6 +79,8 @@ const MEAL_MINUTES = 25;
 const MEAL_MS_PER_MIN = 320;
 /** a lesson you haven't gone to: after this many minutes the deputy head comes looking for you */
 const TRUANT_AFTER = 8;
+/** home rings you before bed on one of the first nights: the first evening up to this day you're in the dorm */
+const HOME_CALLS_BY = 5;
 /** how many of your closest friends come and hang around near you in their free time */
 const FOLLOWERS = 3;
 
@@ -2884,6 +2887,7 @@ export class CampusScene extends Phaser.Scene {
       log: (e) => this.log(e),
       watchMatch: () => void this.watchMatch(),
       playYetimball: (opponent, skill) => this.playYetimball(opponent, skill),
+      runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
   }
@@ -2902,6 +2906,19 @@ export class CampusScene extends Phaser.Scene {
       });
       const close = view.close.bind(view);
       view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); };
+    });
+  }
+
+  /** the run down the dorm corridor to the phone; the clock waits while you run, like at the match */
+  private runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    return new Promise((resolve) => {
+      new PhoneRunView(document.body, {
+        caller, belletmen, look: this.save.character.look, pyjamas: PYJAMAS,
+        onEnd: (r) => { this.watching = false; this.refreshClockAndNeeds(); resolve(r); },
+      });
     });
   }
 
@@ -3731,7 +3748,9 @@ export class CampusScene extends Phaser.Scene {
     const now = c.day * 1440 + c.minutes;
     if (now < this.dilemmaWait || st.memories.some((m) => m.day === c.day)) return; // one a day
     const m = c.minutes;
-    if (this.room === 'dorm' && !dilemmaDone(st, 'telefon') && st.daily.call !== c.day && m >= 21 * 60 && m < 21 * 60 + 50) this.openDilemma('telefon');
+    // one of the first nights, home rings you before bed (before you'd queue for the payphone yourself)
+    if (this.room === 'dorm' && c.day <= HOME_CALLS_BY && !dilemmaDone(st, 'arama') && st.daily.call !== c.day && m >= 20 * 60 + 30 && m < 21 * 60 + 40) this.openDilemma('arama');
+    else if (this.room === 'dorm' && !dilemmaDone(st, 'telefon') && st.daily.call !== c.day && m >= 21 * 60 && m < 21 * 60 + 50) this.openDilemma('telefon');
     else if (!this.room && c.day >= 2 && !dilemmaDone(st, 'arka') && phaseOf(m, c.day) === 'plaza' && m >= 20 * 60 + 20 && m < 21 * 60 + 40) {
       const tx = this.player.x / TILE, ty = this.player.y / TILE, r = PLAZA_EVENING;
       if (tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) this.openDilemma('arka');
@@ -3742,7 +3761,7 @@ export class CampusScene extends Phaser.Scene {
     const c = this.save.clock;
     this.dilemmaWait = c.day * 1440 + c.minutes + 20;
     this.player.setVelocity(0, 0);
-    const where = id === 'telefon' ? L({ tr: 'Yurt koridoru', en: 'Dorm corridor' }) : L({ tr: 'Yurdun arkası', en: 'Behind the dorm' });
+    const where = id === 'telefon' || id === 'arama' ? L({ tr: 'Yurt koridoru', en: 'Dorm corridor' }) : L({ tr: 'Yurdun arkası', en: 'Behind the dorm' });
     this.panel.open(() => ({ title: where, rooms: [{ id: 'dilemma', name: where, actions: [] }] }));
     void runDilemma(this.gameCtx(), id).then(() => { if (this.panel.isOpen) this.panel.close(); this.persist(); });
   }

@@ -56,6 +56,12 @@ export const sfx = {
   success() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.5, 0.12, 'triangle')); },
   friend() { [659, 880].forEach((f, i) => tone(f, i * 0.1, 0.4, 0.1)); },
   warn() { tone(196, 0, 0.35, 0.12, 'sawtooth'); tone(185, 0.12, 0.35, 0.1, 'sawtooth'); },
+  /** an old desk phone ringing: one short trill */
+  ring() { for (let i = 0; i < 10; i++) tone(i % 2 ? 840 : 960, i * 0.045, 0.05, 0.05, 'square'); },
+  /** a little hop (the corridor run) */
+  hop() { tone(520, 0, 0.12, 0.08, 'triangle'); tone(780, 0.06, 0.12, 0.06, 'triangle'); },
+  /** bumping into something */
+  bump() { tone(140, 0, 0.22, 0.16, 'square'); tone(90, 0.05, 0.25, 0.12, 'sine'); },
   isMuted: () => muted,
   musicOn: () => musicOn,
   /** turns the background music on or off (remembered) */
