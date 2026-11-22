@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
-  MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea,
+  MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, LEDGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
   AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -12,7 +12,7 @@ import { L, t, getLang, onLangChange } from '../i18n';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildingArt';
-import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, TRIBUNE_LIFT, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
+import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, SOUTH_FACE, TRIBUNE_LIFT, TUNNEL_ARCH_SIZE, TUNNEL_WALL, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
 import { Ambient } from './ambient';
 import { YetimCat } from './yetim';
@@ -152,6 +152,13 @@ export class CampusScene extends Phaser.Scene {
   private npcReach = new Uint8Array(MAP_W * MAP_H);
   /** per tile: 1 = in front of a door, where NPCs shouldn't hang around */
   private doorClear = new Uint8Array(MAP_W * MAP_H);
+  /** moves NPCs can't make across a retaining wall or railing: bit 1 = to the tile east, bit 2 = to the tile south */
+  private npcLedge = new Uint8Array(MAP_W * MAP_H);
+  /** down in the tunnel under the Merkez Meydan */
+  private inTunnel = false;
+  /** the tunnel's inside and the square's paving over it, faded in while you're down there (0–1) */
+  private tunnelView = 0;
+  private tunnelImgs: { inside: Phaser.GameObjects.Image; roof: Phaser.GameObjects.Image } | null = null;
   private suitcase!: Phaser.GameObjects.Image;
   private announceQueue: string[] = [];
   private checking = false;
@@ -274,6 +281,20 @@ export class CampusScene extends Phaser.Scene {
     this.add.image(STAIRS.x * TILE, STAIRS.y * TILE, 'stairs').setOrigin(0).setDepth(3);
     // the steps down from the first-floor corridor through Eğitim to the Merkez Meydan
     this.add.image(MEYDAN_STAIRS.x * TILE, MEYDAN_STAIRS.y * TILE - 4, 'stairs-ew').setOrigin(0).setDepth(3);
+    // the Merkez Meydan's terrace: the stairwell down into the tunnel, the road down its east side, the steps down its
+    // south edge (the picture starts on the landing a tile west of the flight) and the tunnel's arch in the east wall
+    this.add.image(TUNNEL_STAIRS.x * TILE, TUNNEL_STAIRS.y * TILE, 'tunnel-stairs').setOrigin(0).setDepth(3);
+    this.add.image(MEYDAN_RAMP.x * TILE, MEYDAN_RAMP.y * TILE, 'meydan-ramp').setOrigin(0).setDepth(2);
+    this.add.image(SOUTH_WALL.x0 * TILE, SOUTH_WALL.y * TILE - SOUTH_FACE, 'south-wall').setOrigin(0).setDepth(3);
+    this.add.image(SOUTH_STAIRS.x * TILE, SOUTH_STAIRS.y * TILE, 'south-stairs').setOrigin(0).setDepth(3);
+    // inside the tunnel, under the square's paving: both only show (the paving see-through) while you're down there
+    const ty = TUNNEL.y * TILE - TUNNEL_WALL;
+    this.tunnelImgs = {
+      inside: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-inside').setOrigin(0).setDepth(TUNNEL.y * TILE + 1).setAlpha(0),
+      // (you're drawn between the two; anyone up on the square is drawn over the paving, walking on it)
+      roof: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-roof').setOrigin(0).setDepth(TUNNEL.y * TILE + 3).setAlpha(0),
+    };
+    this.add.image(TUNNEL_IN.east * TILE - 6, (TUNNEL_IN.y + 0.5) * TILE, 'tunnel-arch').setOrigin(0, 0.5).setDepth((TUNNEL_IN.y + 1) * TILE + TUNNEL_ARCH_SIZE.h / 2 - 16);
 
     this.drawBuildings();
 
@@ -348,7 +369,7 @@ export class CampusScene extends Phaser.Scene {
       const block = this.add.rectangle((r.x + r.w / 2) * TILE, (r.y + r.h / 2) * TILE, r.w * TILE, r.h * TILE).setVisible(false);
       trees.add(block);
     });
-    // the Atatürk bust in the south-west corner of the Merkez Meydan
+    // the Atatürk bust among its trees in the south-east corner of the Merkez Meydan
     const bust = trees.create(BUST[0] * TILE, BUST[1] * TILE - 8, 'bust') as Phaser.Physics.Arcade.Sprite;
     bust.setDepth(BUST[1] * TILE + 28);
     bust.body!.setSize(30, 12).setOffset(5, 50);
@@ -565,6 +586,7 @@ export class CampusScene extends Phaser.Scene {
 
   private roomKey(): string {
     if (this.sleepRun?.kind === 'home') return 'away';
+    if (this.inTunnel && !this.room) return 'tunnel';
     return this.room === 'dorm' ? `dorm-${this.save.character.gender}` : this.room ?? 'campus';
   }
 
@@ -618,8 +640,9 @@ export class CampusScene extends Phaser.Scene {
         }
         peer.lastPos = performance.now();
         if (peer.away) showAway(peer, false, () => this.labelPeer(p.id));
+        const moved = peer.room !== p.room; // (into or out of somewhere: no gliding across the map)
         peer.tx = p.x * TILE; peer.ty = p.y * TILE; peer.dir = p.dir; peer.moving = p.moving; peer.room = p.room;
-        if (!peer.seen) { peer.sprite.setPosition(peer.tx, peer.ty); peer.seen = true; }
+        if (!peer.seen || moved) { peer.sprite.setPosition(peer.tx, peer.ty); peer.seen = true; }
       },
       onChat: (id, name, text) => { this.hud.addChatLine(name, text); this.bubbleAbove(this.peers.get(id)?.sprite, text); },
       onEmote: (id, e) => this.bubbleAbove(this.peers.get(id)?.sprite, e),
@@ -1705,6 +1728,12 @@ export class CampusScene extends Phaser.Scene {
         }
       }
     }
+    // the Meydan's retaining walls and railings run along tile edges; NPCs don't take the tunnel, so its stairwell is shut to them
+    for (const [x0, y0, x1, y1] of LEDGES) {
+      if (x0 === x1) for (let ty = y0; ty < y1; ty++) { if (x0 > 0) this.npcLedge[ty * MAP_W + x0 - 1] |= 1; }
+      else for (let tx = x0; tx < x1; tx++) { if (y0 > 0) this.npcLedge[(y0 - 1) * MAP_W + tx] |= 2; }
+    }
+    for (let tx = TUNNEL_STAIRS.x; tx < TUNNEL_STAIRS.x + TUNNEL_STAIRS.w; tx++) this.npcGrid[TUNNEL_STAIRS.y * MAP_W + tx] = 0;
     // the open tiles you can actually walk to from the main gate (pockets closed in by walls don't count)
     this.npcReach.fill(0);
     let from = -1;
@@ -1714,7 +1743,7 @@ export class CampusScene extends Phaser.Scene {
     for (let qi = 0; qi < queue.length; qi++) {
       const cur = queue[qi], x = cur % MAP_W;
       for (const n of [x > 0 ? cur - 1 : -1, x < MAP_W - 1 ? cur + 1 : -1, cur - MAP_W, cur + MAP_W]) {
-        if (n < 0 || n >= this.npcGrid.length || !this.npcGrid[n] || this.npcReach[n]) continue;
+        if (n < 0 || n >= this.npcGrid.length || !this.npcGrid[n] || this.npcReach[n] || this.ledgeBetween(cur, n)) continue;
         this.npcReach[n] = 1;
         queue.push(n);
       }
@@ -1726,6 +1755,12 @@ export class CampusScene extends Phaser.Scene {
         if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) this.doorClear[ty * MAP_W + tx] = 1;
       }
     }
+  }
+
+  /** is there a retaining wall or railing between these two neighbouring tiles? */
+  private ledgeBetween(a: number, b: number): boolean {
+    const lo = Math.min(a, b), d = Math.abs(a - b);
+    return (this.npcLedge[lo] & (d === 1 ? 1 : 2)) !== 0;
   }
 
   /** the tile under an NPC's feet (sprites are centred; the feet are 10px below the centre) */
@@ -1764,7 +1799,7 @@ export class CampusScene extends Phaser.Scene {
       }
       const x = cur % MAP_W;
       for (const n of [x > 0 ? cur - 1 : -1, x < MAP_W - 1 ? cur + 1 : -1, cur - MAP_W, cur + MAP_W]) {
-        if (n < 0 || n >= prev.length || prev[n] !== -1 || !this.npcGrid[n]) continue;
+        if (n < 0 || n >= prev.length || prev[n] !== -1 || !this.npcGrid[n] || this.ledgeBetween(cur, n)) continue;
         prev[n] = cur;
         queue.push(n);
       }
@@ -2250,6 +2285,77 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
+  /** the Merkez Meydan's terrace: nobody crosses its retaining walls or railings; the player can also walk down the
+   *  stairwell into the tunnel under its north edge and come out at the arch in the east wall, or the
+   *  other way round. `prev` is where the feet were last frame, so a long frame can't step over a wall. */
+  private updateTerrace(sp: Phaser.Physics.Arcade.Sprite, isPlayer: boolean) {
+    const body = sp.body as Phaser.Physics.Arcade.Body | null;
+    if (!body?.enable) return;
+    const R = 7, half = 6;
+    const cx = body.center.x, cy = body.center.y, vx = body.velocity.x;
+    const prev = (sp.getData('terracePrev') as [number, number] | undefined) ?? [cx, cy];
+    const W = TUNNEL_IN.west * TILE, E = TUNNEL_IN.east * TILE, y0 = TUNNEL_IN.y * TILE, y1 = y0 + TILE;
+    if (isPlayer) {
+      const inRow = cy > y0 - 4 && cy < y1 + 4;
+      // moved far off all at once (sent somewhere by the story): not in the tunnel any more
+      if (this.inTunnel && (cy < y0 - TILE || cy > y1 + TILE)) this.setTunnel(false);
+      if (!this.inTunnel && inRow) {
+        // into the tunnel: from the bottom of the stairwell, or in through the arch from the street beside the Spor Salonu
+        if (prev[0] < W && prev[0] > TUNNEL_STAIRS.x * TILE && cx > W - R - 1 && vx > 0) this.setTunnel(true);
+        else if (prev[0] > E && cx < E + R + 1 && vx < 0) this.setTunnel(true);
+      }
+      if (this.inTunnel) {
+        // along the tunnel, nothing up on the square in the way; out at either end
+        const y = Phaser.Math.Clamp(cy, y0 + half, y1 - half);
+        if (y !== cy) { body.position.y += y - cy; body.updateCenter(); }
+        if (cx < W - R - 4 || cx > E + R + 4) this.setTunnel(false);
+        sp.setData('terracePrev', [body.center.x, body.center.y]);
+        return;
+      }
+    }
+    for (const [lx0, ly0, lx1, ly1] of LEDGES) {
+      const ax = lx0 * TILE, ay = ly0 * TILE, bx = lx1 * TILE, by = ly1 * TILE;
+      const vertical = ax === bx;
+      const px = body.center.x, py = body.center.y;
+      // along the wall: is the body level with it (with a feet-radius of slack round the ends)?
+      const along = vertical ? py : px, a0 = vertical ? ay : ax, a1 = vertical ? by : bx;
+      if (along < a0 - R || along > a1 + R) continue;
+      const line = vertical ? ax : ay, cur = vertical ? px : py, was = vertical ? prev[0] : prev[1];
+      const side = Math.sign(was - line) || Math.sign(cur - line) || 1;
+      // past the end of the wall: only a round push off its end, if at all
+      if (along < a0 || along > a1) {
+        const ex = vertical ? ax : along < a0 ? ax : bx, ey = vertical ? (along < a0 ? ay : by) : ay;
+        const d = Math.hypot(px - ex, py - ey);
+        if (d >= R || d < 1e-3 || Math.sign(cur - line) !== side) continue;
+        body.position.x += ((px - ex) / d) * (R - d); body.position.y += ((py - ey) / d) * (R - d); body.updateCenter();
+        continue;
+      }
+      // keep the feet on the side they were on, a feet-radius clear of the wall
+      const off = (cur - line) * side;
+      if (off >= R) continue;
+      const push = (R - off) * side;
+      if (vertical) { body.position.x += push; if (body.velocity.x * side < 0) body.velocity.x = 0; }
+      else { body.position.y += push; if (body.velocity.y * side < 0) body.velocity.y = 0; }
+      body.updateCenter();
+    }
+    sp.setData('terracePrev', [body.center.x, body.center.y]);
+  }
+
+  /** down into the tunnel or back out of it */
+  private setTunnel(on: boolean) {
+    this.inTunnel = on;
+  }
+
+  /** while you're in the tunnel you see yourself inside it, through the square's paving (like the Eğitim corridor) */
+  private updateTunnelView() {
+    if (!this.tunnelImgs) return;
+    const target = this.inTunnel ? 1 : 0;
+    if (this.tunnelView === target) return;
+    this.tunnelView = Math.abs(this.tunnelView - target) < 0.05 ? target : this.tunnelView + (target - this.tunnelView) * 0.25;
+    this.tunnelImgs.inside.setAlpha(this.tunnelView);
+    this.tunnelImgs.roof.setAlpha(this.tunnelView * 0.45);
+  }
+
   /** buildings collide through their real outlines: anyone standing in one is pushed back out to its wall */
   private pushOutOfBuildings(sp: Phaser.Physics.Arcade.Sprite) {
     const body = sp.body as Phaser.Physics.Arcade.Body | null;
@@ -2523,7 +2629,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private updatePrompt(force = false) {
-    if (this.panel?.isOpen || this.sleepRun || this.escort) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
+    if (this.panel?.isOpen || this.sleepRun || this.escort || this.inTunnel) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
     const peer = this.peers.size ? this.nearPeer() : null;
     if (peer) { this.nearDoor = null; this.hud.setPrompt(L({ tr: `E — ${peer.profile.name} (oyuncu)`, en: `E — ${peer.profile.name} (player)` })); return; }
     if (this.room === 'dining') {
@@ -3086,8 +3192,9 @@ export class CampusScene extends Phaser.Scene {
     const out = !this.room;
     const me = this.playerSpot();
     const d = Math.hypot(me.x - npc.x, me.y - npc.y);
-    if (d < (out ? 1.3 : 1.6) * TILE) { this.caught(npc); return; }
-    if (out && d < SPOT_RANGE * TILE) { h.spotted = true; h.seen = me; }
+    // (down in the tunnel under the Meydan you're out of sight, and out of reach of anyone up on the square)
+    if (!this.inTunnel && d < (out ? 1.3 : 1.6) * TILE) { this.caught(npc); return; }
+    if (out && !this.inTunnel && d < SPOT_RANGE * TILE) { h.spotted = true; h.seen = me; }
     // they start at a walk and keep speeding up, so in the end they outpace you
     const speed = Math.min(SEARCH_SPEED_MAX, SEARCH_SPEED + h.t / 400 + (h.spotted ? 40 : 0));
     if (d < 2 * TILE) {
@@ -4184,7 +4291,7 @@ export class CampusScene extends Phaser.Scene {
     if (running) this.save.state.energy = clamp(this.save.state.energy - delta * 0.0008); // running tires you out
     const speed = this.escort ? ESCORT_SPEED : this.save.state.energy < 10 ? SPEED * 0.6 : running ? SPEED * 1.6 : SPEED;
     this.dust.setDepth(this.player.y + 15);
-    this.dust.emitting = (vx !== 0 || vy !== 0) && !this.room;
+    this.dust.emitting = (vx !== 0 || vy !== 0) && !this.room && !this.inTunnel;
     this.dust.frequency = running ? 70 : 160;
     this.player.setVelocity((vx / len) * speed, (vy / len) * speed);
     if (vx || vy) {
@@ -4194,11 +4301,11 @@ export class CampusScene extends Phaser.Scene {
       this.player.anims.stop();
       this.player.setFrame(this.dir * 3);
     }
-    this.player.setDepth(this.player.y + 16);
+    this.player.setDepth(this.inTunnel ? TUNNEL.y * TILE + 2 : this.player.y + 16);
     this.updateBuildingFade();
     const carrying = !this.save.state.once.luggage;
     this.suitcase.setVisible(carrying);
-    if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.player.y + (this.dir === 3 ? 15 : 17));
+    if (carrying) this.suitcase.setPosition(this.player.x + (this.dir === 1 ? -11 : 11), this.player.y + 15).setDepth(this.inTunnel ? TUNNEL.y * TILE + 2 + (this.dir === 3 ? -0.5 : 0.5) : this.player.y + (this.dir === 3 ? 15 : 17));
     this.showNextAnnouncement();
     this.updateRush();
     this.checkDilemmas();
@@ -4209,7 +4316,11 @@ export class CampusScene extends Phaser.Scene {
     if (this.trackerTimer > 400) { this.trackerTimer = 0; this.updateTracker(); }
 
     this.updateNpcs(time);
-    if (!this.room) { this.pushOutOfBuildings(this.player); for (const n of this.npcs) if (n.visible) this.pushOutOfBuildings(n); }
+    if (!this.room) {
+      this.pushOutOfBuildings(this.player); for (const n of this.npcs) if (n.visible) this.pushOutOfBuildings(n);
+      this.updateTerrace(this.player, true); for (const n of this.npcs) if (n.visible) this.updateTerrace(n, false);
+    } else if (this.inTunnel) this.setTunnel(false);
+    this.updateTunnelView();
     this.updatePeers(time);
     this.emoteTimer += delta;
     if (this.emoteTimer > 1400) { this.emoteTimer = 0; this.showEmote(); }

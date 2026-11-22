@@ -4,10 +4,10 @@
 import Phaser from 'phaser';
 import { CAT_FRAMES, CAT_H, CAT_KEY, makeCatTexture } from '../art/cat';
 import { CHAR_RES } from '../art/character';
-import { BUST, FLAGPOLE, FLOWERS, LAMPS, PYRAMID, TILE } from '../content/campus';
+import { BUST, FLAGPOLE, FLOWERS, LAMPS, PYRAMID, TILE, TREES } from '../content/campus';
 
 /** where the cat may go (tiles): the Merkez Meydan, a little in from its edges */
-const AREA = { x0: 41.4, y0: 24.6, x1: 54.1, y1: 37.2 };
+const AREA = { x0: 41.4, y0: 25.4, x1: 53.6, y1: 36.6 }; // (off the tunnel stairwell, the road and the south steps)
 /** curled up by the steps up to the Eğitim corridor, out of the way, at night and when it rains */
 const BED = { x: 41.75, y: 28.6 };
 const WALK = 26, TROT = 70;
@@ -42,6 +42,7 @@ export class YetimCat {
       { x: BUST[0], y: BUST[1], r: 1.1 },
       { x: FLAGPOLE[0], y: FLAGPOLE[1], r: 0.7 },
       ...LAMPS.map(([x, y]) => ({ x, y, r: 0.5 })),
+      ...TREES.map(([x, y]) => ({ x: x + 0.5, y: y + 0.75, r: 0.6 })),
       ...FLOWERS.map(([x, y]) => ({ x: x + 0.5, y: y + 0.4, r: 0.9 })),
     ].map((o) => ({ x: o.x * TILE, y: o.y * TILE, r: o.r * TILE }));
     const start = this.pick();

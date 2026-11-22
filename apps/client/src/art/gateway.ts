@@ -1,7 +1,7 @@
 // The way in from Ana Kapı: the big green gate with the guards' cabin beside it, the steps up the slope and
 // the Roman-style aqueduct between Eğitim and the Cemiyet that you walk through. 2D sprites, painted once.
 import Phaser from 'phaser';
-import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_STAIRS, PYRAMID, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS } from '../content/campus';
+import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_RAMP, MEYDAN_STAIRS, PYRAMID, SOUTH_STAIRS, SOUTH_WALL, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS, TUNNEL, TUNNEL_STAIRS } from '../content/campus';
 import { shade, wallColor } from './buildingArt';
 
 type Ctx = CanvasRenderingContext2D;
@@ -36,6 +36,24 @@ export const PYRAMID_SIZE = { w: PYRAMID.w * TILE, h: 92, foot: 26 };
 export const TRIBUNE_STEP = 4;
 export const TRIBUNE_LIFT = TRIBUNE_STEP * (TRIBUNE_ROWS - 1);
 export const tribuneKey = (i: number) => `tribune-${i}`;
+/** the Meydan's terrace: the stairwell into the tunnel, the tunnel's arch in the east wall, the road down the east
+ *  side (with the shadow it throws on the low street) and the steps down the south edge with the wall under them */
+export const TUNNEL_STAIRS_SIZE = { w: TUNNEL_STAIRS.w * TILE, h: TUNNEL_STAIRS.h * TILE };
+export const TUNNEL_ARCH_SIZE = { w: 22, h: 56 };
+const RAMP_SHADOW = 20;
+/** the road and the east wall below it: from the road's top down to the Meydan's south-east corner */
+export const RAMP_SIZE = { w: MEYDAN_RAMP.w * TILE + RAMP_SHADOW, h: (SOUTH_WALL.y - MEYDAN_RAMP.y) * TILE };
+/** the south wall's face, along the bottom of the square (px) */
+export const SOUTH_FACE = 13;
+export const SOUTH_WALL_SIZE = { w: (SOUTH_WALL.x1 - SOUTH_WALL.x0) * TILE, h: SOUTH_FACE };
+/** the Cemiyet steps, with the side wall under their railing (tallest at the top end), and below their top end the
+ *  wall between the main street and the street in front of the Cemiyet (with its shadow) */
+const STEPS_SIDE = 10;
+export const SOUTH_STAIRS_SIZE = { w: SOUTH_STAIRS.w * TILE, h: (SOUTH_STAIRS.h + 1) * TILE };
+/** inside the tunnel (shown while you're down there) and the square's paving over it, seen through */
+export const TUNNEL_WALL = 22;
+export const TUNNEL_SIZE = { w: TUNNEL.w * TILE, h: TUNNEL.h * TILE + TUNNEL_WALL };
+const TERRACE_STONE = '#b7ab94';
 
 export function makeGatewayTextures(scene: Phaser.Scene) {
   const canvas = (key: string, w: number, h: number, draw: (c: Ctx) => void) => {
@@ -53,6 +71,13 @@ export function makeGatewayTextures(scene: Phaser.Scene) {
   canvas('pyramid', PYRAMID_SIZE.w, PYRAMID_SIZE.h, paintPyramid);
   TRIBUNE.forEach((r, i) => canvas(tribuneKey(i), Math.round(r.w * TILE), Math.round(r.h * TILE) + TRIBUNE_LIFT, (c) => paintTribune(c, Math.round(r.w * TILE), Math.round(r.h * TILE), i)));
   canvas('gateleaf', GATE_LEAF_SIZE.w, GATE_LEAF_SIZE.h, paintGateLeaf);
+  canvas('tunnel-stairs', TUNNEL_STAIRS_SIZE.w, TUNNEL_STAIRS_SIZE.h, paintTunnelStairs);
+  canvas('tunnel-arch', TUNNEL_ARCH_SIZE.w, TUNNEL_ARCH_SIZE.h, paintTunnelArch);
+  canvas('meydan-ramp', RAMP_SIZE.w, RAMP_SIZE.h, paintRamp);
+  canvas('south-stairs', SOUTH_STAIRS_SIZE.w, SOUTH_STAIRS_SIZE.h, paintSouthStairs);
+  canvas('south-wall', SOUTH_WALL_SIZE.w, SOUTH_WALL_SIZE.h, paintSouthWall);
+  canvas('tunnel-inside', TUNNEL_SIZE.w, TUNNEL_SIZE.h, paintTunnelInside);
+  canvas('tunnel-roof', TUNNEL_SIZE.w, TUNNEL_SIZE.h, paintTunnelRoof);
   canvas('wallblock', TILE, TILE + WALL_FACE, (c) => paintWall(c, true));
   canvas('walltop', TILE, TILE, (c) => paintWall(c, false));
 }
@@ -302,4 +327,155 @@ function paintTribune(c: Ctx, W: number, D: number, block: number) {
   // a handrail along the top row and the front rail down at the pitch
   c.fillStyle = '#5b6168'; c.fillRect(0, 0, 2, D); c.fillRect(W - 2, TRIBUNE_LIFT, 2, D);
   c.fillStyle = '#8f979e'; for (let py = 0; py < D; py += 16) { c.fillRect(W - 2, TRIBUNE_LIFT + py, 2, 2); }
+}
+
+/** a stone coping along a wall top: a lit top edge, a darker body and the odd joint */
+function coping(c: Ctx, x: number, y: number, w: number, h: number, horizontal: boolean) {
+  const s = TERRACE_STONE;
+  c.fillStyle = shade(s, 0.82); c.fillRect(x, y, w, h);
+  c.fillStyle = shade(s, 1.14); if (horizontal) c.fillRect(x, y, w, 1); else c.fillRect(x, y, 1, h);
+  c.fillStyle = shade(s, 0.66);
+  if (horizontal) { c.fillRect(x, y + h - 1, w, 1); for (let jx = x + 12; jx < x + w; jx += 16) c.fillRect(jx, y + 1, 1, h - 2); }
+  else { c.fillRect(x + w - 1, y, 1, h); for (let jy = y + 12; jy < y + h; jy += 16) c.fillRect(x + 1, jy, w - 2, 1); }
+}
+
+/** a railed stairwell cut into the Meydan, going down to the east: each tread darker than the last, the stairwell's
+ *  north wall showing more and more as it deepens, and at the far end the black mouth of the tunnel under the square */
+function paintTunnelStairs(c: Ctx) {
+  const { w: W, h: H } = TUNNEL_STAIRS_SIZE;
+  const s = BRIDGE_STONE, n = 10, step = (W - 14) / n, RAIL = 4;
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(i * step), w = Math.round((i + 1) * step) - x;
+    const wall = Math.round(2 + i * 0.9); // the stairwell's north wall: more of it shows the deeper you go
+    c.fillStyle = shade(s, 1.08 - i * 0.055); c.fillRect(x, RAIL, w, H - RAIL * 2);
+    c.fillStyle = shade(s, 1.18 - i * 0.055); c.fillRect(x, RAIL, 2, H - RAIL * 2);     // nosing
+    c.fillStyle = shade(s, 0.6 - i * 0.02); c.fillRect(x + w - 1, RAIL, 1, H - RAIL * 2); // the drop to the next tread
+    c.fillStyle = shade('#8c8270', 0.86 - i * 0.04); c.fillRect(x, RAIL, w, wall);
+  }
+  // the tunnel's mouth: a stone arch over a dark opening, fading to black
+  const mx = W - 14;
+  c.fillStyle = shade(TERRACE_STONE, 0.7); c.fillRect(mx, RAIL, 14, H - RAIL * 2);
+  for (let k = 0; k < 12; k++) { c.fillStyle = `rgba(8,8,12,${0.55 + k * 0.04})`; c.fillRect(mx + 2 + k, RAIL + 3, 1, H - RAIL * 2 - 3); }
+  c.fillStyle = shade(TERRACE_STONE, 1.05); c.fillRect(mx, RAIL, 2, H - RAIL * 2);
+  // railings: stone kerbs with iron posts and a rail on top, round three sides (open on the west, the way in)
+  for (const y of [0, H - RAIL]) coping(c, 0, y, W, RAIL, true);
+  coping(c, W - 3, 0, 3, H, false);
+  c.fillStyle = '#3d4247';
+  for (const y of [0, H - RAIL]) { c.fillRect(0, y + 1, W, 1); for (let px = 3; px < W; px += 10) c.fillRect(px, y, 2, RAIL - 1); }
+}
+
+/** where the tunnel comes out: an arch in the retaining wall, its stone frame standing proud of the wall and the dark
+ *  passage going back in under the road (the low street is east of it) */
+function paintTunnelArch(c: Ctx) {
+  const { w: W, h: H } = TUNNEL_ARCH_SIZE, s = TERRACE_STONE;
+  c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(4, H - 6, W - 2, 6);
+  // the two jambs, north and south of the opening, and the lintel over it
+  c.fillStyle = shade(s, 0.9); c.fillRect(0, 0, W - 4, 12); c.fillRect(0, H - 14, W - 4, 12);
+  c.fillStyle = shade(s, 1.12); c.fillRect(0, 0, W - 4, 2); c.fillRect(0, H - 14, W - 4, 2);
+  c.fillStyle = shade(s, 0.7); c.fillRect(W - 6, 0, 2, 12); c.fillRect(W - 6, H - 14, 2, 12);
+  // the opening, darkest deep inside (to the west)
+  for (let x = 0; x < W - 6; x++) { c.fillStyle = `rgba(10,10,14,${0.95 - (x / (W - 6)) * 0.45})`; c.fillRect(x, 12, 1, H - 26); }
+  // the arch's keystone line and the voussoirs round the opening
+  c.fillStyle = shade(s, 0.78);
+  for (let y = 14; y < H - 14; y += 6) c.fillRect(W - 7, y, 3, 4);
+  c.fillStyle = '#f0d27a'; c.fillRect(W - 9, 12, 2, 2); // a little lamp over the arch
+}
+
+/** the narrow road down the terrace's east side, falling to the south: paved, grooved across for grip, kerbed; the
+ *  Meydan's wall beside it throws a shadow that widens as the road drops away, and below the road's foot the wall
+ *  stands on its own, its shadow on the street under it. East of the road, the shadow it throws on the street. */
+function paintRamp(c: Ctx) {
+  const RW = MEYDAN_RAMP.w * TILE, RH = MEYDAN_RAMP.h * TILE, { h: H } = RAMP_SIZE;
+  const top = (26 - MEYDAN_RAMP.y) * TILE;      // where the wall along the Meydan starts
+  for (let y = 0; y < RH; y++) {
+    const t = y / RH;
+    c.fillStyle = shade('#8d8a84', 1.2 - t * 0.34); c.fillRect(0, y, RW, 1);
+    if (y % 8 === 0) { c.fillStyle = shade('#8d8a84', 0.86 - t * 0.25); c.fillRect(4, y, RW - 8, 1); }
+  }
+  // the shadow of the Meydan's wall: across the road as it drops, then on the street below the road's foot
+  for (let y = top; y < H; y++) {
+    const sh = y < RH ? Math.round(((y - top) / (RH - top)) * 16) : 16;
+    c.fillStyle = 'rgba(16,20,36,0.42)'; c.fillRect(4, y, sh, 1);
+  }
+  coping(c, 0, top, 4, H - top, false);
+  // the road's east kerb over the street, and its shadow on the street (gone by the time the road is down)
+  coping(c, RW - 3, 0, 3, RH - TILE, false);
+  for (let y = 0; y < RH - TILE; y++) {
+    const sh = Math.round((1 - y / (RH - TILE)) * RAMP_SHADOW);
+    c.fillStyle = 'rgba(16,20,36,0.34)'; c.fillRect(RW, y, sh, 1);
+  }
+}
+
+/** the Meydan's south retaining wall: its coursed stone face along the bottom of the square, open at the top of the
+ *  Cemiyet steps */
+function paintSouthWall(c: Ctx) {
+  const { w: W, h: H } = SOUTH_WALL_SIZE, gap = (SOUTH_STAIRS.x - SOUTH_WALL.x0) * TILE;
+  coping(c, 0, 0, W, 4, true);
+  c.fillStyle = shade(TERRACE_STONE, 0.74); c.fillRect(0, 4, W, H - 4);
+  c.fillStyle = shade(TERRACE_STONE, 0.62);
+  for (let y = 8; y < H; y += 4) c.fillRect(0, y, W, 1);
+  for (let x = 6; x < W; x += 14) c.fillRect(x, 4, 1, H - 4);
+  c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(0, H - 2, W, 2);
+  // the gap: the top step, level with the square
+  c.clearRect(gap, 0, TILE, H);
+  c.fillStyle = shade(BRIDGE_STONE, 1.14); c.fillRect(gap, 0, TILE, H);
+  c.fillStyle = shade(BRIDGE_STONE, 0.8); c.fillRect(gap, 0, 2, H); c.fillRect(gap + TILE - 2, 0, 2, H);
+}
+
+/** the short flight in front of the Cemiyet, falling to the east along the outside of the Meydan's wall: a railing on
+ *  the street side, and under it the flight's side wall, shrinking to nothing where the steps reach the street */
+function paintSouthStairs(c: Ctx) {
+  const { w: W } = SOUTH_STAIRS_SIZE, s = BRIDGE_STONE, n = 8, step = W / n, D = TILE, RAIL = 4;
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(i * step), w = Math.round((i + 1) * step) - x;
+    c.fillStyle = shade(s, 1.14 - i * 0.05); c.fillRect(x, 0, w, D - RAIL);
+    c.fillStyle = shade(s, 1.32 - i * 0.05); c.fillRect(x, 0, 1, D - RAIL);        // worn nosing
+    c.fillStyle = shade(s, 0.6 - i * 0.02); c.fillRect(x + w - 3, 0, 3, D - RAIL);  // the riser down to the next tread
+  }
+  coping(c, 0, D - RAIL, W - 4, RAIL, true);
+  // the wall down the main street's side, under the top of the flight, and its shadow on the street below
+  for (let y = D; y < 2 * D; y++) { c.fillStyle = 'rgba(16,20,36,0.34)'; c.fillRect(4, y, 14, 1); }
+  c.fillStyle = '#3d4247'; c.fillRect(0, D - RAIL + 1, W - 4, 1); for (let px = 3; px < W - 4; px += 10) c.fillRect(px, D - RAIL, 2, RAIL - 1);
+  for (let x = 0; x < W - 4; x++) {
+    const h = Math.round(STEPS_SIDE * (1 - x / (W - 4)));
+    if (h <= 0) continue;
+    c.fillStyle = shade(TERRACE_STONE, 0.72); c.fillRect(x, D, 1, h);
+    if (x % 12 === 0) { c.fillStyle = shade(TERRACE_STONE, 0.6); c.fillRect(x, D, 1, h); }
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(x, D + h, 1, 2);
+  }
+  coping(c, 0, D + STEPS_SIDE, 4, D - STEPS_SIDE, false);
+}
+
+/** inside the tunnel: a vaulted stone passage going down to the east, its floor worn in the middle, lamps along the
+ *  north wall throwing pools of warm light */
+function paintTunnelInside(c: Ctx) {
+  const { w: W, h: H } = TUNNEL_SIZE, F = TUNNEL_WALL + 4; // the floor starts here
+  for (let x = 0; x < W; x++) {
+    const t = x / W;
+    c.fillStyle = shade('#4a453c', 1 - t * 0.25); c.fillRect(x, 0, 1, F);               // the north wall, face-on
+    c.fillStyle = shade('#6f685c', 1 - t * 0.25); c.fillRect(x, F, 1, H - F - 5);       // the floor
+  }
+  // the vault's springing, the wall's stone courses, the south wall as a lip, a worn line down the middle
+  c.fillStyle = '#2c2924'; c.fillRect(0, 0, W, 3);
+  c.fillStyle = '#3a362f';
+  for (let y = 7; y < F; y += 6) c.fillRect(0, y, W, 1);
+  for (let y = 3, r = 0; y < F; y += 6, r++) for (let x = (r % 2) * 7; x < W; x += 14) c.fillRect(x, y, 1, 6);
+  c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, F, W, 2);
+  c.fillStyle = 'rgba(255,255,255,0.06)'; c.fillRect(0, F + (H - F) / 2 - 2, W, 3);
+  c.fillStyle = '#2c2924'; c.fillRect(0, H - 5, W, 5);
+  for (let lx = TILE / 2; lx < W; lx += 2 * TILE) {
+    const g = c.createRadialGradient(lx, F - 8, 1, lx, F, 26);
+    g.addColorStop(0, 'rgba(255,220,150,0.5)'); g.addColorStop(1, 'rgba(255,220,150,0)');
+    c.fillStyle = g; c.fillRect(lx - 26, 0, 52, H);
+    c.fillStyle = '#3a362f'; c.fillRect(lx - 3, F - 13, 6, 6);
+    c.fillStyle = '#f6dc8e'; c.fillRect(lx - 2, F - 12, 4, 4);
+  }
+}
+
+/** the square's paving over the tunnel, drawn see-through while you're inside (like the roof over the Eğitim corridor) */
+function paintTunnelRoof(c: Ctx) {
+  const { w: W, h: H } = TUNNEL_SIZE;
+  c.fillStyle = '#e4ddcf'; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#cfc7b6'; for (let x = 0; x < W; x += 16) c.fillRect(x, 0, 1, H); for (let y = 6; y < H; y += 16) c.fillRect(0, y, W, 1);
+  c.fillStyle = 'rgba(40,46,52,0.6)'; c.fillRect(0, 0, W, 1); c.fillRect(0, H - 1, W, 1); c.fillRect(0, 0, 1, H); c.fillRect(W - 1, 0, 1, H);
 }

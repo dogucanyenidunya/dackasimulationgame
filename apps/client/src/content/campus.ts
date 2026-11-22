@@ -3,7 +3,8 @@
 // Yurt Meydanı; Eğitim Binası + Kütüphane (one building, the library in its long east wing). South-west: the
 // TIM Gösteri Merkezi (round) in its own walled yard, reached only from the street through its own gate.
 // Middle: Yemekhane (Teknik Alan behind it, on Ayaz Cd) and the Merkez Meydan, with the pyramid in its centre
-// and the Atatürk bust in its south-west corner. East: Spor Salonu (canteen and stores inside, the grandstand
+// and the Atatürk bust in its south-east corner. The Meydan is a terrace some 20 m above the Spor Salonu side:
+// a covered stairway/tunnel, a sloping road and an open flight of steps lead down from it. East: Spor Salonu (canteen and stores inside, the grandstand
 // along its east wall) and the football pitch. South: Cemiyet + Müze, a small court and the basketball court;
 // Ana Kapı opens onto Darüşşafaka Cd. Buildings have true outlines (polygons and circles) instead of tile rectangles.
 
@@ -205,7 +206,7 @@ export const BUILDINGS: Building[] = [
 
 export const PLAZAS: Pt[][] = [
   [[8.5, 22.6], [27.6, 18.7], [26.5, 22.8], [20, 29.5], [8.5, 24.8]], // Yurt Meydanı, between the dorms
-  rectPts({ x: 41, y: 24, w: 13.5, h: 13.5 }),                        // Merkez Meydan
+  rectPts({ x: 41, y: 24, w: 13, h: 14 }),                            // Merkez Meydan (the terrace)
 ];
 
 export const PATHS: Rect[] = [
@@ -213,7 +214,9 @@ export const PATHS: Rect[] = [
   { x: 41, y: 38, w: 1, h: 14 },   // …a tile wider between Eğitim and the Cemiyet, up the stairs and under the aqueduct
   { x: 41, y: 13, w: 51, h: 1 },   // service road behind the Yemekhane (Teknik Alan door)
   { x: 41, y: 23, w: 14, h: 1 },   // in front of the Yemekhane
-  { x: 55, y: 14, w: 3, h: 26 },   // between the Meydan and the Spor Salonu
+  { x: 55, y: 14, w: 3, h: 26 },   // the low street between the Meydan's terrace and the Spor Salonu
+  { x: 54, y: 23, w: 1, h: 8 },    // the road sloping down the terrace's east side (see MEYDAN_RAMP)…
+  { x: 54, y: 31, w: 1, h: 7 },    // …and below its foot, the street under the terrace wall
   { x: 73, y: 14, w: 2, h: 26 },   // between the grandstand and the football pitch
   { x: 70, y: 27, w: 3, h: 2 },    // the way through the grandstand to the Spor Salonu's pitch-side door
   { x: 41, y: 38, w: 51, h: 2 },   // the south street, to the courts
@@ -284,6 +287,40 @@ export const AQUEDUCT_PIER = 0.55;
 export const STAIRS: Rect = { x: 39, y: 43.2, w: 3, h: 2.5 };
 /** the corridor through Eğitim is the building's first floor: at its east mouth a flight of steps runs down to the Merkez Meydan */
 export const MEYDAN_STAIRS: Rect = { x: 39.6, y: 25, w: 2.6, h: 2 };
+
+// ---------- the Merkez Meydan's terrace ----------
+// The Meydan stands about 20 m above the Spor Salonu side (the street beside the hall and the south street).
+// Its east and south edges are retaining walls; three ways lead down, all of them ending in the low south-east:
+//  · in its top-left corner a railed stairwell goes down east into a covered tunnel under the north edge, which
+//    comes out through an arch in the retaining wall onto the street beside the Spor Salonu;
+//  · along its east side a narrow road slopes down south, level with the Meydan at the Yemekhane end, and comes
+//    out on the street halfway down;
+//  · in front of the Cemiyet a short flight of steps runs down east from the south-west corner, outside the south wall.
+/** the stairwell down into the tunnel: steps going down to the east, the tunnel's mouth at its east end */
+export const TUNNEL_STAIRS: Rect = { x: 43, y: 24, w: 4, h: 1 };
+/** the tunnel itself, under the Meydan's north edge (and under the top of the road), to the arch in the east wall */
+export const TUNNEL: Rect = { x: 47, y: 24, w: 8, h: 1 };
+/** the road down the terrace's east side, from the Yemekhane corner (level with the Meydan) to the street halfway down */
+export const MEYDAN_RAMP: Rect = { x: 54, y: 23, w: 1, h: 8 };
+/** the steps in front of the Cemiyet, outside the Meydan against its south wall: they start at the Meydan's south-west
+ *  corner (top, reached from the square or from the main street beside it) and go down east to the street */
+export const SOUTH_STAIRS: Rect = { x: 42, y: 38, w: 4, h: 1 };
+/** the Meydan's south retaining wall: its face shows along the bottom of the square */
+export const SOUTH_WALL = { x0: 42, x1: 54, y: 38 };
+/** the retaining walls and railings you can't cross, as lines along tile edges: [x0, y0, x1, y1] (tiles) */
+export type Ledge = [number, number, number, number];
+export const LEDGES: Ledge[] = [
+  // the stairwell's railings and the tunnel mouth at its far end (you only go through it from the steps)
+  [43, 24, 47, 24], [43, 25, 47, 25], [47, 24, 47, 25],
+  // the east wall: beside the road (getting taller as the road drops away) and then on its own down to the corner;
+  // and the road's own east side over the street, with the tunnel's arch in it
+  [54, 26, 54, 38], [55, 23, 55, 30],
+  // the south wall, open at the top of the Cemiyet steps in the corner; the steps' railing over the street, and the
+  // wall between the main street and the street in front of the Cemiyet below the steps (the steps are the only way)
+  [43, 38, 54, 38], [42, 39, 46, 39], [42, 39, 42, 40],
+];
+/** the tunnel's mouths: the foot of the stairwell and the arch in the east wall (x in tiles, row y–y+1) */
+export const TUNNEL_IN = { west: TUNNEL.x, east: TUNNEL.x + TUNNEL.w, y: TUNNEL.y };
 /** the grandstand built onto the Spor Salonu's east wall, facing the football pitch: ten rows along the whole hall,
  *  in two blocks either side of the way through to the hall's pitch-side door */
 export const TRIBUNE_ROWS = 10;
@@ -293,15 +330,16 @@ export const TREES: Array<[number, number]> = [
   [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
   [9, 40], [18, 43], [22, 36], [33, 37], [23, 47], [34, 46],
   [90, 40], [73, 48], [87, 49], [70, 48], [60, 50], [59, 44], [62, 46],
+  [49.6, 34.7], [52.7, 34.3], // either side of the Atatürk bust
 ];
 
 export const BENCHES: Array<[number, number]> = [
-  [12, 23], [23, 20], [16, 27], [43, 27], [46, 36], [52, 27], [52, 34], [33, 43], [60, 42],
+  [12, 23], [23, 20], [16, 27], [43, 27], [46, 36], [52, 27], [43, 34], [33, 43], [60, 42],
 ];
 
 /** street lamps: they light up at night */
 export const LAMPS: Array<[number, number]> = [
-  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [42, 36], [53, 36], [38, 46], [37.6, 48.3], [37.4, 50.6], [32, 31], [30, 47], [72, 40], [54, 30], [86, 40],
+  [10, 22], [26, 20], [29, 14], [42, 25], [53, 25], [41.4, 36], [53, 36], [38, 46], [37.6, 48.3], [37.4, 50.6], [32, 31], [30, 47], [72, 40], [53.2, 30], [86, 40],
 ];
 
 export const FLOWERS: Array<[number, number]> = [
@@ -309,8 +347,8 @@ export const FLOWERS: Array<[number, number]> = [
 ];
 
 /** landmarks: on the Merkez Meydan the three-sided pyramid in the very centre,
- *  the Atatürk bust in the south-west corner and the flag on the north side */
-export const BUST: [number, number] = [43.6, 35];
+ *  the Atatürk bust among its trees in the south-east corner and the flag on the north side */
+export const BUST: [number, number] = [51.5, 35.4];
 export const FLAGPOLE: [number, number] = [50, 26];
 /** the pyramid's centre and the width of its base (tiles) */
 export const PYRAMID = { x: 47.75, y: 31.4, w: 3 };
@@ -367,7 +405,7 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
 export const EVENING_CENTER: Rect = { x: 10, y: 21, w: 15, h: 6 };
 
 /** Selim Hoca's night patrol loop */
-export const PATROL_ROUTE: Array<[number, number]> = [[16, 25], [30, 29], [34, 26], [40, 26], [40, 46], [40, 30], [47, 24], [56, 24], [56, 38], [40, 38], [40, 20], [40, 26], [31, 27], [20, 21]];
+export const PATROL_ROUTE: Array<[number, number]> = [[16, 25], [30, 29], [34, 26], [40, 26], [40, 46], [40, 30], [47, 26], [54, 25], [55, 37], [40, 38], [40, 20], [40, 26], [31, 27], [20, 21]];
 
 export const LOCATIONS: Location[] = [
   {
@@ -420,7 +458,7 @@ export const LOCATIONS: Location[] = [
   {
     id: 'merkez_meydan', kind: 'zone',
     name: { tr: 'Merkez Meydan', en: 'Merkez Meydan' }, sub: { tr: 'Piramit · Atatürk büstü · tören alanı', en: 'Pyramid · Atatürk bust · ceremonies' },
-    info: { tr: 'Kampüsün tam ortası: ortasında üçgen piramit, güneybatı köşesinde Atatürk büstü. Bayrak törenleri burada yapılır; yemekhane, kütüphane ve spor salonu arasındaki günlük geçit.', en: 'The very centre of the campus: the three-sided pyramid in the middle, the Atatürk bust in the south-west corner. Flag ceremonies are held here; the daily crossing between the dining hall, the library and the sports hall.' },
+    info: { tr: 'Kampüsün tam ortası: ortasında üçgen piramit, güneydoğu köşesinde ağaçların arasında Atatürk büstü. Bayrak törenleri burada yapılır. Spor salonu tarafından yirmi metre yüksekte bir teras: oraya kuzey köşedeki merdivenden inen yeraltı geçidiyle, doğu kenarındaki yokuş yoldan ya da Cemiyet\'in önündeki merdivenlerden inilir.', en: 'The very centre of the campus: the three-sided pyramid in the middle, the Atatürk bust among trees in the south-east corner. Flag ceremonies are held here. It is a terrace twenty metres above the sports hall side: you go down by the underground passage from the steps in its north corner, the sloping road along its east edge or the steps in front of the Cemiyet.' },
     rect: { x: 41, y: 24, w: 14, h: 14 }, label: { x: 47.5, y: 36.4 }, minimapColor: '#a9cf95',
   },
   {
