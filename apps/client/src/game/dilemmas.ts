@@ -4,7 +4,7 @@ import { L, type Text } from '../i18n';
 import { GUARDIANS } from '../content/character';
 import { BELLETMENS, NPCS, dativeTr, genitiveTr, type NpcDef } from '../content/npcs';
 import { myGroup } from './social';
-import { FRIEND_AT, type AxisId, type PlayerState } from './state';
+import { FRIEND_AT, growSkill, type AxisId, type PlayerState } from './state';
 import type { GameCtx } from './buildings';
 
 const T = (tr: string, en: string) => L({ tr, en });
@@ -252,7 +252,7 @@ function mac(ctx: GameCtx): Dilemma {
         id: 'watch', label: { tr: '👀 Maçı izle', en: '👀 Watch the match' },
         run: () => {
           shape(st, { presence: -5, ambition: 2 }); ctx.gain({ mood: 5 });
-          st.skills.basketball = Math.min(100, st.skills.basketball + 4);
+          st.skills.basketball = growSkill(st.skills.basketball, 4, st.year);
           return { tr: 'Gözünü sahadan ayırmadın. Oyuncuların perdelemesini, savunmada nasıl yer değiştirdiklerini ilk kez fark ettin. Basketbol becerin arttı.', en: "You didn't take your eyes off the court. For the first time you noticed how the players set screens and switch on defence. Your basketball skill went up." };
         },
       },

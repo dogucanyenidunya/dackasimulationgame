@@ -54,7 +54,7 @@ import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
 import { CLASS_LETTERS, SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
 import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
-import { clamp } from '../game/state';
+import { clamp, growAttr, growRespect } from '../game/state';
 import { GUARDIANS, TRAITS, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
 
@@ -2608,7 +2608,7 @@ export class CampusScene extends Phaser.Scene {
     // nobody makes you explore, but finding every corner of the campus is worth something
     if (LOCATIONS.every((l) => this.discovered.has(l.id)) && !this.save.state.once.exploredAll) {
       this.save.state.once.exploredAll = true;
-      this.save.character.respect += 5;
+      this.save.character.respect = growRespect(this.save.character.respect, 5, this.save.state.year);
       this.time.delayedCall(900, () => { this.gain({ xp: 150, mood: 10 }); sfx.success(); this.hud.toast(t('all_found'), 'good'); });
     }
     this.checkMissions();
@@ -2830,8 +2830,10 @@ export class CampusScene extends Phaser.Scene {
       const st = this.save.state;
       st.escaped = false;
       st.xp += 30;
-      this.save.character.respect += 10;
-      this.hud.toast(L({ tr: '🌙 Yakalanmadan geri döndün! +30 XP · +10 saygınlık', en: '🌙 You made it back unseen! +30 XP · +10 respect' }), 'good');
+      const r0 = this.save.character.respect;
+      this.save.character.respect = growRespect(r0, 10, st.year);
+      const won = this.save.character.respect - r0;
+      this.hud.toast(L({ tr: `🌙 Yakalanmadan geri döndün! +30 XP${won ? ` · +${won} saygınlık` : ''}`, en: `🌙 You made it back unseen! +30 XP${won ? ` · +${won} respect` : ''}` }), 'good');
       this.lastDoor = this.nearestStand(loc);
       this.enterDorm();
       return;
@@ -3694,8 +3696,8 @@ export class CampusScene extends Phaser.Scene {
           this.log({ kind: 'mission', a: L(m.title) });
           st.xp += m.reward.xp;
           if (m.id === 'saglikli_yil') {
-            this.save.character.attributes.fitness = Math.min(100, this.save.character.attributes.fitness + 10);
-            this.save.character.respect += 50;
+            this.save.character.attributes.fitness = growAttr(this.save.character.attributes.fitness, 10, st.year);
+            this.save.character.respect = growRespect(this.save.character.respect, 50, st.year);
           }
           sfx.success();
           this.hud.toast(L({ tr: `✓ Görev tamamlandı: ${m.title.tr}${m.reward.xp ? ` (+${m.reward.xp} XP)` : ''}`, en: `✓ Mission complete: ${m.title.en}${m.reward.xp ? ` (+${m.reward.xp} XP)` : ''}` }), 'good');
@@ -3839,7 +3841,8 @@ export class CampusScene extends Phaser.Scene {
     const traitAttr = TRAITS.find((x) => x.id === ch.trait)!.attr;
     for (const [k, v] of Object.entries(g.attrs ?? {}) as Array<[AttrId, number]>) {
       const bonus = k === traitAttr ? 1.1 : 1;
-      ch.attributes[k] = Math.min(100, Math.round((ch.attributes[k] + v * bonus) * 10) / 10);
+      // (it slows down near this year's ceiling: you're in the 4th grade with years to grow, see growAttr)
+      ch.attributes[k] = growAttr(ch.attributes[k], v * bonus, st.year);
     }
     this.refreshClockAndNeeds();
     this.checkMissions();
@@ -3964,11 +3967,13 @@ export class CampusScene extends Phaser.Scene {
     if (this.room || tx < z.x || tx >= z.x + z.w || ty < z.y || ty >= z.y + z.h) return;
     sfx.success();
     if (this.save.state.anthem.recited && !this.panel.isOpen) {
-      this.save.character.respect += 5;
+      const r0 = this.save.character.respect;
+      this.save.character.respect = growRespect(r0, 5, this.save.state.year);
+      const won = this.save.character.respect - r0;
       this.gain({ xp: 30, mood: 10 });
       this.hud.showModal({
         title: L({ tr: '🇹🇷 Bayrak töreni', en: '🇹🇷 Flag ceremony' }), sub: 'Merkez Meydan',
-        body: L({ tr: 'Müdür yardımcısı seni öne çağırdı. İlk kıtayı sen başlattın, bütün okul arkandan okudu. +5 saygınlık', en: 'The deputy head called you to the front. You started the first stanza and the whole school joined in. +5 respect' }),
+        body: L({ tr: `Müdür yardımcısı seni öne çağırdı. İlk kıtayı sen başlattın, bütün okul arkandan okudu.${won ? ` +${won} saygınlık` : ''}`, en: `The deputy head called you to the front. You started the first stanza and the whole school joined in.${won ? ` +${won} respect` : ''}` }),
         button: t('close'),
       });
     } else {

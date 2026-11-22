@@ -14,7 +14,7 @@ import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, 
 import { activityOf } from './routine';
 import { lineFor, type Moment } from '../content/lines';
 import { dilemmaDone, runDilemma, shape } from './dilemmas';
-import type { AxisId } from './state';
+import { growRespect, growSkill, type AxisId } from './state';
 import { DEPUTY, NPCS, ablativeTr, dativeTr, friendLevel, genitiveTr, type NpcDef } from '../content/npcs';
 import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
@@ -613,8 +613,8 @@ export function pePanel(ctx: GameCtx): PanelView {
           // the classmates who joined the same thing
           const team = mates.filter((n) => (n.id.length + a.id.length) % 2 === 0 || a.id === 'yakar').slice(0, a.id === 'yakar' ? 5 : 3);
           team.forEach((n) => ctx.befriend(n.id, a.id === 'yakar' ? 4 : 3));
-          if (a.id === 'futbol') st.skills.football = Math.min(100, st.skills.football + 2 + hits);
-          if (a.id === 'basket') st.skills.basketball = Math.min(100, st.skills.basketball + 2 + hits);
+          if (a.id === 'futbol') st.skills.football = growSkill(st.skills.football, 2 + hits, st.year);
+          if (a.id === 'basket') st.skills.basketball = growSkill(st.skills.basketball, 2 + hits, st.year);
           st.health = clamp(st.health + 3);
           ctx.log({ kind: 'pe', a: a.id, b: team.slice(0, 3).map((n) => n.name).join(', ') });
           attendLesson(ctx, les!.key, 'beden', score);
@@ -901,9 +901,11 @@ function anthemActions(ctx: GameCtx): ActionView[] {
       ctx.advance(15);
       if (hits >= 7) {
         a.recited = true;
-        ctx.ch.respect += 10;
+        const r0 = ctx.ch.respect;
+        ctx.ch.respect = growRespect(r0, 10, ctx.st.year);
+        const won = ctx.ch.respect - r0;
         ctx.gain({ xp: 80, mood: 10 });
-        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Bayrak töreninde marşı sen başlatacaksın!" +10 saygınlık`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at the flag ceremony!" +10 respect`));
+        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Bayrak töreninde marşı sen başlatacaksın!"${won ? ` +${won} saygınlık` : ''}`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at the flag ceremony!" +10 respect`));
       } else {
         ctx.gain({ xp: 10 });
         ctx.toast(T(`${hits}/10 · "Birkaç yerde takıldın. Yarın etütte tekrar dinlerim."`, `${hits}/10 · "You stumbled in a few places. I'll hear it again tomorrow at study."`));
@@ -2140,7 +2142,7 @@ function councilRoom(ctx: GameCtx): RoomView {
         if (won) {
           Object.assign(c, { stage: 'rep', day: schoolDayAfter(ctx.clock.day, 5), support: 0 });
           c.titles.push(`${st.school.classLabel} ${T('sınıf temsilcisi', 'class rep')}`);
-          ctx.ch.respect += 15; ctx.gain({ xp: 60, mood: 12, attrs: { social: 2 } });
+          ctx.ch.respect = growRespect(ctx.ch.respect, 15, st.year); ctx.gain({ xp: 60, mood: 12, attrs: { social: 2 } });
           ctx.toast(T(`Artık ${st.school.classLabel} sınıf temsilcisisin! Sınıf başkanlığı seçimi ${whenText(ctx, c.day)}, Konferans salonunda.`, `You're now class rep of ${st.school.classLabel}! The grade president vote is ${whenText(ctx, c.day)}, in the auditorium.`), 'good');
         } else { c.stage = 'lost'; ctx.gain({ xp: 15, mood: -5 }); }
       },
@@ -2174,7 +2176,7 @@ function councilHallActions(ctx: GameCtx): ActionView[] {
         if (won) {
           Object.assign(c, { stage: 'gradePresident', day: g === SCHOOL_PRESIDENT_GRADE ? schoolDayAfter(ctx.clock.day, 5) : 0, support: 0 });
           c.titles.push(T(`${g}. sınıflar başkanı`, `Grade ${g} president`));
-          ctx.ch.respect += 30; ctx.gain({ xp: 120, mood: 15, attrs: { social: 3 } });
+          ctx.ch.respect = growRespect(ctx.ch.respect, 30, st.year); ctx.gain({ xp: 120, mood: 15, attrs: { social: 3 } });
         } else { c.stage = 'gradeLost'; ctx.gain({ xp: 20, mood: -5 }); }
       },
     });
@@ -2189,7 +2191,7 @@ function councilHallActions(ctx: GameCtx): ActionView[] {
         if (won) {
           c.stage = 'schoolPresident';
           c.titles.push(T('Okul başkanı', 'School president'));
-          ctx.ch.respect += 60; ctx.gain({ xp: 250, mood: 20, attrs: { social: 4 } });
+          ctx.ch.respect = growRespect(ctx.ch.respect, 60, st.year); ctx.gain({ xp: 250, mood: 20, attrs: { social: 4 } });
         } else { c.stage = 'schoolLost'; ctx.gain({ xp: 30, mood: -5 }); }
       },
     });
@@ -2280,7 +2282,7 @@ export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]
   const ours = hits + (Math.random() < 0.5 ? 1 : 0);
   const won = ours > theirs;
   ctx.advance(45);
-  st.skills[sport] = Math.min(100, skill + 2 + hits);
+  st.skills[sport] = growSkill(skill, 2 + hits, st.year);
   ctx.gain({ xp: 20 + hits * 6 + (won ? 25 : 0), mood: won ? 12 : 5, energy: -18, hunger: -10, attrs: { fitness: 1 + (won ? 1 : 0), social: 1 } });
   for (const m of mates) ctx.befriend(m.id, won ? 4 : 2);
   const names = mates.map((m) => m.name).join(', ');

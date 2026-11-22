@@ -216,6 +216,40 @@ export function average(xs: number[]): number | null {
 
 export const YEAR1_XP = 1000;
 export const grade = (year: number) => year + 3;
+
+// ---- growing up: you start in the 4th grade and stay until the 12th, so nothing should top out in the first year ----
+/** the most your attributes (and sports skills) can reach by the end of each grade: 25 in the 4th, about +9 a year, 100 in the 12th */
+export const attrCap = (g: number) => Math.min(100, Math.round(25 + (Math.max(4, g) - 4) * (75 / 8)));
+/** the same for saygınlık (0–1000): 100 in the 4th grade, about +110 a year, 1000 in the 12th */
+export const respectCap = (g: number) => Math.min(1000, Math.round(100 + (Math.max(4, g) - 4) * (900 / 8)));
+/**
+ * A gain, slowing down as you near this year's ceiling: the full amount at the start of the year's band, a fraction of
+ * it close to the top (never less than 15%), nothing once you're there. Losses aren't slowed. `floor` is where this
+ * year's band starts (last year's ceiling, or where everyone starts in the 4th grade).
+ */
+export function paced(cur: number, gain: number, floor: number, cap: number): number {
+  if (gain <= 0) return cur + gain;
+  if (cur >= cap) return cur;
+  const f = Math.max(0.15, Math.min(1, (cap - cur) / Math.max(1, cap - floor)));
+  return Math.min(cap, cur + gain * f);
+}
+/** an attribute after a gain this year (one decimal, as the profile shows them) */
+export const growAttr = (cur: number, gain: number, year: number) => {
+  const g = grade(year);
+  return Math.round(paced(cur, gain, g <= 4 ? 10 : attrCap(g - 1), attrCap(g)) * 10) / 10;
+};
+/** a sports skill (0–100) after a gain this year */
+export const growSkill = (cur: number, gain: number, year: number) => {
+  const g = grade(year);
+  return Math.round(paced(cur, gain, g <= 4 ? 0 : attrCap(g - 1), attrCap(g)));
+};
+/** saygınlık after a gain this year (whole points, at least 1 while there's room) */
+export function growRespect(cur: number, gain: number, year: number): number {
+  const g = grade(year);
+  if (gain <= 0) return Math.max(0, cur + gain);
+  const next = paced(cur, gain, g <= 4 ? 0 : respectCap(g - 1), respectCap(g));
+  return next <= cur ? cur : Math.max(cur + 1, Math.round(next));
+}
 /** sneaking out of the dorm unlocks in grade 6 (add ?dev to the URL to try it earlier) */
 export const ESCAPE_FROM_YEAR = 3;
 export const DEV = typeof location !== 'undefined' && new URLSearchParams(location.search).has('dev');
