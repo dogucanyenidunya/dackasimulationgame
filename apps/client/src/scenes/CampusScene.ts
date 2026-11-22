@@ -2465,6 +2465,15 @@ export class CampusScene extends Phaser.Scene {
           if (sx > w || sy > h || sx + art.w * cam.zoom < 0 || sy + art.h * cam.zoom < 0) continue;
           c.drawImage(this.textures.get(art.litKey).getSourceImage() as HTMLCanvasElement, sx, sy, art.w * cam.zoom, art.h * cam.zoom);
         }
+        // and spill a warm halo onto the walls and the ground round them
+        c.globalCompositeOperation = 'lighten';
+        c.globalAlpha = Math.min(0.8, (a - 0.25) * 1.8);
+        for (const { art, alpha } of this.buildingArt) {
+          if (alpha < 0.9 || !art.glow) continue;
+          const sx = (art.x - view.x) * cam.zoom, sy = (art.y - view.y) * cam.zoom;
+          if (sx > w || sy > h || sx + art.w * cam.zoom < 0 || sy + art.h * cam.zoom < 0) continue;
+          c.drawImage(art.glow, sx, sy, art.w * cam.zoom, art.h * cam.zoom);
+        }
         c.globalAlpha = 1;
         c.globalCompositeOperation = 'lighten';
       }
@@ -4413,7 +4422,7 @@ export class CampusScene extends Phaser.Scene {
 
     this.drawNight();
     this.updateParticles();
-    this.ambient.update(time, delta, { player: this.player, inside: this.inside, rain: this.isRaining(), dark: this.darkAlpha });
+    this.ambient.update(time, delta, { player: this.player, inside: this.inside, rain: this.isRaining(), dark: this.darkAlpha, hour: this.save.clock.minutes / 60 });
     this.yetim.update(time, delta, {
       player: this.player, inside: this.inside, rain: this.isRaining(), dark: this.darkAlpha,
       bond: this.save.state.friends.yetim ?? 0, engaged: !!this.panel?.isOpen && this.yetim.near(this.player),

@@ -1,9 +1,11 @@
 // Life around the campus in the 2D view: trees in three shapes with shadows that match the
-// sun, pole shadows, gulls crossing overhead, pigeons that scatter when you come close, puddles and
-// ripples in the rain, and a camera that leans a little ahead of where you walk.
+// sun (long in the morning and evening, short at noon), pole shadows, cloud shadows drifting over the campus,
+// gulls crossing overhead, pigeons that scatter when you come close, puddles and ripples in the rain, a colour
+// grade that follows the time of day, and a camera that leans a little ahead of where you walk.
 import Phaser from 'phaser';
 import { ART_RES, TREE_SHAPES, treeKey, type TreeShape } from '../art/textures';
 import type { GroundInfo } from '../art/ground';
+import { MAP_H, MAP_W, TILE } from '../content/campus';
 
 export interface AmbientEnv {
   player: Phaser.Physics.Arcade.Sprite;
@@ -12,7 +14,14 @@ export interface AmbientEnv {
   rain: boolean;
   /** 0 by day, towards 1 at night */
   dark: number;
+  /** hour of the day (0–24), for shadow lengths and the colour grade */
+  hour: number;
 }
+
+interface Cloud { s: Phaser.GameObjects.Image; vx: number; vy: number }
+const CLOUDS = 7;
+/** the wind that carries the cloud shadows (px/s), roughly from the north-west */
+const WIND_X = 7, WIND_Y = 2.6;
 
 interface Pigeon { s: Phaser.GameObjects.Sprite; state: 'peck' | 'fly' | 'gone'; t: number; vx: number; vy: number }
 interface Gull { s: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Ellipse; vx: number; vy: number; phase: number }
@@ -34,6 +43,10 @@ export class Ambient {
   /** how strongly the sun casts shadows right now (none at night, faint in rain) */
   private sun = -1;
   private look = { x: 0, y: 0 };
+  private clouds: Cloud[] = [];
+  private shadowLen = -1;
+  private grade: Phaser.FX.ColorMatrix | null = null;
+  private gradeKey = '';
 
   constructor(private scene: Phaser.Scene, private ground: GroundInfo) {
     const sprites = scene.children.list.filter((o): o is Phaser.GameObjects.Sprite => o instanceof Phaser.GameObjects.Sprite);
@@ -60,6 +73,25 @@ export class Ambient {
       }
     }
     this.rippleG = scene.add.graphics().setDepth(0.3);
+    // cloud shadows: big soft blobs sliding over everything outdoors
+    if (!scene.textures.exists('cloudshadow')) {
+      const t = scene.textures.createCanvas('cloudshadow', 256, 160)!;
+      const c = t.getContext();
+      const r = (() => { let x = 4242; return () => ((x = (x * 16807) % 2147483647) / 2147483647); })();
+      for (let i = 0; i < 9; i++) {
+        const cx = 60 + r() * 136, cy = 50 + r() * 60, rad = 30 + r() * 40;
+        const g = c.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.3)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.fillRect(0, 0, 256, 160);
+      }
+      t.refresh();
+      t.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+    for (let i = 0; i < CLOUDS; i++) {
+      const s = scene.add.image(Math.random() * MAP_W * TILE, Math.random() * MAP_H * TILE, 'cloudshadow')
+        .setScale(1.8 + Math.random() * 1.6, 1.5 + Math.random() * 1.2).setDepth(90_000).setAlpha(0);
+      this.clouds.push({ s, vx: WIND_X * (0.85 + Math.random() * 0.3), vy: WIND_Y * (0.85 + Math.random() * 0.3) });
+    }
     // pigeons on the plazas
     for (let i = 0; i < PIGEONS && ground.plazaSpots.length; i++) {
       const s = scene.add.sprite(0, 0, 'pigeon', 0);
@@ -76,6 +108,9 @@ export class Ambient {
     if (sun !== this.sun) { this.sun = sun; this.shade(); }
     this.updateCamera(delta, env);
     const outdoors = !env.inside;
+    this.updateClouds(delta, outdoors);
+    this.updateShadowLength(env.hour);
+    this.updateGrade(env, outdoors);
     this.updateRain(time, delta, env.rain && outdoors, cam.worldView);
     this.updatePigeons(time, delta, env, outdoors && !env.rain && env.dark < 0.45);
     this.updateGulls(time, delta, outdoors && !env.rain && env.dark < 0.4, cam.worldView);
@@ -85,6 +120,48 @@ export class Ambient {
     const k = Math.max(0, this.sun);
     for (const t of this.trees) t.shadow.setAlpha(k * 0.2).setVisible(k > 0);
     this.poleShadows.setAlpha(k).setVisible(k > 0);
+  }
+
+  /** cloud shadows drift with the wind and wrap round the campus; they only show when the sun casts shadows */
+  private updateClouds(delta: number, outdoors: boolean) {
+    const k = outdoors ? Math.max(0, this.sun) : 0;
+    const W = MAP_W * TILE, H = MAP_H * TILE;
+    for (const c of this.clouds) {
+      c.s.x += (c.vx * delta) / 1000; c.s.y += (c.vy * delta) / 1000;
+      const hw = c.s.displayWidth / 2, hh = c.s.displayHeight / 2;
+      if (c.s.x - hw > W) c.s.x = -hw;
+      if (c.s.y - hh > H) c.s.y = -hh;
+      c.s.setAlpha(k * 0.42).setVisible(k > 0);
+    }
+  }
+
+  /** a low sun throws long shadows: longest early and late, shortest around midday */
+  private updateShadowLength(hour: number) {
+    const fromNoon = Math.min(1, Math.abs(hour - 13) / 6);
+    const len = Math.round((0.75 + fromNoon * fromNoon * 0.95) * 20) / 20;
+    if (len === this.shadowLen) return;
+    this.shadowLen = len;
+    for (const t of this.trees) t.shadow.setScale(len / ART_RES, (0.85 + len * 0.15) / ART_RES);
+  }
+
+  /** a gentle colour grade: crisper and a touch more saturated by day, warm and bright at golden hour, flat in the rain */
+  private updateGrade(env: AmbientEnv, outdoors: boolean) {
+    const cam = this.scene.cameras.main;
+    if (!cam.postFX) return; // canvas renderer: no grade
+    if (!this.grade) this.grade = cam.postFX.addColorMatrix();
+    const h = env.hour;
+    const golden = outdoors ? Math.max(0, 1 - Math.abs(h - 18.2) / 1.6) + Math.max(0, 1 - Math.abs(h - 7) / 1.2) * 0.6 : 0;
+    const day = outdoors ? Math.max(0, 1 - env.dark * 2) : 0;
+    const sat = env.rain && outdoors ? -0.25 : day * 0.1 + golden * 0.12;
+    const con = env.rain && outdoors ? -0.05 : day * 0.06;
+    const bri = 1 + golden * 0.05;
+    const key = `${sat.toFixed(2)}|${con.toFixed(2)}|${bri.toFixed(3)}`;
+    if (key === this.gradeKey) return;
+    this.gradeKey = key;
+    this.grade.reset();
+    this.grade.saturate(sat, true);
+    this.grade.contrast(con, true);
+    this.grade.brightness(bri, true);
   }
 
   /** the camera leads a little in the direction you walk */

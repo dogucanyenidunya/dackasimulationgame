@@ -124,7 +124,12 @@ export function bushSpots(b: Building, map: number[][]): Pt[] {
   return out;
 }
 
-export interface BuildingArt { key: string; litKey: string; x: number; y: number; w: number; h: number; base: number }
+export interface BuildingArt {
+  key: string; litKey: string; x: number; y: number; w: number; h: number; base: number;
+  /** the lit windows blurred into a soft halo (world size), drawn into the night layer around them */
+  glow?: HTMLCanvasElement;
+}
+const glows = new Map<string, HTMLCanvasElement>();
 
 /** paints the building and its night windows; returns where to place them in the world */
 export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
@@ -137,7 +142,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   const ox = Math.floor(r.x * TILE) - PAD, oy = Math.floor(top);
   const W = Math.ceil((r.x + r.w) * TILE) + PAD - ox, H = Math.ceil((r.y + r.h) * TILE) - oy + 2;
   const key = `bld-${b.id}`, litKey = `bld-${b.id}-lit`;
-  const art: BuildingArt = { key, litKey, x: ox, y: oy, w: W, h: H, base: (r.y + r.h) * TILE };
+  const art: BuildingArt = { key, litKey, x: ox, y: oy, w: W, h: H, base: (r.y + r.h) * TILE, glow: glows.get(key) };
   if (scene.textures.exists(key)) return art;
   const tex = scene.textures.createCanvas(key, W * ART_RES, H * ART_RES)!;
   const lit = scene.textures.createCanvas(litKey, W * ART_RES, H * ART_RES)!;
@@ -588,6 +593,14 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
   path(c, b.shape); c.strokeStyle = 'rgba(40, 46, 52, 0.45)'; c.lineWidth = 0.7; c.stroke();
   tex.refresh(); lit.refresh();
   tex.setFilter(Phaser.Textures.FilterMode.LINEAR); lit.setFilter(Phaser.Textures.FilterMode.LINEAR);
+  // the halo: the lit panes, drawn off to the side and thrown back as a wide blurred shadow
+  const g = document.createElement('canvas');
+  g.width = W; g.height = H;
+  const gc = g.getContext('2d')!;
+  gc.shadowColor = 'rgba(255,214,140,1)'; gc.shadowBlur = 9; gc.shadowOffsetX = W;
+  gc.drawImage(lit.getSourceImage() as HTMLCanvasElement, -W, 0, W, H);
+  glows.set(key, g);
+  art.glow = g;
   return art;
 }
 
