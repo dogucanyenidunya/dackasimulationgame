@@ -50,3 +50,22 @@
 .lo-tag { font-size: 12px; color: #5b6266; padding: 5px 0; }
 .lo-more { font-size: 12px; color: #7b8387; margin-top: 6px; text-align: center; }
 .lo-err { font-size: 12px; color: #a3461f; margin-top: 6px; }
+
+/* the Istanbul sunset behind the lobby (ui/lobbyBg.ts) */
+.title-screen.lobby-screen { background: #1b0a36; }
+.lobby-bg { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 0; pointer-events: none; margin: 0 !important; }
+.lobby-screen > .lobby-card { position: relative; z-index: 1; background: rgba(250, 247, 240, 0.95); box-shadow: 0 18px 60px rgba(10, 2, 30, 0.55), 0 0 0 1px rgba(255, 190, 140, 0.25); }
+
+/* lobby chat */
+.lobby-chat { text-align: left; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fffdf8; }
+.lobby-chat[hidden] { display: none; }
+.lc-title { font-size: 13px; font-weight: 700; color: #4b5459; margin-bottom: 6px; }
+.lc-log { max-height: 150px; min-height: 44px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; font-size: 13px; line-height: 1.35; }
+.lc-log:empty::before { content: '…'; color: #a3a9ad; }
+.lc-line { overflow-wrap: anywhere; color: #2b3236; }
+.lc-line b { color: #8a4f22; }
+.lc-line.mine b { color: #2f7d4a; }
+.lc-form { display: flex; gap: 6px; }
+.lc-form input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.lobby-card .lc-form button.primary { padding: 8px 12px; font-size: 13px; }
+.lc-note { font-size: 11px; color: #7b8387; margin-top: 6px; }

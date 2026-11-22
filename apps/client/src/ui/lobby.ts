@@ -6,7 +6,8 @@ import { L, getLang, setLang, onLangChange, type Lang } from '../i18n';
 import { drawCharacter } from '../art/character';
 import { sfx } from '../audio';
 import type { SaveData } from '../save';
-import { gameStatus, joinLobby, mustWait, type GameStatus, type LobbyMember } from '../net/launch';
+import { LOBBY_CHAT_MAX, gameStatus, joinLobby, mustWait, type GameStatus, type LobbyMember } from '../net/launch';
+import { mountLobbyBackdrop } from './lobbyBg';
 import { inviteUrl, listFriends, myInviteCode, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 
 interface LobbyOpts {
@@ -43,7 +44,20 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
 
   const el = document.createElement('div');
   el.className = 'title-screen lobby-screen';
+  // the card: a part that's redrawn as things change, the chat (built once, so typing and scrolling survive), the footer
+  el.innerHTML = `<div class="card title-card lobby-card"><div class="lobby-dyn"></div>
+    <div class="lobby-chat"><div class="lc-title"></div><div class="lc-log" role="log" aria-live="polite"></div>
+      <form class="lc-form"><input maxlength="${LOBBY_CHAT_MAX}" autocomplete="off" enterkeyhint="send"><button type="submit" class="primary"></button></form>
+      <div class="lc-note"></div></div>
+    <div class="lobby-tail"></div></div>`;
   host.appendChild(el);
+  const card = el.querySelector('.lobby-card') as HTMLElement;
+  const dyn = el.querySelector('.lobby-dyn') as HTMLElement;
+  const tail = el.querySelector('.lobby-tail') as HTMLElement;
+  const chatBox = el.querySelector('.lobby-chat') as HTMLElement;
+  const chatLog = el.querySelector('.lc-log') as HTMLElement;
+  const chatInput = el.querySelector('.lc-form input') as HTMLInputElement;
+  const removeBackdrop = mountLobbyBackdrop(el);
 
   const countdown = (): string => {
     if (!status.opensAt) return '';
@@ -55,8 +69,8 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
   };
 
   const render = () => {
-    el.innerHTML = `
-      <div class="card title-card lobby-card ${open ? 'is-open' : ''}">
+    card.classList.toggle('is-open', open);
+    dyn.innerHTML = `
         <h1>Daçka</h1>
         <div class="sub">${open ? T('Kapılar açıldı!', 'The gates are open!') : T('Çok yakında açılıyor', 'Opening very soon')}</div>
         <div class="lobby-kid"><canvas width="128" height="128"></canvas><div class="lobby-shadow"></div></div>
@@ -71,7 +85,8 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
              <div class="lobby-invite">
                <div class="li-title">${friendNames().length ? esc(T(`Listedeki arkadaşların: ${friendNames().join(', ')}`, `Your friends on the list: ${friendNames().join(', ')}`)) : T('Arkadaşlarını davet et: açılışta birlikte başlayın', 'Invite your friends: start together on opening day')}</div>
                ${link ? `<div class="li-row"><input readonly value=""><button type="button" class="secondary" data-act="copy">${copied ? T('Kopyalandı ✓', 'Copied ✓') : T('Kopyala', 'Copy')}</button></div>` : ''}
-             </div>`}
+             </div>`}`;
+    tail.innerHTML = `
         <div class="lobby-foot">
           ${open ? '' : `<button type="button" class="linkish" data-act="new">${T('Karakterini değiştir', 'Change your character')}</button> · `}
           <button type="button" class="linkish" data-act="signout">${T('Çıkış', 'Sign out')}</button>
@@ -79,8 +94,13 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
         <div class="lang">
           <button data-lang="tr" class="${getLang() === 'tr' ? 'on' : ''}">Türkçe</button> ·
           <button data-lang="en" class="${getLang() === 'en' ? 'on' : ''}">English</button>
-        </div>
-      </div>`;
+        </div>`;
+    // the chat stays as it is; only its words follow the language, and it goes once the gates open
+    chatBox.hidden = open;
+    (chatBox.querySelector('.lc-title') as HTMLElement).textContent = T('💬 Lobi sohbeti', '💬 Lobby chat');
+    chatInput.placeholder = T('Lobidekilere bir şey yaz…', 'Say something to everyone here…');
+    (chatBox.querySelector('.lc-form button') as HTMLElement).textContent = T('Gönder', 'Send');
+    if (!chatNote) (chatBox.querySelector('.lc-note') as HTMLElement).textContent = T('Yalnızca şu an lobide olanlar görür; hiçbir yere kaydedilmez.', "Only people in the lobby right now see it; it isn't saved anywhere.");
     el.querySelector('.lobby-name')!.textContent = `${ch.first} ${ch.last}`;
     const input = el.querySelector('.li-row input') as HTMLInputElement | null;
     if (input) input.value = link;
@@ -128,6 +148,37 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
       ${friendError ? `<div class="lo-err">${esc(friendError)}</div>` : ''}
     </div>`;
   };
+
+  // ---------- lobby chat ----------
+  let chatNote = '';
+  let lastSent = 0;
+  const addLine = (name: string, text: string, mine: boolean) => {
+    const atBottom = chatLog.scrollTop + chatLog.clientHeight >= chatLog.scrollHeight - 8;
+    const line = document.createElement('div');
+    line.className = `lc-line${mine ? ' mine' : ''}`;
+    const b = document.createElement('b');
+    b.textContent = `${name || '?'}: `;
+    line.append(b, document.createTextNode(text));
+    chatLog.appendChild(line);
+    while (chatLog.children.length > 60) chatLog.firstElementChild?.remove();
+    if (atBottom || mine) chatLog.scrollTop = chatLog.scrollHeight;
+  };
+  const setNote = (text: string) => {
+    chatNote = text;
+    (chatBox.querySelector('.lc-note') as HTMLElement).textContent = text;
+    if (text) window.setTimeout(() => { if (chatNote === text) { chatNote = ''; render(); } }, 2500);
+  };
+  (chatBox.querySelector('.lc-form') as HTMLFormElement).addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim().slice(0, LOBBY_CHAT_MAX);
+    if (!text) return;
+    // one message every second and a bit: enough to talk, not enough to flood
+    if (Date.now() - lastSent < 1200) { setNote(T('Biraz yavaş: bir saniye bekle.', 'A bit slower: wait a second.')); return; }
+    lastSent = Date.now();
+    lobby.chat(text);
+    addLine(ch.first, text, true);
+    chatInput.value = '';
+  });
 
   const loadFriends = async () => {
     const f = await listFriends();
@@ -209,6 +260,8 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
     onMembers: (m) => { others = m.filter((x) => x.id !== o.userId); if (!open) render(); },
     // someone added you or accepted you: look at the list again
     onFriend: () => void loadFriends(),
+    // (the name shown is the one they're sharing in the lobby, when they're still here)
+    onChat: (from, name, text) => { if (from !== o.userId) addLine(others.find((m) => m.id === from)?.name || name, text, false); },
   });
   const timers = [window.setInterval(() => void recheck(), RECHECK_MS), window.setInterval(tickCountdown, 1000)];
   // friends on the list and your invite link (both optional: the friends tables may not be set up)
@@ -220,11 +273,12 @@ export function mountLobby(host: HTMLElement, o: LobbyOpts): () => void {
     cancelAnimationFrame(raf);
     timers.forEach((t) => window.clearInterval(t));
     lobby.leave();
+    removeBackdrop();
     el.remove();
   }
 
   // development only (left out of the real game): show made-up players and friends, to see the lobby without a server
-  if (import.meta.env.DEV) Object.assign(el, { lobbyTest: { others: (m: LobbyMember[]) => { others = m; render(); }, friends: (f: Friend[]) => { friendList = f; render(); } } });
+  if (import.meta.env.DEV) Object.assign(el, { lobbyTest: { others: (m: LobbyMember[]) => { others = m; render(); }, friends: (f: Friend[]) => { friendList = f; render(); }, chat: (name: string, text: string) => addLine(name, text, false) } });
 
   render();
   raf = requestAnimationFrame(drawKid);

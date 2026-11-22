@@ -73,8 +73,13 @@ async function nudgeLobby() {
 /** someone waiting in the lobby, as the others see them */
 export interface LobbyMember { id: string; name: string; look: CharacterLook }
 
+/** longest lobby chat message */
+export const LOBBY_CHAT_MAX = 140;
+
 export interface LobbyLink {
   leave: () => void;
+  /** a chat line to everyone in the lobby right now (nothing is stored: people who come later don't see it) */
+  chat: (text: string) => void;
   /** tells another player in the lobby to look at their friends list again (a request, or an accepted one) */
   nudgeFriend: (to: string) => void;
 }
@@ -83,14 +88,19 @@ export interface LobbyLink {
  * In the lobby: you're shown to the others (name and look), `onMembers` with everyone waiting right now (you included),
  * `onNudge` when the owner opens or closes the game, `onFriend` when someone sends you a friend request or accepts yours.
  */
-export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: (m: LobbyMember[]) => void; onFriend: (from: string) => void }): LobbyLink {
+export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: (m: LobbyMember[]) => void; onFriend: (from: string) => void; onChat: (from: string, name: string, text: string) => void }): LobbyLink {
   const c = sb();
-  if (!c) return { leave: () => {}, nudgeFriend: () => {} };
+  if (!c) return { leave: () => {}, chat: () => {}, nudgeFriend: () => {} };
   const ch: RealtimeChannel = c.channel('lobby', { config: { presence: { key: me.id } } });
   ch.on('broadcast', { event: 'launch' }, () => h.onNudge());
   ch.on('broadcast', { event: 'friend' }, ({ payload }) => {
     const p = payload as { to: string; from: string };
     if (p.to === me.id && typeof p.from === 'string') h.onFriend(p.from);
+  });
+  ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
+    const p = payload as { id: string; name: string; text: string };
+    if (typeof p.id !== 'string' || typeof p.text !== 'string' || !p.text.trim()) return;
+    h.onChat(p.id, String(p.name ?? '').slice(0, 40), p.text.trim().slice(0, LOBBY_CHAT_MAX));
   });
   ch.on('presence', { event: 'sync' }, () => {
     const out: LobbyMember[] = [];
@@ -104,6 +114,7 @@ export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: 
   ch.subscribe((status) => { if (status === 'SUBSCRIBED') void ch.track({ name: me.name, look: me.look }); });
   return {
     leave: () => { void c.removeChannel(ch); },
+    chat: (text) => { void ch.send({ type: 'broadcast', event: 'chat', payload: { id: me.id, name: me.name, text: text.trim().slice(0, LOBBY_CHAT_MAX) } }); },
     nudgeFriend: (to) => { void ch.send({ type: 'broadcast', event: 'friend', payload: { to, from: me.id } }); },
   };
 }
