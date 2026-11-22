@@ -178,11 +178,12 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
   const paved = (x: number, y: number) => isPath(tile(x, y)) || (isGround(tile(x, y)) && corners[y * MAP_W + x] === 4);
 
   // ---- the regions, as paths in world px (shared by every chunk) ----
-  const groundArea = new Path2D(), pathArea = new Path2D(), plazaArea = new Path2D();
+  const groundArea = new Path2D(), pathArea = new Path2D(), plazaArea = new Path2D(), forestArea = new Path2D();
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
     const t = tile(x, y);
     if (isGround(t)) groundArea.rect(x * TILE, y * TILE, TILE, TILE);
     else if (isPath(t)) pathArea.rect(x * TILE, y * TILE, TILE, TILE);
+    else if (t === T.FOREST) forestArea.rect(x * TILE, y * TILE, TILE, TILE);
   }
   for (const p of polys) { plazaArea.moveTo(p[0][0], p[0][1]); for (const [x, y] of p.slice(1)) plazaArea.lineTo(x, y); plazaArea.closePath(); }
   // the outline of the brick paths where they meet lawn (not other paving)
@@ -207,6 +208,28 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
     c.lineCap = 'round'; c.lineJoin = 'round';
     const tx0 = Math.max(0, Math.floor(x0 / TILE) - 2), ty0 = Math.max(0, Math.floor(y0 / TILE) - 2);
     const tx1 = Math.min(MAP_W - 1, Math.ceil(x1 / TILE) + 2), ty1 = Math.min(MAP_H - 1, Math.ceil(y1 / TILE) + 2);
+
+    // the woods round the campus: a dense roof of leaf clusters, lit from the north-west, darkest in the gaps
+    c.fillStyle = '#1b4029'; c.fill(forestArea);
+    c.save(); c.clip(forestArea);
+    const leaf = ['#16351f', '#214f34', '#2f6b45', '#3d8052', '#57a066', '#7cbd7f'];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      if (tile(tx, ty) !== T.FOREST) continue;
+      const r = rng(tx * 5413 + ty * 2203 + 3);
+      for (let i = 0; i < 14; i++) {
+        const x = (tx + r()) * TILE, y = (ty + r()) * TILE, rad = 3.2 + r() * 4.8;
+        c.fillStyle = leaf[0]; c.beginPath(); c.arc(x + 1.2, y + 1.8, rad, 0, Math.PI * 2); c.fill();
+        const g = c.createRadialGradient(x - rad * 0.4, y - rad * 0.45, rad * 0.1, x, y, rad);
+        const tone = 2 + Math.floor(r() * 2);
+        g.addColorStop(0, leaf[tone + 2]); g.addColorStop(0.55, leaf[tone]); g.addColorStop(1, leaf[tone - 1]);
+        c.fillStyle = g; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
+        for (let k = 0; k < 3; k++) {
+          const a = Math.PI * (1.05 + r() * 0.6), d = rad * (0.35 + r() * 0.45);
+          c.fillStyle = leaf[5]; c.globalAlpha = 0.55; c.beginPath(); c.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, 1.1, 0.7, a, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
+        }
+      }
+    }
+    c.restore();
 
     // lawn everywhere there's ground (plazas are laid over it)
     c.fillStyle = pat(grass); c.fill(groundArea);
@@ -396,13 +419,13 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
   for (const { foot: [fx, fy], end } of halfCourt) {
     if (end === 'n' || end === 's') {
       // at the ends of a north–south court: the north board faces you, the south one shows its back
-      scene.add.image(fx, fy, end === 'n' ? 'hoop-n' : 'hoop-s').setOrigin(0.5, 57 / 60).setDepth(fy);
+      scene.add.image(fx, fy, end === 'n' ? 'hoop-n' : 'hoop-s').setOrigin(0.5, 57 / 60).setScale(1 / R).setDepth(fy);
       shade.fillPoints([{ x: fx - 1, y: fy }, { x: fx + 1, y: fy }, { x: fx + 23, y: fy + 13 }, { x: fx + 21, y: fy + 13 }], true);
       shade.fillRect(fx + 14, fy + 8, 16, 5);
       continue;
     }
     const flip = end === 'e';
-    scene.add.image(fx, fy, 'hoop').setOrigin(flip ? 30 / 40 : 10 / 40, 53 / 56).setFlipX(flip).setDepth(fy);
+    scene.add.image(fx, fy, 'hoop').setOrigin(flip ? 30 / 40 : 10 / 40, 53 / 56).setFlipX(flip).setScale(1 / R).setDepth(fy);
     const s = flip ? -1 : 1;
     // the pole's shadow falls south-east; the board's lands a little further along
     shade.fillPoints([{ x: fx - 1, y: fy }, { x: fx + 1, y: fy }, { x: fx + 23, y: fy + 13 }, { x: fx + 21, y: fy + 13 }], true);
@@ -411,8 +434,8 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
   const fb = COURTS.football;
   const gx = fb.x * TILE + 6, gy = fb.y * TILE + 6, gw = fb.w * TILE - 12, gh = fb.h * TILE - 12;
   if (gh > gw) {
-    scene.add.image(gx + gw / 2, gy, 'goal-n').setOrigin(0.5, 32 / 34).setDepth(gy);
-    scene.add.image(gx + gw / 2, gy + gh + 10, 'goal-s').setOrigin(0.5, 30 / 34).setDepth(gy + gh + 10);
+    scene.add.image(gx + gw / 2, gy, 'goal-n').setOrigin(0.5, 32 / 34).setScale(1 / R).setDepth(gy);
+    scene.add.image(gx + gw / 2, gy + gh + 10, 'goal-s').setOrigin(0.5, 30 / 34).setScale(1 / R).setDepth(gy + gh + 10);
   }
   return info;
 }

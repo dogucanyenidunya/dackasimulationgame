@@ -284,23 +284,23 @@ export class CampusScene extends Phaser.Scene {
     ground.setCollision(BLOCK_TILES); // buildings collide through their outlines (see pushOutOfBuildings)
     this.drawCourtLines();
     makeGatewayTextures(this);
-    this.add.image(STAIRS.x * TILE, STAIRS.y * TILE, 'stairs').setOrigin(0).setDepth(3);
+    this.add.image(STAIRS.x * TILE, STAIRS.y * TILE, 'stairs').setScale(1 / ART_RES).setOrigin(0).setDepth(3);
     // the steps down from the first-floor corridor through Eğitim to the Merkez Meydan
-    this.add.image(MEYDAN_STAIRS.x * TILE, MEYDAN_STAIRS.y * TILE - 4, 'stairs-ew').setOrigin(0).setDepth(3);
+    this.add.image(MEYDAN_STAIRS.x * TILE, MEYDAN_STAIRS.y * TILE - 4, 'stairs-ew').setScale(1 / ART_RES).setOrigin(0).setDepth(3);
     // the Merkez Meydan's terrace: the stairwell down into the tunnel, the road down its east side, the steps down its
     // south edge (the picture starts on the landing a tile west of the flight) and the tunnel's arch in the east wall
-    this.add.image(TUNNEL_STAIRS.x * TILE, TUNNEL_STAIRS.y * TILE, 'tunnel-stairs').setOrigin(0).setDepth(3);
-    this.add.image(MEYDAN_RAMP.x * TILE, MEYDAN_RAMP.y * TILE, 'meydan-ramp').setOrigin(0).setDepth(2);
-    this.add.image(SOUTH_WALL.x0 * TILE, SOUTH_WALL.y * TILE - SOUTH_FACE, 'south-wall').setOrigin(0).setDepth(3);
-    this.add.image(SOUTH_STAIRS.x * TILE, SOUTH_STAIRS.y * TILE, 'south-stairs').setOrigin(0).setDepth(3);
+    this.add.image(TUNNEL_STAIRS.x * TILE, TUNNEL_STAIRS.y * TILE, 'tunnel-stairs').setScale(1 / ART_RES).setOrigin(0).setDepth(3);
+    this.add.image(MEYDAN_RAMP.x * TILE, MEYDAN_RAMP.y * TILE, 'meydan-ramp').setScale(1 / ART_RES).setOrigin(0).setDepth(2);
+    this.add.image(SOUTH_WALL.x0 * TILE, SOUTH_WALL.y * TILE - SOUTH_FACE, 'south-wall').setScale(1 / ART_RES).setOrigin(0).setDepth(3);
+    this.add.image(SOUTH_STAIRS.x * TILE, SOUTH_STAIRS.y * TILE, 'south-stairs').setScale(1 / ART_RES).setOrigin(0).setDepth(3);
     // inside the tunnel, under the square's paving: both only show (the paving see-through) while you're down there
     const ty = TUNNEL.y * TILE - TUNNEL_WALL;
     this.tunnelImgs = {
-      inside: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-inside').setOrigin(0).setDepth(TUNNEL.y * TILE + 1).setAlpha(0),
+      inside: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-inside').setScale(1 / ART_RES).setOrigin(0).setDepth(TUNNEL.y * TILE + 1).setAlpha(0),
       // (you're drawn between the two; anyone up on the square is drawn over the paving, walking on it)
-      roof: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-roof').setOrigin(0).setDepth(TUNNEL.y * TILE + 3).setAlpha(0),
+      roof: this.add.image(TUNNEL.x * TILE, ty, 'tunnel-roof').setScale(1 / ART_RES).setOrigin(0).setDepth(TUNNEL.y * TILE + 3).setAlpha(0),
     };
-    this.add.image(TUNNEL_IN.east * TILE - 6, (TUNNEL_IN.y + 0.5) * TILE, 'tunnel-arch').setOrigin(0, 0.5).setDepth((TUNNEL_IN.y + 1) * TILE + TUNNEL_ARCH_SIZE.h / 2 - 16);
+    this.add.image(TUNNEL_IN.east * TILE - 6, (TUNNEL_IN.y + 0.5) * TILE, 'tunnel-arch').setScale(1 / ART_RES).setOrigin(0, 0.5).setDepth((TUNNEL_IN.y + 1) * TILE + TUNNEL_ARCH_SIZE.h / 2 - 16);
 
     this.drawBuildings();
     // the wire round the courts on the south lawn
@@ -313,11 +313,11 @@ export class CampusScene extends Phaser.Scene {
       tree.setScale(1 / ART_RES).setDepth(y * TILE + 30).refreshBody();
       tree.body!.setSize(12, 8).setOffset(18, 60);
     }
-    for (const [x, y] of BENCHES) this.add.image(x * TILE + 16, y * TILE + 16, 'bench').setDepth(y * TILE + 10);
-    for (const [x, y] of FLOWERS) this.add.image(x * TILE + 16, y * TILE + 16, 'flowers').setDepth(y * TILE + 4);
+    for (const [x, y] of BENCHES) this.add.image(x * TILE + 16, y * TILE + 16, 'bench').setScale(1 / ART_RES).setDepth(y * TILE + 10);
+    for (const [x, y] of FLOWERS) this.add.image(x * TILE + 16, y * TILE + 16, 'flowers').setScale(1 / ART_RES).setDepth(y * TILE + 4);
     for (const [x, y] of LAMPS) {
       const lamp = trees.create(x * TILE + 16, y * TILE + 4, 'lamp') as Phaser.Physics.Arcade.Sprite;
-      lamp.setDepth(y * TILE + 30);
+      lamp.setScale(1 / ART_RES).setDepth(y * TILE + 30).refreshBody();
       lamp.body!.setSize(6, 4).setOffset(5, 48);
       this.lightSpots.push({ x: x * TILE + 16, y: y * TILE - 12, r: 3 });
     }
@@ -326,40 +326,40 @@ export class CampusScene extends Phaser.Scene {
       this.anims.create({ key: 'flag-wave', frames: this.anims.generateFrameNumbers('flag', { frames: [0, 1, 2, 1] }), frameRate: 5, repeat: -1 });
     }
     const bars = trees.create(PULLUP_BARS[0] * TILE, PULLUP_BARS[1] * TILE, 'pullup') as Phaser.Physics.Arcade.Sprite;
-    bars.setOrigin(0.5, 1).setDepth(PULLUP_BARS[1] * TILE + 2).refreshBody();
+    bars.setScale(1 / ART_RES).setOrigin(0.5, 1).setDepth(PULLUP_BARS[1] * TILE + 2).refreshBody();
     bars.body!.setSize(72, 8).setOffset(4, 48);
     const flag = trees.create(FLAGPOLE[0] * TILE + 16, FLAGPOLE[1] * TILE - 16, 'flag') as Phaser.Physics.Arcade.Sprite;
-    flag.setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave');
+    flag.setScale(1 / ART_RES).setDepth(FLAGPOLE[1] * TILE + 40).play('flag-wave').refreshBody();
     flag.body!.setSize(6, 6).setOffset(5, 86);
     // the big green main gate: stone pillars, a green arch with the school's name, the leaves slid open
     // along the fence, and the guards' cabin just inside
     for (const gate of GATES) {
       for (const gx of [gate.x - 0.5, gate.x + gate.w + 0.5]) {
         const post = trees.create(gx * TILE, (gate.y + 0.5) * TILE - 34, 'gatepost') as Phaser.Physics.Arcade.Sprite;
-        post.setDepth((gate.y + 0.5) * TILE + 16);
+        post.setScale(1 / ART_RES).setDepth((gate.y + 0.5) * TILE + 16).refreshBody();
         post.body!.setSize(24, 12).setOffset(4, 86);
       }
       const gy = gate.y + 0.5;
-      this.add.image((gate.x + gate.w / 2) * TILE, gy * TILE - 70, gate === GATE ? 'gatearch' : 'gatearch-tim').setOrigin(0.5, 1).setDepth(gy * TILE + 20);
+      this.add.image((gate.x + gate.w / 2) * TILE, gy * TILE - 70, gate === GATE ? 'gatearch' : 'gatearch-tim').setScale(1 / ART_RES).setOrigin(0.5, 1).setDepth(gy * TILE + 20);
       // the two leaves stand swung open into the campus, hinged on the pillars
       const hinge = (gate.y + 0.3) * TILE, ox = 1 / GATE_LEAF_SIZE.w;
-      this.add.image(gate.x * TILE, hinge, 'gateleaf').setOrigin(ox, 1).setDepth(hinge);
-      this.add.image((gate.x + gate.w) * TILE, hinge, 'gateleaf').setOrigin(1 - ox, 1).setFlipX(true).setDepth(hinge);
+      this.add.image(gate.x * TILE, hinge, 'gateleaf').setScale(1 / ART_RES).setOrigin(ox, 1).setDepth(hinge);
+      this.add.image((gate.x + gate.w) * TILE, hinge, 'gateleaf').setScale(1 / ART_RES).setOrigin(1 - ox, 1).setFlipX(true).setDepth(hinge);
       this.lightSpots.push({ x: (gate.x + gate.w / 2) * TILE, y: (gate.y - 0.4) * TILE, r: 2 });
     }
     const cabin = trees.create(CABIN.x * TILE, (CABIN.y + CABIN.h) * TILE, 'cabin') as Phaser.Physics.Arcade.Sprite;
-    cabin.setOrigin(0, 1).setDepth((CABIN.y + CABIN.h) * TILE).refreshBody();
+    cabin.setScale(1 / ART_RES).setOrigin(0, 1).setDepth((CABIN.y + CABIN.h) * TILE).refreshBody();
     cabin.body!.setSize(CABIN_SIZE.w, CABIN.h * TILE).setOffset(0, CABIN_SIZE.h - CABIN.h * TILE);
     this.lightSpots.push({ x: (CABIN.x + CABIN.w / 2) * TILE, y: (CABIN.y + CABIN.h) * TILE - 20, r: 1.4 });
     // the tall perimeter wall, a block per fence tile; its stone face shows wherever nothing walls it in to the south
     for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
       if (!wallAt(this.map, x, y)) continue;
       const face = !wallAt(this.map, x, y + 1);
-      this.add.image(x * TILE, (y + 1) * TILE - (face ? 0 : WALL_FACE), face ? 'wallblock' : 'walltop').setOrigin(0, 1).setDepth((y + 1) * TILE);
+      this.add.image(x * TILE, (y + 1) * TILE - (face ? 0 : WALL_FACE), face ? 'wallblock' : 'walltop').setScale(1 / ART_RES).setOrigin(0, 1).setDepth((y + 1) * TILE);
     }
     // the aqueduct over the main street: walk through its big arch; its two piers stand against the walls
     const aqFront = (AQUEDUCT.y + AQUEDUCT.h) * TILE;
-    this.add.image(AQUEDUCT.x * TILE, aqFront, 'aqueduct').setOrigin(0, 1).setDepth(aqFront + 1);
+    this.add.image(AQUEDUCT.x * TILE, aqFront, 'aqueduct').setScale(1 / ART_RES).setOrigin(0, 1).setDepth(aqFront + 1);
     for (const px of [AQUEDUCT.x, AQUEDUCT.x + AQUEDUCT.w - AQUEDUCT_PIER]) {
       const pier = this.add.rectangle((px + AQUEDUCT_PIER / 2) * TILE, (AQUEDUCT.y + AQUEDUCT.h / 2) * TILE, AQUEDUCT_PIER * TILE, AQUEDUCT.h * TILE).setVisible(false);
       trees.add(pier);
@@ -368,23 +368,23 @@ export class CampusScene extends Phaser.Scene {
     this.cemilOut = trees.create(CEMIL_OUT[0] * TILE, CEMIL_OUT[1] * TILE, 'player', 0) as Phaser.Physics.Arcade.Sprite;
     // the three-sided pyramid in the very centre of the Merkez Meydan
     const pyr = trees.create(PYRAMID.x * TILE, PYRAMID.y * TILE, 'pyramid') as Phaser.Physics.Arcade.Sprite;
-    pyr.setOrigin(0.5, 1 - PYRAMID_SIZE.foot / 2 / PYRAMID_SIZE.h).setDepth(PYRAMID.y * TILE + 6).refreshBody();
+    pyr.setScale(1 / ART_RES).setOrigin(0.5, 1 - PYRAMID_SIZE.foot / 2 / PYRAMID_SIZE.h).setDepth(PYRAMID.y * TILE + 6).refreshBody();
     pyr.body!.setSize(PYRAMID_SIZE.w - 20, PYRAMID_SIZE.foot - 8).setOffset(10, PYRAMID_SIZE.h - PYRAMID_SIZE.foot + 2);
     this.lightSpots.push({ x: PYRAMID.x * TILE, y: PYRAMID.y * TILE - 20, r: 2.6 });
     // the grandstand along the Spor Salonu's east wall, facing the pitch (solid: you watch from the path in front)
     TRIBUNE.forEach((r, i) => {
-      this.add.image(r.x * TILE, r.y * TILE - TRIBUNE_LIFT, tribuneKey(i)).setOrigin(0).setDepth((r.y + r.h) * TILE - 2);
+      this.add.image(r.x * TILE, r.y * TILE - TRIBUNE_LIFT, tribuneKey(i)).setScale(1 / ART_RES).setOrigin(0).setDepth((r.y + r.h) * TILE - 2);
       const block = this.add.rectangle((r.x + r.w / 2) * TILE, (r.y + r.h / 2) * TILE, r.w * TILE, r.h * TILE).setVisible(false);
       trees.add(block);
     });
     // the Atatürk bust among its trees in the south-east corner of the Merkez Meydan
     const bust = trees.create(BUST[0] * TILE, BUST[1] * TILE - 8, 'bust') as Phaser.Physics.Arcade.Sprite;
-    bust.setDepth(BUST[1] * TILE + 28);
+    bust.setScale(1 / ART_RES).setDepth(BUST[1] * TILE + 28).refreshBody();
     bust.body!.setSize(30, 12).setOffset(5, 50);
     this.lightSpots.push({ x: BUST[0] * TILE, y: BUST[1] * TILE + 6, r: 2.2 });
     // bushes along the building fronts, door lights
     for (const b of BUILDINGS) {
-      for (const [x, y] of bushSpots(b, this.map)) this.add.image(x * TILE, y * TILE, 'bush').setDepth(y * TILE + 12);
+      for (const [x, y] of bushSpots(b, this.map)) this.add.image(x * TILE, y * TILE, 'bush').setScale(1 / ART_RES).setDepth(y * TILE + 12);
     }
     for (const loc of LOCATIONS) { const d = loc.doors?.[0]; if (d) this.lightSpots.push({ x: d.x * TILE + 16, y: d.y * TILE + 24, r: 1.6 }); }
     this.warmLights = this.add.group();

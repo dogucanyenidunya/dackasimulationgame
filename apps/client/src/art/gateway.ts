@@ -3,6 +3,7 @@
 import Phaser from 'phaser';
 import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_RAMP, MEYDAN_STAIRS, PYRAMID, SOUTH_STAIRS, SOUTH_WALL, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS, TUNNEL, TUNNEL_STAIRS } from '../content/campus';
 import { shade, wallColor } from './buildingArt';
+import { ART_RES } from './textures';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -56,11 +57,15 @@ export const TUNNEL_SIZE = { w: TUNNEL.w * TILE, h: TUNNEL.h * TILE + TUNNEL_WAL
 const TERRACE_STONE = '#b7ab94';
 
 export function makeGatewayTextures(scene: Phaser.Scene) {
+  // drawn ART_RES times finer than the world and shown smoothly scaled (the scene scales these images by 1 / ART_RES)
   const canvas = (key: string, w: number, h: number, draw: (c: Ctx) => void) => {
     if (scene.textures.exists(key)) return;
-    const t = scene.textures.createCanvas(key, w, h)!;
-    draw(t.getContext());
+    const t = scene.textures.createCanvas(key, w * ART_RES, h * ART_RES)!;
+    const c = t.getContext();
+    c.setTransform(ART_RES, 0, 0, ART_RES, 0, 0);
+    draw(c);
     t.refresh();
+    t.setFilter(Phaser.Textures.FilterMode.LINEAR);
   };
   canvas('aqueduct', AQUEDUCT_SIZE.w, AQUEDUCT_SIZE.h, paintAqueduct);
   canvas('stairs', STAIRS_SIZE.w, STAIRS_SIZE.h, paintStairs);

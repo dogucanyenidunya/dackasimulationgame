@@ -94,7 +94,7 @@ export class Ambient {
     }
     // pigeons on the plazas
     for (let i = 0; i < PIGEONS && ground.plazaSpots.length; i++) {
-      const s = scene.add.sprite(0, 0, 'pigeon', 0);
+      const s = scene.add.sprite(0, 0, 'pigeon', 0).setScale(1 / ART_RES);
       const p: Pigeon = { s, state: 'peck', t: Math.random() * 3000, vx: 0, vy: 0 };
       this.land(p);
       this.pigeons.push(p);
@@ -177,7 +177,7 @@ export class Ambient {
   private updateRain(time: number, delta: number, raining: boolean, view: Phaser.Geom.Rectangle) {
     this.wet += ((raining ? 1 : 0) - this.wet) * Math.min(1, delta / 2500);
     if (this.wet > 0.01 && !this.puddles.length) {
-      this.puddles = this.ground.puddles.map((p) => this.scene.add.image(p.x, p.y, p.key).setDepth(0.25).setAlpha(0));
+      this.puddles = this.ground.puddles.map((p) => this.scene.add.image(p.x, p.y, p.key).setScale(1 / ART_RES).setDepth(0.25).setAlpha(0));
     }
     for (const p of this.puddles) p.setAlpha(this.wet * 0.95).setVisible(this.wet > 0.01);
     const g = this.rippleG;
@@ -253,7 +253,7 @@ export class Ambient {
       const y0 = view.y + view.height * (0.1 + Math.random() * 0.55);
       for (let i = 0; i < n; i++) {
         const x = fromLeft ? view.x - 30 - i * 22 : view.right + 30 + i * 22, y = y0 + (i % 2 ? 14 : -10) * Math.ceil(i / 2);
-        const s = this.scene.add.sprite(x, y, 'gull', 0).setDepth(150_400).setFlipX(!fromLeft);
+        const s = this.scene.add.sprite(x, y, 'gull', 0).setScale(1 / ART_RES).setDepth(150_400).setFlipX(!fromLeft);
         const shadow = this.scene.add.ellipse(x + 30, y + 74, 9, 3, 0x000000, 0.13).setDepth(2);
         this.gulls.push({ s, shadow, vx, vy, phase: Math.random() * 1000 });
       }
