@@ -1,7 +1,7 @@
 // Character creator (GDD §5): look → about you → your story → summary.
-import { paintCharacter, type CharacterLook, type HairStyle } from '../art/textures';
+import { paintCharacter, type CharacterLook, type FaceShape, type HairStyle } from '../art/textures';
 import {
-  ATTRS, BOARDING_OPTIONS, CAUSES, EYE_COLORS, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, MIX_STEP, MIX_TOTAL, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
+  ATTRS, BOARDING_OPTIONS, CAUSES, EYE_COLORS, FACE_SHAPES, GUARDIANS, HAIR_COLORS, HAIR_STYLES, LOSSES, MIX_STEP, MIX_TOTAL, PROVINCES, SKIN_TONES, TRAITS, UNIFORM,
   defaultGuardian, startingAttributes, guardianOptions, mainTrait, mixLabel, mixLean,
   type Boarding, type CauseId, type CharacterData, type Gender, type GuardianId, type Loss, type TraitId, type TraitMix,
 } from '../content/character';
@@ -24,6 +24,7 @@ const S = {
   glasses: { tr: 'Gözlük', en: 'Glasses' },
   eyes: { tr: 'Göz rengi', en: 'Eye color' },
   freckles: { tr: 'Çil', en: 'Freckles' },
+  face: { tr: 'Yüz tipi', en: 'Face shape' },
   yes: { tr: 'Var', en: 'Yes' },
   no: { tr: 'Yok', en: 'No' },
   first: { tr: 'Adın', en: 'First name' },
@@ -73,7 +74,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
     let error = '';
     const d: Draft = {
       first: '', last: '', gender: 'girl',
-      look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false, eyes: EYE_COLORS[1], freckles: false },
+      look: { skin: SKIN_TONES[2], hair: HAIR_COLORS[2], hairStyle: 2, top: UNIFORM.top, bottom: UNIFORM.bottom, skirt: true, glasses: false, eyes: EYE_COLORS[1], freckles: false, face: 0 },
       hometown: 'İstanbul', mix: {}, loss: 'father', guardian: 'mother', cause: null, boarding: 'evci',
     };
 
@@ -183,6 +184,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         form.innerHTML =
           field(S.gender, seg('gender', [{ v: 'girl', label: L(S.girl) }, { v: 'boy', label: L(S.boy) }], d.gender)) +
           field(S.skin, swatches('skin', SKIN_TONES, d.look.skin)) +
+          field(S.face, seg('face', FACE_SHAPES.map((f) => ({ v: String(f.id), label: L(f.name) })), String(d.look.face ?? 0))) +
           field(S.hairStyle, seg('hairStyle', HAIR_STYLES.map((h) => ({ v: String(h.id), label: L(h.name) })), String(d.look.hairStyle))) +
           field(S.hairColor, swatches('hair', HAIR_COLORS, d.look.hair)) +
           field(S.eyes, swatches('eyes', EYE_COLORS, d.look.eyes ?? EYE_COLORS[1])) +
@@ -257,7 +259,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
       if (act === 'random') {
         d.look.skin = pick(SKIN_TONES); d.look.hair = pick(HAIR_COLORS);
         d.look.hairStyle = pick(HAIR_STYLES.filter((h) => d.gender === 'girl' ? h.id !== 1 : h.id !== 2 && h.id !== 5)).id;
-        d.look.glasses = Math.random() < 0.25; d.look.eyes = pick(EYE_COLORS); d.look.freckles = Math.random() < 0.2;
+        d.look.glasses = Math.random() < 0.25; d.look.eyes = pick(EYE_COLORS); d.look.freckles = Math.random() < 0.2; d.look.face = pick(FACE_SHAPES).id;
         render(); return;
       }
       if (act === 'mix+' || act === 'mix-') {
@@ -297,6 +299,7 @@ export function runCreator(host: HTMLElement): Promise<CharacterData> {
         case 'hairStyle': d.look.hairStyle = Number(v) as HairStyle; break;
         case 'eyes': d.look.eyes = v; break;
         case 'freckles': d.look.freckles = v === 'yes'; break;
+        case 'face': d.look.face = Number(v) as FaceShape; break;
         case 'skirt': d.look.skirt = v === 'yes'; break;
         case 'glasses': d.look.glasses = v === 'yes'; break;
         case 'loss':

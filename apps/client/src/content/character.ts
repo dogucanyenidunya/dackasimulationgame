@@ -1,5 +1,5 @@
 // Character creation content: look options, traits, family and "Your story" (GDD §5).
-import type { CharacterLook, HairStyle } from '../art/textures';
+import type { CharacterLook, FaceShape, HairStyle } from '../art/textures';
 import { L, getLang, type Text } from '../i18n';
 import type { AxisId } from '../game/state';
 
@@ -42,6 +42,13 @@ export const HAIR_STYLES: Array<{ id: HairStyle; name: Text }> = [
   { id: 3, name: { tr: 'At kuyruğu', en: 'Ponytail' } },
   { id: 4, name: { tr: 'Kıvırcık', en: 'Curly' } },
   { id: 5, name: { tr: 'Örgülü', en: 'Braids' } },
+];
+export const FACE_SHAPES: Array<{ id: FaceShape; name: Text }> = [
+  { id: 0, name: { tr: 'Oval', en: 'Oval' } },
+  { id: 1, name: { tr: 'Yuvarlak', en: 'Round' } },
+  { id: 2, name: { tr: 'Uzun', en: 'Long' } },
+  { id: 3, name: { tr: 'Köşeli', en: 'Square' } },
+  { id: 4, name: { tr: 'Kalp', en: 'Heart' } },
 ];
 /** iris colours: dark brown, brown, hazel, green, blue, grey */
 export const EYE_COLORS = ['#2e1c12', '#4a2e1c', '#7a5426', '#56703a', '#4d7aa6', '#6c7a86'];

@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { T, TILE } from '../content/campus';
 
 export { CHAR_RES, DEFAULT_LOOK, drawCharacter, fitCharacter, footBody, makeCharacterTexture, paintCharacter } from './character';
-export type { CharacterLook, HairStyle } from './character';
+export type { CharacterLook, FaceShape, HairStyle } from './character';
 
 const PAL = {
   roof: '#c3c9cf', roofDark: '#a9b0b7', roofLight: '#d8dde2',

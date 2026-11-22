@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { OUTFITS } from '../content/wardrobe';
 
 export type HairStyle = 0 | 1 | 2 | 3 | 4 | 5; // short, buzz, long, ponytail, curly, braids
+export type FaceShape = 0 | 1 | 2 | 3 | 4; // oval, round, long, square, heart
 
 export interface CharacterLook {
   skin: string;
@@ -17,6 +18,7 @@ export interface CharacterLook {
   /** iris colour */
   eyes?: string;
   freckles?: boolean;
+  face?: FaceShape;
 }
 
 export const DEFAULT_LOOK: CharacterLook = {
@@ -379,12 +381,37 @@ function coatCollar(k: Kid) {
 
 // ---------- faces ----------
 
-function facePath() {
+/**
+ * Face shapes (front view): half the width at the temples, the cheek and jaw control points of the side curve
+ * (as offsets from the centre line) and how low the chin sits. Square faces get a jaw corner instead of a curve.
+ */
+const FACES: Record<FaceShape, { rx: number; cheek: [number, number]; jaw: [number, number]; chin: number }> = {
+  0: { rx: 4.7, cheek: [4.8, 9.6], jaw: [3.2, 11.9], chin: 12.0 },   // oval
+  1: { rx: 5.1, cheek: [5.5, 10.3], jaw: [4.1, 11.6], chin: 11.65 }, // round
+  2: { rx: 4.25, cheek: [4.3, 10.4], jaw: [2.4, 12.75], chin: 12.85 }, // long
+  3: { rx: 4.95, cheek: [4.95, 10.3], jaw: [4.6, 11.65], chin: 12.1 }, // square
+  4: { rx: 5.05, cheek: [5.5, 8.1], jaw: [1.5, 11.8], chin: 12.4 },  // heart
+};
+const faceOf = (look: CharacterLook) => FACES[look.face ?? 0] ?? FACES[0];
+/** where the ears sit for this face (half the width from the centre) */
+const earX = (look: CharacterLook) => faceOf(look).rx + 0.05;
+
+function facePath(look: CharacterLook) {
+  const f = faceOf(look);
   const p = P();
-  p.moveTo(11.3, 6.6);
-  p.ellipse(16, 6.6, 4.7, 5.2, 0, Math.PI, Math.PI * 2);
-  p.bezierCurveTo(20.8, 9.6, 19.2, 11.9, 16, 12.0);
-  p.bezierCurveTo(12.8, 11.9, 11.2, 9.6, 11.3, 6.6);
+  p.moveTo(16 - f.rx, 6.6);
+  p.ellipse(16, 6.6, f.rx, 5.2, 0, Math.PI, Math.PI * 2);
+  if (look.face === 3) {
+    // straight sides, a clear jaw corner and a broad chin
+    p.lineTo(16 + f.cheek[0], f.cheek[1]);
+    p.quadraticCurveTo(16 + f.jaw[0] + 0.45, f.jaw[1] - 0.1, 16 + f.jaw[0] - 0.9, f.jaw[1] + 0.35);
+    p.quadraticCurveTo(17.4, f.chin + 0.05, 16, f.chin);
+    p.quadraticCurveTo(14.6, f.chin + 0.05, 16 - f.jaw[0] + 0.9, f.jaw[1] + 0.35);
+    p.quadraticCurveTo(16 - f.jaw[0] - 0.45, f.jaw[1] - 0.1, 16 - f.cheek[0], f.cheek[1]);
+  } else {
+    p.bezierCurveTo(16 + f.cheek[0], f.cheek[1], 16 + f.jaw[0], f.jaw[1], 16, f.chin);
+    p.bezierCurveTo(16 - f.jaw[0], f.jaw[1], 16 - f.cheek[0], f.cheek[1], 16 - f.rx, 6.6);
+  }
   p.closePath();
   return p;
 }
@@ -421,13 +448,13 @@ function eyeFront(x: number, y: number, k: Kid, side: number) {
 function headFront(k: Kid) {
   const { look } = k;
   const skin = look.skin;
-  ear(11.25, 7.7, -1, skin); ear(20.75, 7.7, 1, skin);
-  const face = facePath();
+  ear(16 - earX(look), 7.7, -1, skin); ear(16 + earX(look), 7.7, 1, skin);
+  const face = facePath(look);
   fill(face, rad(14.5, 5.4, 7.6, [[0, lt(skin, 0.16)], [0.5, skin], [1, sdk(skin, 0.3)]]));
   clip(face, () => {
     if (look.hairStyle !== 1) fill(rr(10, 3.5, 12, 3.4, 0), lin(0, 4.4, 0, 6.6, [[0, rgba(sdk(skin, 0.6), 0.4)], [1, rgba(sdk(skin, 0.6), 0)]]));
     for (const s of [-1, 1]) fill(el(16 + s * 2.95, 9.55, 1.6, 1.05), rad(16 + s * 2.95, 9.55, 1.6, [[0, 'rgba(232,104,100,0.32)'], [1, 'rgba(232,104,100,0)']]));
-    fill(el(16, 12.3, 3.6, 1.0), 'rgba(92,34,22,0.12)'); // under the chin
+    fill(el(16, faceOf(look).chin + 0.3, 3.6, 1.0), 'rgba(92,34,22,0.12)'); // under the chin
   });
   // brows
   const bc = brows(look);
@@ -450,8 +477,8 @@ function headFront(k: Kid) {
 
 function headBack(k: Kid) {
   const skin = k.look.skin;
-  ear(11.25, 7.7, -1, skin); ear(20.75, 7.7, 1, skin);
-  fill(facePath(), rad(14.5, 6, 7.6, [[0, skin], [1, sdk(skin, 0.3)]]));
+  ear(16 - earX(k.look), 7.7, -1, skin); ear(16 + earX(k.look), 7.7, 1, skin);
+  fill(facePath(k.look), rad(14.5, 6, 7.6, [[0, skin], [1, sdk(skin, 0.3)]]));
 }
 
 function glassesFront() {
@@ -591,7 +618,10 @@ function armSide(k: Kid, a: number, far: boolean) {
   C.restore();
 }
 
-function sidePath() {
+function sidePath(look: CharacterLook) {
+  // the profile's chin and jaw follow the face shape: lower for long faces, softer for round, a corner for square
+  const dy = faceOf(look).chin - 12.0;
+  const chinX = look.face === 1 ? 19.4 : look.face === 4 ? 19.8 : 19.6;
   const h = P();
   h.moveTo(11.0, 7.2);
   h.bezierCurveTo(10.6, 2.6, 13.6, 1.2, 16.0, 1.3);
@@ -600,8 +630,9 @@ function sidePath() {
   h.lineTo(21.45, 8.85);
   h.quadraticCurveTo(21.3, 9.4, 20.6, 9.45);
   h.quadraticCurveTo(20.95, 10.0, 20.65, 10.5);
-  h.quadraticCurveTo(20.65, 11.4, 19.6, 11.8);
-  h.bezierCurveTo(18.4, 12.3, 16.6, 12.0, 15.6, 11.4);
+  h.quadraticCurveTo(20.65, 11.4 + dy, chinX, 11.8 + dy);
+  if (look.face === 3) { h.lineTo(17.2, 12.25 + dy); h.quadraticCurveTo(15.9, 12.3, 15.5, 11.5); }
+  else h.bezierCurveTo(18.4, 12.3 + dy, 16.6, 12.0 + dy * 0.6, 15.6, 11.4);
   h.bezierCurveTo(14.4, 11.6, 12.6, 11.0, 11.6, 9.6);
   h.closePath();
   return h;
@@ -610,7 +641,7 @@ function sidePath() {
 function headSide(k: Kid) {
   const { look } = k;
   const skin = look.skin;
-  const h = sidePath();
+  const h = sidePath(look);
   fill(h, rad(toLight(17, 1.6), 5.4, 8, [[0, lt(skin, 0.16)], [0.5, skin], [1, sdk(skin, 0.3)]]));
   clip(h, () => {
     if (look.hairStyle !== 1) fill(rr(16, 3.5, 6, 3.2, 0), lin(0, 4.4, 0, 6.6, [[0, rgba(sdk(skin, 0.6), 0.4)], [1, rgba(sdk(skin, 0.6), 0)]]));
