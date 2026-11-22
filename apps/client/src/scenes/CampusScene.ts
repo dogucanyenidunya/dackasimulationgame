@@ -3,7 +3,7 @@ import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
   MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea,
-  AGE_ZONES, CENTER_ZONES, DORM_BACKS, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
+  AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
   DEFAULT_LOOK, FOG_FULL, FOG_KEY, FOG_SOFT, TILESET_KEY, TILESET_MARGIN, TILESET_SPACING, generateTextures, makeCharacterTexture, fitCharacter, footBody,
@@ -1807,7 +1807,7 @@ export class CampusScene extends Phaser.Scene {
     for (let i = 0; i < 8; i++) {
       const tx = Math.round(home[0]) + Phaser.Math.Between(-roam, roam), ty = Math.round(home[1]) + Phaser.Math.Between(-roam, roam);
       if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
-      if (!lise && DORM_BACKS.some((r) => tx + 0.5 >= r.x && tx + 0.5 <= r.x + r.w && ty + 0.5 >= r.y && ty + 0.5 <= r.y + r.h)) continue;
+      if (!lise && inDormBacks(tx + 0.5, ty + 0.5)) continue;
       const i2 = ty * MAP_W + tx;
       if (this.npcGrid[i2] && !this.doorClear[i2]) return this.npcSpot(tx, ty);
     }
@@ -1905,6 +1905,8 @@ export class CampusScene extends Phaser.Scene {
   /** by day each devre gathers by its age group's lawn, or now and then out on the mixed plazas in the middle; a few wander off alone */
   private pickDayHome(npc: Phaser.Physics.Arcade.Sprite) {
     const def = npc.getData('def') as NpcDef;
+    // the lise devres spend their free time on their own yard behind one of the dorms
+    if ((def.grade ?? 4) >= 9) { npc.setData('dayHome', this.devreHome('day', def, () => this.inRect(liseYard(def.grade!), 1.5)).home); npc.setData('dayRoam', 1.5); return; }
     const pick = () => {
       const centre = Math.random() < 0.35;
       const zones = centre ? CENTER_ZONES : AGE_ZONES[ageGroup(def)];
@@ -1923,6 +1925,8 @@ export class CampusScene extends Phaser.Scene {
     const pick = () => this.inRect(Math.random() < 0.6 ? EVENING_CENTER : EVENING_ZONES[g >= 9 ? 'lise' : (String(g) as '4' | '5' | '6' | '7' | '8')], 2);
     // (the abi and abla who keep an eye on the little ones stay out in the middle of it)
     if (def.fixed) { const s = this.inRect(EVENING_CENTER, 3); npc.setData('plazaHome', this.walkable(s.x, s.y)); return; }
+    // the lise devres: out on their own yard behind the boys' or the girls' dorm
+    if (g >= 9) { npc.setData('plazaHome', this.devreHome('evening', def, () => this.inRect(liseYard(g), 1.5)).home); return; }
     npc.setData('plazaHome', this.devreHome('evening', def, pick).home);
   }
 
@@ -2626,6 +2630,41 @@ export class CampusScene extends Phaser.Scene {
   /** the menu pages (profile, missions, relationships, friends) only look things up, so they open while you sleep or
    *  wait something out too; just not over another window, the chat, or while you're being marched back to the dorm */
   private menuBlocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.escort !== null; }
+
+  // ---------- the backs of the dorms: the lise's turf ----------
+
+  /** where you last stood outside the dorm backs (px), to put you back when a lise student turns you away */
+  private yardSafe: [number, number] | null = null;
+  private yardWarnAt = 0;
+
+  /** until you're in lise yourself, the high schoolers out on their yards won't let you in: the nearest one comes over,
+   *  tells you so and you're back where you came from. With no lise student outside (at night, in lessons) nobody stops you. */
+  private guardDormBacks(time: number) {
+    if (this.room || this.escort || this.sleepRun || this.watching) return;
+    const px = this.player.x / TILE, py = this.player.y / TILE + 0.3;
+    if (grade(this.save.state.year) >= 9 || !inDormBacks(px, py)) { this.yardSafe = [this.player.x, this.player.y]; return; }
+    const guard = this.npcs.filter((n) => n.visible && n.body!.enable && ((n.getData('def') as NpcDef).grade ?? 0) >= 9 && !this.match?.mates.includes(n))
+      .sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, this.player.x, this.player.y) - Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y))[0];
+    if (!guard) { this.yardSafe = [this.player.x, this.player.y]; return; }
+    // back out you go (or, if you somehow started in there, out onto the Yurt Meydanı)
+    const [sx, sy] = this.yardSafe ?? [12 * TILE, 23 * TILE];
+    this.player.setPosition(sx, sy).setVelocity(0, 0);
+    if (time < this.yardWarnAt) return;
+    this.yardWarnAt = time + 5000;
+    const def = guard.getData('def') as NpcDef;
+    const lines = [
+      { tr: 'Hop, ufaklık! Burası liselilerin yeri. Liseye geçince gelirsin.', en: "Whoa, little one! This is the high schoolers' spot. Come back when you're in lise." },
+      { tr: 'Nereye böyle? Arka taraf liselilerin, sen meydanda takıl.', en: 'Where are you off to? Back here is for the lise lot; you hang out on the square.' },
+      { tr: 'Dur bakalım! Buraya ancak lisede girersin.', en: "Hold it! You don't come back here till you're in lise." },
+    ];
+    const line = L(lines[Math.floor(Math.random() * lines.length)]);
+    this.hud.toast(`${def.name}: "${line}"`);
+    this.bubbleAbove(guard, line);
+    // they come over to where you tried to get in, and stay a moment before going back to their devre
+    const spot: [number, number] = [px, py - 0.3];
+    guard.setData('summon', spot);
+    this.time.delayedCall(7000, () => { if (guard.getData('summon') === spot) guard.setData('summon', undefined); });
+  }
 
   private findNearNpc(): NpcDef | null {
     let best: NpcDef | null = null, bestD = 1.7 * TILE;
@@ -4179,6 +4218,7 @@ export class CampusScene extends Phaser.Scene {
     this.updateDining(time);
     this.revealAround();
     this.updatePrompt();
+    this.guardDormBacks(time);
     if (this.sleepRun) this.updateSleep(delta); else this.tickClock(delta);
     this.updateMatch(time);
     this.updateCharacters();

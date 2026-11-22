@@ -327,6 +327,13 @@ export type AgeGroup = 'g4' | 'g56' | 'g78' | 'lise';
 /** the back of the dorms: the lawn west of the boys' dorm (with the pull-up bars), the strip behind it to the north,
  *  and the lawns west and south of the girls' dorm. Only high schoolers hang out there. */
 export const DORM_BACKS: Rect[] = [{ x: 4, y: 4, w: 4, h: 17 }, { x: 8, y: 4, w: 21, h: 1.5 }, { x: 4, y: 26, w: 2, h: 13 }, { x: 5, y: 36, w: 14, h: 9 }];
+/** where the lise devres gather in their free time, each school year on its own turf: the boys' dorm yard (between the
+ *  dorm and the west wall, round the pull-up bars) for the 9th and 11th grades, the girls' dorm yard (between the dorm
+ *  and the south-west wall) for the 10th and 12th */
+export const LISE_YARDS = { boys: { x: 4.2, y: 9, w: 3, h: 10 }, girls: { x: 8, y: 40, w: 10, h: 2 } } satisfies Record<string, Rect>;
+export const liseYard = (grade: number): Rect => (grade % 2 ? LISE_YARDS.boys : LISE_YARDS.girls);
+/** is this spot (tiles) behind one of the dorms? */
+export const inDormBacks = (x: number, y: number) => DORM_BACKS.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
 export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
   // 4th graders: the lawn in front of the girls' dorm, between it and the TIM wall
   g4: [{ x: 18, y: 29, w: 6, h: 3 }],
@@ -334,8 +341,8 @@ export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
   g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 25, y: 29, w: 7, h: 3 }],
   // 7th–8th graders: round the small court and the big court
   g78: [{ x: 64, y: 47, w: 7, h: 3 }, { x: 84, y: 40, w: 7, h: 2 }],
-  // high schoolers: east of the basketball court, on the south lawn, and the backs of the dorms (the pull-up bars)
-  lise: [{ x: 86, y: 42, w: 5, h: 8 }, { x: 57, y: 49, w: 14, h: 2 }, { x: 4, y: 10, w: 3, h: 9 }, { x: 7, y: 40, w: 9, h: 2 }],
+  // high schoolers: their devre's yard behind one of the dorms (see LISE_YARDS)
+  lise: [LISE_YARDS.boys, LISE_YARDS.girls],
 };
 /** the plazas: everyone mixes here */
 export const CENTER_ZONES: Rect[] = [{ x: 41, y: 24, w: 13, h: 13 }, { x: 10, y: 21, w: 14, h: 4 }];
@@ -355,7 +362,7 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
   '6': { x: 20, y: 20, w: 6, h: 2 },      // east end of the Yurt Meydanı
   '7': { x: 30, y: 9, w: 6, h: 5 },       // the dorm basketball court
   '8': { x: 18, y: 29, w: 6, h: 2 },      // in front of the girls' dorm
-  lise: { x: 4, y: 10, w: 3, h: 8 },      // round the pull-up bars behind the boys' dorm (the backs of the dorms are theirs)
+  lise: LISE_YARDS.boys,                  // (each lise devre actually goes to its own yard, see LISE_YARDS)
 };
 export const EVENING_CENTER: Rect = { x: 10, y: 21, w: 15, h: 6 };
 
