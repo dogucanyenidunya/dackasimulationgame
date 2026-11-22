@@ -1,0 +1,37 @@
+/* the lobby before launch (ui/lobby.ts) and the owner's launch panel on the title screen (main.ts) */
+.lobby-card { width: min(440px, 100%); }
+.lobby-card h1 { font-size: 44px; }
+.lobby-card .sub { margin-bottom: 10px; font-weight: 700; }
+.lobby-card.is-open .sub { color: #2f7d4a; }
+.lobby-kid { position: relative; width: 128px; height: 136px; margin: 4px auto 0; }
+.lobby-kid canvas { width: 128px; height: 128px; image-rendering: pixelated; position: relative; z-index: 1; animation: lobby-bob 2.4s ease-in-out infinite; }
+.lobby-shadow { position: absolute; left: 34px; right: 34px; bottom: 6px; height: 10px; border-radius: 50%; background: rgba(0, 0, 0, 0.16); }
+@keyframes lobby-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.lobby-name { font-weight: 800; font-size: 18px; margin: 2px 0 10px; overflow-wrap: anywhere; }
+.lobby-place { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 6px; }
+.lobby-place b { font-size: 34px; line-height: 1; color: var(--accent-dark); }
+.lobby-place span { font-size: 13px; color: #5b6266; }
+.lobby-count { font-weight: 800; font-size: 15px; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.lobby-line { font-size: 14px; line-height: 1.5; color: #3d4549; margin: 8px 0 10px; }
+.lobby-now { font-size: 13px; color: #5b6266; margin-bottom: 12px; }
+.lobby-invite { text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fffdf8; }
+.li-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; overflow-wrap: anywhere; }
+.li-row { display: flex; gap: 6px; }
+.li-row input { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: #3d4549; }
+.lobby-enter { width: 100%; font-size: 17px; padding: 12px 18px; }
+.lobby-card.is-open .lobby-kid canvas { animation-duration: 0.9s; }
+.lobby-foot { margin-top: 14px; font-size: 13px; color: #7b8387; }
+.lobby-foot .linkish, .owner-panel .linkish { font: inherit; font-size: 13px; border: none; background: none; text-decoration: underline; cursor: pointer; color: #4b5459; padding: 0; }
+
+/* title screen: the owner's switch, a tester's note, and the "opening soon" note for everyone else */
+.owner-panel { text-align: left; margin: 0 0 14px; padding: 10px 12px; border: 1px dashed var(--accent-dark); border-radius: 10px; background: #fff8ec; font-size: 13px; }
+.owner-panel b { font-size: 14px; }
+.owner-panel .op-state { margin: 4px 0 8px; }
+.owner-panel .op-state.open { color: #2f7d4a; font-weight: 700; }
+.owner-panel .op-state.closed { color: #a3461f; font-weight: 700; }
+.owner-panel .op-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.owner-panel input { font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; min-width: 0; flex: 1; }
+.owner-panel button.primary, .owner-panel button.secondary { padding: 7px 12px; font-size: 13px; }
+.owner-panel .op-err { color: #a3461f; margin-top: 6px; }
+.tester-note, .soon-note { font-size: 13px; margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: #eef5ee; color: #2f5d3e; text-align: left; }
+.soon-note { background: #fff4e0; color: #6b4a14; }

@@ -60,6 +60,17 @@ Sent by the Edge Function [supabase/functions/note-email](supabase/functions/not
 
 Without these steps notes still work in the game; only the emails are missing.
 
+### Waitlist and launch
+Before launch, players sign in, make their character and wait in a lobby (their place on the list, a countdown, who's waiting, their invite link). Owners and testers play as usual. The lobby turns into "The gates are open!" the moment an owner opens the game.
+1. **Add yourself first.** Running [supabase/schema.sql](supabase/schema.sql) adds the waitlist, and the game is **closed** for everyone else from then on. In the SQL Editor, straight after it:
+   ```sql
+   insert into public.staff (user_id, role) select id, 'owner' from auth.users where email = 'YOUR EMAIL'
+   on conflict (user_id) do update set role = excluded.role;
+   ```
+   Friends who should keep playing before launch: the same with `'tester'`. (They need to have signed in once, so their account exists.)
+2. **Opening the game.** Signed in as an owner, the title screen shows a 🔑 panel: how many are waiting, a launch date for the lobby's countdown, and **Open to everyone** (and **Close** again). Or in the dashboard: Table Editor → `game_settings` → `is_open`.
+3. Until the SQL has been run, the game works as before (nobody waits). The switch is enforced by the game itself, so it keeps people out of the campus, not a determined coder out of a public website.
+
 ## How multiplayer works (stage 1)
 
 - Everyone online is in one shared campus channel (Supabase Realtime). Presence shows who is here, and broadcasts carry positions, chat and emotes.

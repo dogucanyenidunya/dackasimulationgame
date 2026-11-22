@@ -323,3 +323,75 @@ revoke all on function public.send_note(uuid, text), public.list_notes(int), pub
 grant execute on function public.send_note(uuid, text), public.list_notes(int), public.mark_notes_read(bigint[]),
   public.block_player(uuid), public.unblock_player(uuid), public.note_emails_on(), public.set_note_emails(boolean) to authenticated;
 grant execute on function public.claim_note_email(uuid), public.unsubscribe_note_emails(uuid) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- Waitlist and the launch switch. Safe to run again.
+-- While the game is closed, players sign in, make their character and wait in the lobby;
+-- owners and testers play as usual. Only an owner can open or close the game.
+--
+-- ⚠ Running this closes the game for everyone who isn't an owner or tester. Add yourself first:
+--   insert into public.staff (user_id, role) select id, 'owner' from auth.users where email = 'YOUR EMAIL'
+--   on conflict (user_id) do update set role = excluded.role;
+-- and friends who already play (role 'tester') the same way.
+
+-- who may play before launch: 'owner' (and can open or close the game) or 'tester'. Edited only in the dashboard.
+create table if not exists public.staff (
+  user_id  uuid primary key references auth.users (id) on delete cascade,
+  role     text not null check (role in ('owner', 'tester')),
+  added_at timestamptz not null default now()
+);
+
+-- one row: is the game open to everyone, and (optionally) when it opens, for the lobby's countdown
+create table if not exists public.game_settings (
+  id         boolean primary key default true check (id),
+  is_open    boolean not null default false,
+  opens_at   timestamptz,
+  updated_at timestamptz not null default now()
+);
+insert into public.game_settings (id) values (true) on conflict (id) do nothing;
+
+-- everyone who made their character while the game was closed, in the order they joined
+create table if not exists public.waitlist (
+  user_id   uuid primary key references auth.users (id) on delete cascade,
+  joined_at timestamptz not null default now()
+);
+
+alter table public.staff         enable row level security;
+alter table public.game_settings enable row level security;
+alter table public.waitlist      enable row level security;
+-- (no policies: nobody reads or writes these directly; the functions below do it)
+
+-- the state of the game for whoever asks: open or not, the launch time, your role, your place on the waitlist
+create or replace function public.game_status() returns json
+language sql security definer set search_path = '' stable as $$
+  select json_build_object(
+    'open',     s.is_open,
+    'opens_at', s.opens_at,
+    'role',     (select role from public.staff where user_id = auth.uid()),
+    'position', (select n from (select user_id, row_number() over (order by joined_at, user_id) as n from public.waitlist) w where w.user_id = auth.uid()),
+    'total',    (select count(*) from public.waitlist))
+  from public.game_settings s where s.id;
+$$;
+
+-- you made your character while the game is closed: you're on the list (once); returns your place
+create or replace function public.join_waitlist() returns int
+language plpgsql security definer set search_path = '' as $$
+declare v_n int;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  insert into public.waitlist (user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  select n into v_n from (select user_id, row_number() over (order by joined_at, user_id) as n from public.waitlist) w where w.user_id = auth.uid();
+  return v_n;
+end $$;
+
+-- owners only: open or close the game, and set (or clear) the launch time shown in the lobby
+create or replace function public.set_game_open(p_open boolean, p_opens_at timestamptz default null) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.staff where user_id = auth.uid() and role = 'owner') then raise exception 'owners only'; end if;
+  update public.game_settings set is_open = p_open, opens_at = p_opens_at, updated_at = now() where id;
+end $$;
+
+revoke all on function public.game_status(), public.join_waitlist(), public.set_game_open(boolean, timestamptz) from public, anon, authenticated;
+grant execute on function public.game_status() to anon, authenticated;
+grant execute on function public.join_waitlist(), public.set_game_open(boolean, timestamptz) to authenticated;

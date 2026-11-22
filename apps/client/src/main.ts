@@ -14,6 +14,8 @@ import { withDefaults } from './game/state';
 import { applyDrift, markVisit } from './game/care';
 import { mountCare } from './ui/care';
 import { clearUnsubscribe, pendingUnsubscribe, unsubscribeNoteEmails } from './net/notes';
+import { gameStatus, joinWaitlist, mustWait, setGameOpen, type GameStatus } from './net/launch';
+import { mountLobby } from './ui/lobby';
 
 /** who is playing online (null = offline / signed out) */
 export interface NetUser { id: string; email: string }
@@ -48,13 +50,16 @@ async function titleScreen() {
   // signed in: your save lives in your account (falls back to this browser's save the first time)
   const existing = (net ? await loadCloudSave(net.id) : null) ?? loadSave();
   if (existing) setLang(existing.lang);
+  // before launch: everyone but owners and testers makes a character and waits in the lobby
+  let status = online ? await gameStatus() : null;
+  const waiting = mustWait(status);
   // the time you were away: mood, energy and health drift down gently (never below a floor)
   const persist = () => {
     if (!existing) return;
     writeSave(existing);
     if (net) { saveToCloud(net.id, existing); flushCloudSave(); }
   };
-  const away = existing ? applyDrift(existing.state) : 0;
+  const away = existing && !waiting ? applyDrift(existing.state) : 0;
   if (away > 0) persist();
   const el = document.createElement('div');
   el.className = 'title-screen';
@@ -73,6 +78,9 @@ async function titleScreen() {
   let unsub = online ? pendingUnsubscribe() : null;
   let unsubDone = '';
   if (net && pendingLinkToken()) clearLinkToken();
+  // signed in, character made, game not open yet: straight to the lobby
+  if (waiting && net && existing && !unsub) { el.remove(); openLobby(existing, net, status!); return; }
+  let ownerError = '';
 
   const render = () => {
     const account = !online ? '' : net
@@ -107,11 +115,18 @@ async function titleScreen() {
         ${account}
         </div>
         <div class="tc-right">
-        ${existing ? '<div class="care-slot"></div>' : ''}
+        ${status?.role === 'owner' ? ownerPanel(status, ownerError) : ''}
+        ${status?.role === 'tester' && !status.open ? `<div class="tester-note">🧪 ${L({ tr: 'Test oyuncususun: açılıştan önce oynayabilirsin.', en: "You're a tester: you can play before launch." })}</div>` : ''}
+        ${waiting ? `<div class="soon-note">⏳ ${net
+          ? L({ tr: 'Daçka çok yakında açılıyor! Karakterini şimdi yarat, bekleme listesine gir ve açılışta ilk gelenlerden ol.', en: "Daçka opens very soon! Make your character now, join the waitlist and be among the first in on opening day." })
+          : L({ tr: 'Daçka çok yakında açılıyor! E-postanla giriş yap, karakterini yarat ve açılışı lobide bekle.', en: 'Daçka opens very soon! Sign in with your email, make your character and wait for launch in the lobby.' })}</div>` : ''}
+        ${existing && !waiting ? '<div class="care-slot"></div>' : ''}
         <div class="stack">
-          ${existing ? `<button class="primary" data-act="continue">${t('continue')}</button>` : ''}
+          ${waiting
+            ? (net ? `<button class="primary" data-act="new">${L({ tr: '✏️ Karakterini yarat', en: '✏️ Make your character' })}</button>` : '')
+            : `${existing ? `<button class="primary" data-act="continue">${t('continue')}</button>` : ''}
           <button class="${existing ? 'secondary' : 'primary'}" data-act="new">${online && !net ? L({ tr: 'Tek başına oyna (yeni oyun)', en: 'Play solo (new game)' }) : t('new_game')}</button>
-          ${hasBackup() ? `<button class="secondary" data-act="restore">${L({ tr: '↩ Önceki oyunu geri yükle', en: '↩ Restore previous game' })}</button>` : ''}
+          ${hasBackup() ? `<button class="secondary" data-act="restore">${L({ tr: '↩ Önceki oyunu geri yükle', en: '↩ Restore previous game' })}</button>` : ''}`}
         </div>
         <div class="lang">
           <button data-lang="tr" class="${getLang() === 'tr' ? 'on' : ''}">Türkçe</button> ·
@@ -126,6 +141,8 @@ async function titleScreen() {
     if (inv && invite) inv.textContent = L(invite.text);
     const err = el.querySelector('.signin .nav-error');
     if (err) err.textContent = signInError;
+    const opDate = el.querySelector('.owner-panel input') as HTMLInputElement | null;
+    if (opDate && status?.opensAt) opDate.value = toLocalInput(status.opensAt);
     const careSlot = el.querySelector('.care-slot') as HTMLElement | null;
     if (careSlot && existing) mountCare(careSlot, existing, net, away, persist);
   };
@@ -185,6 +202,26 @@ async function titleScreen() {
       return;
     }
     if (act === 'unsub-no') { unsub = null; clearUnsubscribe(); render(); return; }
+    if ((act === 'op-open' || act === 'op-close' || act === 'op-date') && status) {
+      const input = el.querySelector('.owner-panel input') as HTMLInputElement | null;
+      const opensAt = input?.value ? new Date(input.value).toISOString() : null;
+      const opening = act === 'op-open' ? true : act === 'op-close' ? false : status.open;
+      if (act === 'op-open' && !(await askConfirm(L({ tr: `Oyun herkese açılsın mı? Bekleme listesindeki ${status.total} kişi hemen girebilecek.`, en: `Open the game to everyone? The ${status.total} people on the waitlist can come in straight away.` }), L({ tr: 'Herkese aç', en: 'Open to everyone' }), L({ tr: 'Vazgeç', en: 'Cancel' })))) return;
+      if (act === 'op-close' && !(await askConfirm(L({ tr: 'Oyun yeniden kapatılsın mı? Sahipler ve test oyuncuları dışında herkes lobiye döner.', en: 'Close the game again? Everyone except owners and testers goes back to the lobby.' }), L({ tr: 'Kapat', en: 'Close it' }), L({ tr: 'Vazgeç', en: 'Cancel' })))) return;
+      (target as HTMLButtonElement).disabled = true;
+      ownerError = (await setGameOpen(opening, opensAt)) ?? '';
+      status = (await gameStatus()) ?? status;
+      render();
+      return;
+    }
+    if (act === 'new' && waiting && net) {
+      if (existing && !(await askConfirm(L({ tr: 'Yeni bir karakter yaratmak istiyor musun? Şimdiki karakterinin yerini alacak.', en: 'Make a new character? It will replace the one you have now.' }), L({ tr: 'Yeni karakter', en: 'New character' }), L({ tr: 'Vazgeç', en: 'Cancel' })))) return;
+      el.innerHTML = '';
+      const character = await runCreator(el);
+      el.remove();
+      void waitWithNewCharacter(character, net);
+      return;
+    }
     if (act === 'continue' && existing) {
       el.remove();
       existing.lang = getLang();
@@ -197,6 +234,57 @@ async function titleScreen() {
       el.innerHTML = '';
       runCreator(el).then((character) => showArrival(el, character, net));
     }
+  });
+}
+
+/** the owner's launch switch on the title screen */
+function ownerPanel(s: GameStatus, error: string): string {
+  return `<div class="owner-panel">
+    <b>🔑 ${L({ tr: 'Oyun sahibi', en: 'Game owner' })}</b> · ${L({ tr: `bekleme listesinde ${s.total} kişi`, en: `${s.total} on the waitlist` })}
+    <div class="op-state ${s.open ? 'open' : 'closed'}">${s.open ? L({ tr: '● Oyun herkese açık', en: '● The game is open to everyone' }) : L({ tr: '● Oyun kapalı: diğerleri lobide bekliyor', en: '● The game is closed: everyone else waits in the lobby' })}</div>
+    <div class="op-row">
+      <input type="datetime-local" aria-label="${L({ tr: 'Açılış zamanı (lobide geri sayım)', en: 'Launch time (the lobby counts down to it)' })}" title="${L({ tr: 'Açılış zamanı (lobide geri sayım)', en: 'Launch time (the lobby counts down to it)' })}">
+      <button type="button" class="secondary" data-act="op-date">${L({ tr: 'Tarihi kaydet', en: 'Save date' })}</button>
+      ${s.open ? `<button type="button" class="secondary" data-act="op-close">${L({ tr: 'Kapat', en: 'Close' })}</button>` : `<button type="button" class="primary" data-act="op-open">${L({ tr: 'Herkese aç', en: 'Open to everyone' })}</button>`}
+    </div>
+    ${error ? `<div class="op-err">${error.replace(/[<>&]/g, '')}</div>` : ''}
+  </div>`;
+}
+
+/** an ISO time as the value of a datetime-local input (local time, to the minute) */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** made a character before launch: it's saved to your account, you're on the waitlist, and into the lobby you go */
+async function waitWithNewCharacter(character: CharacterData, net: NetUser) {
+  const save = newSave(getLang(), character);
+  backupSave();
+  writeSave(save);
+  saveToCloud(net.id, save);
+  flushCloudSave();
+  await joinWaitlist();
+  const status = await gameStatus();
+  // (opened meanwhile, or no longer reachable: just walk in)
+  if (!status || !mustWait(status)) { startGame(save, net); return; }
+  openLobby(save, net, status);
+}
+
+function openLobby(save: SaveData, net: NetUser, status: GameStatus) {
+  // someone who made their character before the waitlist existed still gets a place on it
+  if (!status.position) void joinWaitlist().then(async () => { const s = await gameStatus(); if (s) status = s; });
+  mountLobby(document.body, {
+    save, userId: net.id, status,
+    onEnter: () => { save.lang = getLang(); startGame(save, net); },
+    onNewCharacter: () => {
+      const el = document.createElement('div');
+      el.className = 'title-screen';
+      document.body.appendChild(el);
+      void runCreator(el).then((character) => { el.remove(); void waitWithNewCharacter(character, net); });
+    },
+    onSignOut: () => { void signOut().then(() => window.location.reload()); },
   });
 }
 
