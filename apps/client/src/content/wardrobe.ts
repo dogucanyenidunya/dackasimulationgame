@@ -16,7 +16,7 @@ export interface Outfit {
 
 export const OUTFITS: Outfit[] = [
   { id: 'sivil', kit: false, top: '#b5503c', bottom: '#3d4f6b', name: { tr: 'Evden geldiğin kıyafetler', en: 'The clothes you came in' }, desc: { tr: 'Kırmızı kazak ve kot pantolon. Hafta sonu için.', en: 'A red jumper and jeans. For the weekend.' } },
-  { id: 'uniforma', kit: true, top: '#22365c', bottom: '#5b6168', name: { tr: 'Okul üniforması', en: 'School uniform' }, desc: { tr: 'Lacivert kazak, beyaz gömlek, bordo kravat.', en: 'Navy sweater, white shirt, burgundy tie.' } },
+  { id: 'uniforma', kit: true, top: '#6e1f2d', bottom: '#5b6168', name: { tr: 'Okul üniforması', en: 'School uniform' }, desc: { tr: 'Bordo kazak, beyaz gömlek, lacivert kravat.', en: 'Burgundy sweater, white shirt, navy tie.' } },
   { id: 'esofman', kit: true, top: '#2f7a45', bottom: '#23262b', name: { tr: 'Eşofman', en: 'Tracksuit' }, desc: { tr: 'Yeşil-siyah okul eşofmanı. Spor ve Beden Eğitimi için.', en: 'The green and black school tracksuit. For sports and PE.' } },
   { id: 'mont', kit: true, top: '#4a4038', bottom: '#5b6168', name: { tr: 'Mont', en: 'Coat' }, desc: { tr: 'Kalın kışlık mont. Yağmurda ve soğukta.', en: 'A thick winter coat. For rain and cold.' } },
   { id: 'pijama', kit: true, top: '#9fc3e0', bottom: '#b9d3e8', name: { tr: 'Pijama', en: 'Pyjamas' }, desc: { tr: 'Açık mavi çizgili pijama. Yatmadan önce.', en: 'Pale blue striped pyjamas. For bedtime.' } },

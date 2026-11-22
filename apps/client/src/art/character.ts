@@ -22,7 +22,7 @@ export interface CharacterLook {
 }
 
 export const DEFAULT_LOOK: CharacterLook = {
-  skin: '#e8b98f', hair: '#3b2a20', hairStyle: 0, top: '#22365c', bottom: '#5b6168', skirt: false,
+  skin: '#e8b98f', hair: '#3b2a20', hairStyle: 0, top: '#6e1f2d', bottom: '#5b6168', skirt: false,
 };
 
 /** texture pixels per world pixel: characters stand 32×32 in the world, their textures are drawn this many times finer */
@@ -45,7 +45,9 @@ type Garment = 'uniform' | 'tracksuit' | 'coat' | 'pyjamas' | 'casual';
 const GARMENT_BY_OUTFIT: Record<string, Garment> = { uniforma: 'uniform', esofman: 'tracksuit', mont: 'coat', pijama: 'pyjamas' };
 const GARMENT_BY_TOP = new Map(OUTFITS.map((o) => [o.top.toLowerCase(), GARMENT_BY_OUTFIT[o.id] ?? 'casual']));
 const JEANS = OUTFITS.find((o) => o.id === 'sivil')?.bottom.toLowerCase();
-const TIE = '#8c2230';
+const TIE = '#22365c'; // navy, on the burgundy sweater
+const UNIFORM_TOP = OUTFITS.find((o) => o.id === 'uniforma')?.top.toLowerCase() ?? '#6e1f2d';
+const OLD_UNIFORM_TOP = '#22365c';
 const SHIRT = '#f4f4ee';
 
 // ---------- colour helpers ----------
@@ -120,6 +122,8 @@ interface Kid {
  * dir: 0 down, 1 left, 2 right, 3 up. frame: 0 idle, 1/2 walking.
  */
 export function drawCharacter(c: Ctx, ox: number, oy: number, look: CharacterLook, dir: number, frame: number, opts: { blink?: boolean } = {}) {
+  // the uniform used to be navy: characters saved (or sent by other players) with that colour wear today's burgundy one
+  if (look.top.toLowerCase() === OLD_UNIFORM_TOP) look = { ...look, top: UNIFORM_TOP };
   C = c;
   c.save();
   c.translate(ox, oy);

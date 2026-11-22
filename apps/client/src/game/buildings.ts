@@ -222,8 +222,8 @@ function depoRoom(ctx: GameCtx): RoomView {
         ctx.advance(15);
         ctx.gain({ xp: 20 });
         await ctx.panel.message(T('Depo', 'Stores'), T(
-          'Aldıkların: gömlek, lacivert kazak, kravat, pantolon/etek, mont, okul ayakkabısı, spor ayakkabısı, eşofman ve pijama. Üniformanı hemen giydin; ötekiler dolabında, istediğin zaman değiştirebilirsin.',
-          "You got: shirt, navy sweater, tie, trousers/skirt, a coat, school shoes, sports shoes, a tracksuit and pyjamas. You put the uniform straight on; the rest are in your locker, and you can change whenever you like."));
+          'Aldıkların: gömlek, bordo kazak, kravat, pantolon/etek, mont, okul ayakkabısı, spor ayakkabısı, eşofman ve pijama. Üniformanı hemen giydin; ötekiler dolabında, istediğin zaman değiştirebilirsin.',
+          "You got: shirt, burgundy sweater, tie, trousers/skirt, a coat, school shoes, sports shoes, a tracksuit and pyjamas. You put the uniform straight on; the rest are in your locker, and you can change whenever you like."));
       },
     }],
   };

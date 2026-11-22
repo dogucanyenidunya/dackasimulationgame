@@ -52,8 +52,8 @@ export const FACE_SHAPES: Array<{ id: FaceShape; name: Text }> = [
 ];
 /** iris colours: dark brown, brown, hazel, green, blue, grey */
 export const EYE_COLORS = ['#2e1c12', '#4a2e1c', '#7a5426', '#56703a', '#4d7aa6', '#6c7a86'];
-/** Daçka uniform: navy sweater, white shirt, burgundy tie, grey trousers/skirt */
-export const UNIFORM = { top: '#22365c', bottom: '#5b6168' };
+/** Daçka uniform: burgundy sweater, white shirt, navy tie, grey trousers/skirt */
+export const UNIFORM = { top: '#6e1f2d', bottom: '#5b6168' };
 
 export const ATTRS: Array<{ id: AttrId; name: Text }> = [
   { id: 'knowledge', name: { tr: 'Bilgi', en: 'Knowledge' } },
