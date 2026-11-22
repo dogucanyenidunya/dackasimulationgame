@@ -181,6 +181,8 @@ const HOUSES: Pt[] = [[30, 0], [96, 0], [96, 9], [33, 9], [30, 5]];
 
 /** the TIM Gösteri Merkezi: a round hall in its own walled yard in the south-west corner */
 const TIM_C: Pt = [27, 41.5];
+/** the balloon court, standing north–south between the dorm court and the garden wall */
+const KAPALI_SAHA: Rect = { x: 34.4, y: 12.4, w: 3.4, h: 6.6 };
 const TIM_R = 5.2;
 
 export const BUILDINGS: Building[] = [
@@ -201,7 +203,7 @@ export const BUILDINGS: Building[] = [
   bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [68.5, 15], [70, 16.5], [70, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
   bld({ id: 'cemiyet', shape: rectPts({ x: 42, y: 40, w: 14, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
   // the indoor court between the boys' dorm and Eğitim, against the garden wall: a balloon court, an air-filled dome of green tarp
-  bld({ id: 'kapali_saha', shape: roundRectPts({ x: 30, y: 14.8, w: 8, h: 3.8 }, 1.1), roof: 'tarp', roofStyle: 'balloon' }),
+  bld({ id: 'kapali_saha', shape: roundRectPts(KAPALI_SAHA, 1.1), roof: 'tarp', roofStyle: 'balloon' }),
 ];
 
 export const PLAZAS: Pt[][] = [
@@ -236,16 +238,42 @@ export const PATHS: Rect[] = [
   { x: 56, y: 40, w: 2, h: 11 },   // round the Cemiyet's east end to the Müze door at the back
 ];
 
+/** every court runs north–south; the football pitch sits inside the running track */
 export const COURTS = {
-  basketball: { x: 75, y: 42, w: 10, h: 5 },
-  football: { x: 75, y: 16, w: 16, h: 21 },
+  basketball: { x: 76, y: 42, w: 5, h: 8 },
+  football: { x: 76.5, y: 16.6, w: 13.5, h: 18.8 },
 };
 /** the basketball court on the lawn east of the boys' dorm */
-export const DORM_COURT: Rect = { x: 30, y: 10, w: 6, h: 4 };
-/** courts drawn besides the main two: the small one on the south lawn (just for show) and the dorm court */
-export const EXTRA_COURTS: Rect[] = [{ x: 64, y: 42, w: 6, h: 4 }, DORM_COURT];
+export const DORM_COURT: Rect = { x: 30, y: 9, w: 4, h: 6 };
+/** the small court on the south lawn, west of the big one (just for show) */
+export const SMALL_COURT: Rect = { x: 65, y: 43, w: 4, h: 6 };
+/** courts drawn besides the main two: the small one on the south lawn and the dorm court */
+export const EXTRA_COURTS: Rect[] = [SMALL_COURT, DORM_COURT];
+/** the running track round the football pitch: a rounded rectangle, its outer edge, corner radius and width (tiles) */
+export const TRACK = { x: 74.6, y: 14.3, w: 17.1, h: 23.6, r: 4, width: 1.25, lanes: 3 };
+/** the two courts on the south lawn are fenced in with wire, each with a few gates (sides: n/s/e/w; from–to along
+ *  that side, in tiles). Fence lines run along tile edges. */
+export interface Cage { rect: Rect; gates: Array<{ side: 'n' | 's' | 'e' | 'w'; from: number; to: number }> }
+export const CAGES: Cage[] = [
+  { rect: { x: 64, y: 42, w: 6, h: 8 }, gates: [{ side: 'n', from: 66, to: 68 }, { side: 'e', from: 45, to: 47 }] },
+  { rect: { x: 75, y: 41, w: 7, h: 10 }, gates: [{ side: 'n', from: 77, to: 80 }, { side: 'w', from: 45, to: 47 }, { side: 'e', from: 45, to: 47 }] },
+];
+/** a cage's fence as lines along tile edges, with the gates left open */
+export function cageLines(c: Cage): Array<[number, number, number, number]> {
+  const { x, y, w, h } = c.rect, out: Array<[number, number, number, number]> = [];
+  const sides: Array<['n' | 's' | 'e' | 'w', number, number, number, boolean]> = [['n', y, x, x + w, true], ['s', y + h, x, x + w, true], ['w', x, y, y + h, false], ['e', x + w, y, y + h, false]];
+  for (const [side, at, a, b, horiz] of sides) {
+    const gaps = c.gates.filter((g) => g.side === side).sort((p, q) => p.from - q.from);
+    let cur = a;
+    for (const g of [...gaps, { from: b, to: b }]) {
+      if (g.from > cur) out.push(horiz ? [cur, at, g.from, at] : [at, cur, at, g.from]);
+      cur = Math.max(cur, g.to);
+    }
+  }
+  return out;
+}
 /** Beden Eğitimi is out on the football pitch and the basketball court beside it */
-export const PE_AREA: Rect = { x: 73, y: 14, w: 19, h: 34 };
+export const PE_AREA: Rect = { x: 73, y: 14, w: 19, h: 38 };
 export const inPeArea = (x: number, y: number) => x >= PE_AREA.x && x < PE_AREA.x + PE_AREA.w && y >= PE_AREA.y && y < PE_AREA.y + PE_AREA.h;
 /** where you can call friends over for a pick-up game */
 export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }> = [
@@ -319,6 +347,8 @@ export const LEDGES: Ledge[] = [
   // wall between the main street and the street in front of the Cemiyet below the steps (the steps are the only way)
   [43, 38, 54, 38], [42, 39, 46, 39], [42, 39, 42, 40],
 ];
+/** everything nobody walks through: the terrace's walls and railings, and the wire round the south courts */
+export const BARRIERS: Ledge[] = [...LEDGES, ...CAGES.flatMap(cageLines)];
 /** the tunnel's mouths: the foot of the stairwell and the arch in the east wall (x in tiles, row y–y+1) */
 export const TUNNEL_IN = { west: TUNNEL.x, east: TUNNEL.x + TUNNEL.w, y: TUNNEL.y };
 /** the grandstand built onto the Spor Salonu's east wall, facing the football pitch: ten rows along the whole hall,
@@ -327,9 +357,9 @@ export const TRIBUNE_ROWS = 10;
 export const TRIBUNE: Rect[] = [{ x: 70, y: 17, w: 3, h: 9.7 }, { x: 70, y: 29.3, w: 3, h: 9.7 }];
 
 export const TREES: Array<[number, number]> = [
-  [5, 10], [5, 15], [5, 20], [31, 8], [37, 13], [4, 26], [4, 30],
+  [5, 10], [5, 15], [5, 20], [31.5, 6.6], [30.3, 16.6], [4, 26], [4, 30],
   [9, 40], [18, 43], [22, 36], [33, 37], [23, 47], [34, 46],
-  [90, 40], [73, 48], [87, 49], [70, 48], [60, 50], [59, 44], [62, 46],
+  [90, 40], [72.4, 47], [87, 49], [72, 50], [60, 50], [59, 44], [62, 46],
   [49.6, 34.7], [52.7, 34.3], // either side of the Atatürk bust
 ];
 
@@ -357,7 +387,7 @@ export const PULLUP_BARS: [number, number] = [5.6, 12.8];
 
 /** daytime hangouts for students: [x, y, roam] */
 export const HANGOUTS: Array<[number, number, number]> = [
-  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [24, 26, 2], [66, 49, 2], [80, 40, 2], [86, 48, 2], [20, 30, 2],
+  [16, 24, 2], [22, 21, 2], [47, 27, 3], [47, 35, 3], [32, 12, 2], [24, 26, 2], [72, 44, 2], [80, 40, 2], [86, 48, 2], [20, 30, 2],
 ];
 
 /** where each age group hangs out by day (lawns between the buildings and the campus walls) */
@@ -376,9 +406,9 @@ export const AGE_ZONES: Record<AgeGroup, Rect[]> = {
   // 4th graders: the lawn in front of the girls' dorm, between it and the TIM wall
   g4: [{ x: 18, y: 29, w: 6, h: 3 }],
   // 5th–6th graders: the dorm basketball court north of Eğitim, and the lawn by Eğitim's west wall
-  g56: [{ x: 30, y: 9, w: 6, h: 5 }, { x: 25, y: 29, w: 7, h: 3 }],
-  // 7th–8th graders: round the small court and the big court
-  g78: [{ x: 64, y: 47, w: 7, h: 3 }, { x: 84, y: 40, w: 7, h: 2 }],
+  g56: [{ x: 30, y: 9, w: 4, h: 6 }, { x: 25, y: 29, w: 7, h: 3 }],
+  // 7th–8th graders: on the lawn between the two fenced courts, and east of the big one
+  g78: [{ x: 70.5, y: 42, w: 4, h: 7 }, { x: 84, y: 40, w: 7, h: 2 }],
   // high schoolers: their devre's yard behind one of the dorms (see LISE_YARDS)
   lise: [LISE_YARDS.boys, LISE_YARDS.girls],
 };
@@ -398,7 +428,7 @@ export const EVENING_ZONES: Record<'4' | '5' | '6' | '7' | '8' | 'lise', Rect> =
   '4': { x: 22, y: 26, w: 5, h: 2 },      // the lawn east of the Yurt Meydanı
   '5': { x: 9, y: 22.5, w: 6, h: 2 },     // west end of the Yurt Meydanı
   '6': { x: 20, y: 20, w: 6, h: 2 },      // east end of the Yurt Meydanı
-  '7': { x: 30, y: 9, w: 6, h: 5 },       // the dorm basketball court
+  '7': { x: 30, y: 9, w: 4, h: 6 },       // the dorm basketball court
   '8': { x: 18, y: 29, w: 6, h: 2 },      // in front of the girls' dorm
   lise: LISE_YARDS.boys,                  // (each lise devre actually goes to its own yard, see LISE_YARDS)
 };
@@ -502,12 +532,12 @@ export const LOCATIONS: Location[] = [
     id: 'kapali_saha', kind: 'building',
     name: { tr: 'Kapalı Saha', en: 'Kapalı Saha' }, sub: { tr: 'Futbol · hentbol · badminton · voleybol', en: 'Indoor court · football · handball · badminton · volleyball' },
     info: { tr: 'Yurtların yanındaki balon saha: üstü yeşil brandayla kaplı, içeriye basılan havayla ayakta duran şişme bir kubbe. Futbol, hentbol, badminton ve voleybol oynanır; yağmurda da kışın da açık. Akşam etüt sonrası da açık.', en: 'The balloon court by the dorms: an inflated dome of green tarp, held up by the air pumped inside it. Football, handball, badminton and volleyball, rain or shine, all winter long. Open in the evening too, after study hour.' },
-    rect: { x: 30, y: 14.8, w: 8, h: 3.8 }, label: { x: 34, y: 16.4 }, doors: [{ x: 33, y: 18, side: 's' }, { x: 34, y: 18, side: 's' }], minimapColor: '#4f8f4a',
+    rect: KAPALI_SAHA, label: { x: 36.1, y: 15.4 }, doors: [{ x: 35, y: 18, side: 's' }, { x: 36, y: 18, side: 's' }], minimapColor: '#4f8f4a',
   },
   {
     id: 'kortlar', kind: 'zone',
     name: { tr: 'Açık Sahalar', en: 'Açık Sahalar' }, sub: { tr: 'Futbol · basketbol', en: 'Outdoor pitches' },
-    info: { tr: 'Futbol sahası (Spor Salonu\'nun tribünü ona bakar) ve basketbol sahası. Teneffüste herkes burada.', en: 'The football pitch (the Spor Salonu\'s grandstand looks onto it) and the basketball court. Everyone is here at break time.' },
+    info: { tr: 'Etrafında koşu parkuru olan futbol sahası (Spor Salonu\'nun tribünü ona bakar) ve güneyde, tel örgüyle çevrili iki basketbol sahası; kapılarından girilir. Teneffüste herkes burada.', en: 'The football pitch with a running track round it (the Spor Salonu\'s grandstand looks onto it), and to the south two basketball courts fenced in with wire, each entered through its gates. Everyone is here at break time.' },
     rect: { x: 74, y: 15, w: 18, h: 36 }, label: { x: 82, y: 39.4 }, minimapColor: '#a8483e',
   },
 ];
@@ -554,6 +584,9 @@ export function buildMap(): number[][] {
       if (!inBuilding(x + 0.5, y + 1.5, b)) return T.WALL_BASE;
       return inBuilding(x + 0.5, y + 2.5, b) ? null : T.WALL;
     });
+    // the balloon court has no walls to hide the tiles round its soft edge: those it only partly covers stay lawn
+    // (it still collides through its outline)
+    if (b.roofStyle === 'balloon') fillPoly(m, b.shape, (x, y) => ([[0, 0], [1, 0], [0, 1], [1, 1]].every(([dx, dy]) => inPoly(x + dx, y + dy, b.shape)) ? null : T.GROUND));
   }
   for (const loc of LOCATIONS) {
     for (const d of loc.doors ?? []) m[d.y][d.x] = d.kind === 'revir' || loc.id === 'revir' ? T.DOOR_REVIR : T.DOOR;

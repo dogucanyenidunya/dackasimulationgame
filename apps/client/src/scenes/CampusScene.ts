@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, wallAt,
-  MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, LEDGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
+  MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, BARRIERS, CAGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
   AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
 import {
@@ -14,6 +14,7 @@ import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildingArt';
 import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, SOUTH_FACE, TRIBUNE_LIFT, TUNNEL_ARCH_SIZE, TUNNEL_WALL, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
+import { drawFences } from '../art/fences';
 import { Ambient } from './ambient';
 import { YetimCat } from './yetim';
 import { yetimPanel } from '../game/yetimCat';
@@ -302,6 +303,8 @@ export class CampusScene extends Phaser.Scene {
     this.add.image(TUNNEL_IN.east * TILE - 6, (TUNNEL_IN.y + 0.5) * TILE, 'tunnel-arch').setOrigin(0, 0.5).setDepth((TUNNEL_IN.y + 1) * TILE + TUNNEL_ARCH_SIZE.h / 2 - 16);
 
     this.drawBuildings();
+    // the wire round the courts on the south lawn
+    drawFences(this, CAGES);
 
     // decor
     const trees = this.physics.add.staticGroup();
@@ -1734,7 +1737,7 @@ export class CampusScene extends Phaser.Scene {
       }
     }
     // the Meydan's retaining walls and railings run along tile edges; NPCs don't take the tunnel, so its stairwell is shut to them
-    for (const [x0, y0, x1, y1] of LEDGES) {
+    for (const [x0, y0, x1, y1] of BARRIERS) {
       if (x0 === x1) for (let ty = y0; ty < y1; ty++) { if (x0 > 0) this.npcLedge[ty * MAP_W + x0 - 1] |= 1; }
       else for (let tx = x0; tx < x1; tx++) { if (y0 > 0) this.npcLedge[(y0 - 1) * MAP_W + tx] |= 2; }
     }
@@ -2290,7 +2293,7 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** the Merkez Meydan's terrace: nobody crosses its retaining walls or railings; the player can also walk down the
+  /** the Merkez Meydan's terrace: nobody crosses its retaining walls or railings (nor the wire round the south courts); the player can also walk down the
    *  stairwell into the tunnel under its north edge and come out at the arch in the east wall, or the
    *  other way round. `prev` is where the feet were last frame, so a long frame can't step over a wall. */
   private updateTerrace(sp: Phaser.Physics.Arcade.Sprite, isPlayer: boolean) {
@@ -2318,7 +2321,7 @@ export class CampusScene extends Phaser.Scene {
         return;
       }
     }
-    for (const [lx0, ly0, lx1, ly1] of LEDGES) {
+    for (const [lx0, ly0, lx1, ly1] of BARRIERS) {
       const ax = lx0 * TILE, ay = ly0 * TILE, bx = lx1 * TILE, by = ly1 * TILE;
       const vertical = ax === bx;
       const px = body.center.x, py = body.center.y;

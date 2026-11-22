@@ -484,6 +484,29 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillRect(25, 26, 7, 1); c.fillRect(26, 29, 4, 1);
     crisp(c, 40, 56);
   });
+  // hoops at the ends of a north–south court (36x60): the north one faces you across the court (white board, rim and
+  // net in front of it), the south one shows the back of its board and the pole in front
+  canvas('hoop-n', 36, 60, (c) => {
+    c.fillStyle = '#2a2f33'; c.fillRect(13, 54, 10, 4);
+    c.fillStyle = '#3d4246'; c.fillRect(16, 20, 4, 36); c.fillStyle = '#6b7378'; c.fillRect(16, 20, 1, 36);
+    c.fillStyle = '#7d858a'; c.fillRect(4, 1, 28, 19);
+    c.fillStyle = '#f4f4f0'; c.fillRect(5, 2, 26, 17);
+    c.strokeStyle = '#d6452b'; c.lineWidth = 1; c.strokeRect(13.5, 8.5, 9, 7);
+    c.strokeStyle = '#e2572b'; c.lineWidth = 2; c.beginPath(); c.ellipse(18, 19, 5.5, 2, 0, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#f4f4f0';
+    for (let i = 0; i < 4; i++) { const x0 = 13 + i * 3.3, x1 = 15.5 + i * 1.7; for (let y = 21; y < 29; y++) c.fillRect(Math.round(x0 + ((x1 - x0) * (y - 21)) / 8), y, 1, 1); }
+    c.fillRect(14, 24, 8, 1); c.fillRect(15, 27, 6, 1);
+    crisp(c, 36, 60);
+  });
+  canvas('hoop-s', 36, 60, (c) => {
+    c.fillStyle = '#2a2f33'; c.fillRect(13, 54, 10, 4);
+    c.strokeStyle = '#e2572b'; c.lineWidth = 2; c.beginPath(); c.ellipse(18, 6, 5.5, 2, 0, Math.PI, Math.PI * 2); c.stroke();
+    c.fillStyle = '#5f676c'; c.fillRect(4, 5, 28, 17);
+    c.fillStyle = '#737b80'; c.fillRect(5, 6, 26, 2); c.fillStyle = '#4a5156'; c.fillRect(6, 10, 24, 1); c.fillRect(6, 15, 24, 1);
+    c.fillStyle = '#3d4246'; c.fillRect(14, 12, 8, 3);
+    c.fillStyle = '#3d4246'; c.fillRect(16, 14, 4, 42); c.fillStyle = '#6b7378'; c.fillRect(16, 14, 1, 42);
+    crisp(c, 36, 60);
+  });
   // football goals: the north one faces you (net seen through the mouth), the south one shows its back
   canvas('goal-n', 64, 34, (c) => {
     mesh(c, 5, 5, 59, 22);

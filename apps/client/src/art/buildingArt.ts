@@ -179,14 +179,17 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
     c.strokeStyle = pal.rimDark; c.stroke();
   } else if (style === 'balloon') {
     // an inflated air dome: a soft pillow of tarp, brightest along its ridge and falling away at every edge
-    const grd = c.createLinearGradient(0, by0, 0, by1);
+    // (its ridge runs along its length: east–west when it's wide, north–south when it's tall)
+    const tall = by1 - by0 > bx1 - bx0;
+    const grd = tall ? c.createLinearGradient(bx0, 0, bx1, 0) : c.createLinearGradient(0, by0, 0, by1);
     grd.addColorStop(0, pal.dark); grd.addColorStop(0.3, pal.light); grd.addColorStop(0.55, pal.base); grd.addColorStop(1, pal.dark);
     c.fillStyle = grd; c.fillRect(0, 0, W, H);
-    const ends = c.createLinearGradient(bx0, 0, bx1, 0);
+    const ends = tall ? c.createLinearGradient(0, by0, 0, by1) : c.createLinearGradient(bx0, 0, bx1, 0);
     ends.addColorStop(0, 'rgba(0,0,0,0.2)'); ends.addColorStop(0.14, 'rgba(0,0,0,0)'); ends.addColorStop(0.86, 'rgba(0,0,0,0)'); ends.addColorStop(1, 'rgba(0,0,0,0.3)');
     c.fillStyle = ends; c.fillRect(0, 0, W, H);
-    // welded seams between the tarp panels, running north–south over the top
-    for (let sx = bx0 + 12; sx < bx1; sx += 12) px(sx, 0, 1, H, 'rgba(0,0,0,0.13)');
+    // welded seams between the tarp panels, running across the ridge
+    if (tall) for (let sy = by0 + 12; sy < by1; sy += 12) px(0, sy, W, 1, 'rgba(0,0,0,0.13)');
+    else for (let sx = bx0 + 12; sx < bx1; sx += 12) px(sx, 0, 1, H, 'rgba(0,0,0,0.13)');
     // the restraint cables holding it down: a loose diamond net
     c.strokeStyle = 'rgba(232,238,230,0.5)'; c.lineWidth = 1;
     const span = by1 - by0;
@@ -194,7 +197,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       c.beginPath(); c.moveTo(sx, by0); c.lineTo(sx + span, by1); c.stroke();
       c.beginPath(); c.moveTo(sx + span, by0); c.lineTo(sx, by1); c.stroke();
     }
-    c.fillStyle = 'rgba(255,255,255,0.16)'; c.fillRect(0, by0 + span * 0.28, W, 3); // sheen along the ridge
+    c.fillStyle = 'rgba(255,255,255,0.16)'; // sheen along the ridge
+    if (tall) c.fillRect(bx0 + (bx1 - bx0) * 0.28, 0, 3, H); else c.fillRect(0, by0 + span * 0.28, W, 3);
     // lit from inside at night, the whole dome glows softly through the tarp
     L.save(); path(L, b.shape); L.clip(); L.fillStyle = 'rgba(255,236,170,0.35)'; L.fillRect(0, 0, W, H); L.restore();
   } else if (style === 'vault') {
@@ -374,7 +378,8 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       ql(0.25, 0.75, vb + v(4), vt - v(6), '#fff0c4');
       q(0, u(1), 0, 1, 'rgba(0,0,0,0.06)');
     } else {
-      for (let f = 0; f < floors; f++) {
+      // (the balloon court has no walls to glaze: its tarp is drawn over the whole wall below)
+      for (let f = 0; f < (style === 'balloon' ? 0 : floors); f++) {
         const lo = vb + fhf * (floors - 1 - f), hi = lo + fhf;
         const ground = f === floors - 1;
         if (f > 0) { q(0, 1, hi - v(1), hi + v(2), shade(wall, 0.95)); q(0, 1, hi + v(1), hi + v(2), shade(wall, 1.02)); q(0, 1, hi - v(2), hi - v(1), 'rgba(0,0,0,0.12)'); } // slab band

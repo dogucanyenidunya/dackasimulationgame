@@ -3,7 +3,7 @@
 // meets path, plazas cut along their real outlines (not the tile staircase), basketball keys, hoops
 // and goal nets. It also picks where puddles form and where pigeons can land.
 import Phaser from 'phaser';
-import { COURTS, EXTRA_COURTS, MAP_H, MAP_W, PLAZAS, T, TILE, inPoly, nearestEdge } from '../content/campus';
+import { COURTS, EXTRA_COURTS, MAP_H, MAP_W, PLAZAS, T, TILE, TRACK, inPoly, nearestEdge } from '../content/campus';
 import { rng, tileCanvas } from './textures';
 
 export interface GroundInfo {
@@ -183,23 +183,63 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
 
   c.putImageData(img, 0, 0);
 
-  // ---- basketball courts: keys, free-throw circles, three-point lines ----
-  const halfCourt: Array<{ foot: [number, number]; flip: boolean }> = [];
+  // ---- the running track round the football pitch: tartan lanes with white lines, a start line on the west straight ----
+  {
+    const ox = TRACK.x * TILE, oy = TRACK.y * TILE, ow = TRACK.w * TILE, oh = TRACK.h * TILE, R = TRACK.r * TILE, tw = TRACK.width * TILE;
+    const rr = (x: number, y: number, w: number, h: number, r: number) => {
+      c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    };
+    c.save();
+    c.beginPath(); rr(ox, oy, ow, oh, R); rr(ox + tw, oy + tw, ow - 2 * tw, oh - 2 * tw, R - tw);
+    c.fillStyle = '#b4543c'; c.fill('evenodd');
+    c.clip('evenodd');
+    // the rubber's grain
+    for (let k = 0; k < (ow * oh) / 40; k++) {
+      const px = ox + ((k * 73.13) % ow), py = oy + ((k * 151.7 + (k % 7) * 13) % oh);
+      c.fillStyle = k % 3 ? 'rgba(0,0,0,0.07)' : 'rgba(255,220,200,0.08)'; c.fillRect(Math.round(px), Math.round(py), 2, 1);
+    }
+    c.restore();
+    // kerb on the inside, lane lines between the lanes, the outer edge line
+    c.strokeStyle = 'rgba(244,244,236,0.95)'; c.lineWidth = 1;
+    for (let i = 0; i <= TRACK.lanes; i++) {
+      const d = 1 + (i * (tw - 2)) / TRACK.lanes;
+      c.beginPath(); rr(ox + d, oy + d, ow - 2 * d, oh - 2 * d, R - d); c.stroke();
+    }
+    c.strokeStyle = '#e8e6df'; c.lineWidth = 2;
+    c.beginPath(); rr(ox + tw, oy + tw, ow - 2 * tw, oh - 2 * tw, R - tw); c.stroke();
+    // the start/finish line across the west straight, by the grandstand, with lane numbers
+    const sy = oy + oh / 2;
+    c.fillStyle = '#f4f4ec'; c.fillRect(ox + 1, sy, tw - 2, 3);
+    c.fillStyle = 'rgba(244,244,236,0.8)';
+    for (let i = 0; i < TRACK.lanes; i++) c.fillRect(Math.round(ox + 3 + (i + 0.35) * ((tw - 2) / TRACK.lanes)), sy + 7, 2, 4);
+  }
+
+  // ---- basketball courts: keys, free-throw circles, three-point lines (drawn along the court's length) ----
+  const halfCourt: Array<{ foot: [number, number]; end: 'w' | 'e' | 'n' | 's' }> = [];
   for (const bk of [COURTS.basketball, ...EXTRA_COURTS]) {
     const x = bk.x * TILE + 8, y = bk.y * TILE + 8, w = bk.w * TILE - 16, h = bk.h * TILE - 16;
-    if (w < h) continue;
-    const my = y + h / 2, keyLen = Math.round(w * 0.19), keyW = Math.round(h * 0.34), r3 = Math.min((h / 2 - 6) / 0.932, w * 0.3);
-    c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.ellipse(x + w / 2, my, w * 0.3, h * 0.35, 0, 0, Math.PI * 2); c.fill();
-    for (const west of [true, false]) {
-      const base = west ? x : x + w, dir = west ? 1 : -1, kx = west ? x : x + w - keyLen;
+    const vertical = h > w, Lw = vertical ? h : w, Lh = vertical ? w : h;
+    c.save();
+    c.translate(x + w / 2, y + h / 2);
+    if (vertical) c.rotate(Math.PI / 2);
+    // (in the court's own frame: its length runs left to right, centred on the origin)
+    const lx = -Lw / 2, my = 0, keyLen = Math.round(Lw * 0.19), keyW = Math.round(Lh * 0.34), r3 = Math.min((Lh / 2 - 6) / 0.932, Lw * 0.3);
+    c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.ellipse(0, 0, Lw * 0.3, Lh * 0.35, 0, 0, Math.PI * 2); c.fill();
+    for (const first of [true, false]) {
+      const base = first ? lx : lx + Lw, dir = first ? 1 : -1, kx = first ? lx : lx + Lw - keyLen;
       c.fillStyle = '#4a7f9e'; c.fillRect(kx, Math.round(my - keyW / 2), keyLen, keyW);
       c.strokeStyle = 'rgba(242,242,234,0.9)'; c.lineWidth = 2;
       c.strokeRect(kx, Math.round(my - keyW / 2), keyLen, keyW);
       c.beginPath(); c.arc(base + dir * keyLen, my, keyW / 2, 0, Math.PI * 2); c.stroke();
       const hx = base + dir * 13, a = 1.2;
-      c.beginPath(); c.arc(hx, my, r3, west ? -a : Math.PI - a, west ? a : Math.PI + a); c.stroke();
+      c.beginPath(); c.arc(hx, my, r3, first ? -a : Math.PI - a, first ? a : Math.PI + a); c.stroke();
       for (const sgn of [-1, 1]) { const ey = my + sgn * r3 * Math.sin(a); c.beginPath(); c.moveTo(base, ey); c.lineTo(hx + dir * r3 * Math.cos(a), ey); c.stroke(); }
-      halfCourt.push({ foot: [base - dir * 6, my + 2], flip: !west });
+    }
+    c.restore();
+    if (vertical) {
+      halfCourt.push({ foot: [x + w / 2, y - 4], end: 'n' }, { foot: [x + w / 2, y + h + 6], end: 's' });
+    } else {
+      halfCourt.push({ foot: [x + 6, y + h / 2 + 2], end: 'w' }, { foot: [x + w - 6, y + h / 2 + 2], end: 'e' });
     }
   }
 
@@ -216,7 +256,15 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
   // ---- hoops and goals, with their shadows ----
   const shade = scene.add.graphics().setDepth(1.1);
   shade.fillStyle(0x000000, 0.16);
-  for (const { foot: [fx, fy], flip } of halfCourt) {
+  for (const { foot: [fx, fy], end } of halfCourt) {
+    if (end === 'n' || end === 's') {
+      // at the ends of a north–south court: the north board faces you, the south one shows its back
+      scene.add.image(fx, fy, end === 'n' ? 'hoop-n' : 'hoop-s').setOrigin(0.5, 57 / 60).setDepth(fy);
+      shade.fillPoints([{ x: fx - 1, y: fy }, { x: fx + 1, y: fy }, { x: fx + 23, y: fy + 13 }, { x: fx + 21, y: fy + 13 }], true);
+      shade.fillRect(fx + 14, fy + 8, 16, 5);
+      continue;
+    }
+    const flip = end === 'e';
     scene.add.image(fx, fy, 'hoop').setOrigin(flip ? 30 / 40 : 10 / 40, 53 / 56).setFlipX(flip).setDepth(fy);
     const s = flip ? -1 : 1;
     // the pole's shadow falls south-east; the board's lands a little further along
