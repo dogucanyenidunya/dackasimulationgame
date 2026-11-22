@@ -118,3 +118,27 @@ export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: 
     nudgeFriend: (to) => { void ch.send({ type: 'broadcast', event: 'friend', payload: { to, from: me.id } }); },
   };
 }
+
+/** one person on the waitlist, as the owner sees them */
+export interface WaitlistEntry { pos: number; id: string; name: string; email: string; joinedAt: string }
+
+/** owners only: everyone on the waitlist, in order; null if it can't be fetched (not an owner, or not set up) */
+export async function listWaitlist(): Promise<WaitlistEntry[] | null> {
+  const c = sb();
+  if (!c) return null;
+  const { data, error } = await c.rpc('list_waitlist');
+  if (error) { console.warn('[launch]', error.message); return null; }
+  return (data as Array<{ pos: number; user_id: string; name: string; email: string; joined_at: string }>).map((r) => ({
+    pos: Number(r.pos), id: r.user_id, name: r.name ?? '', email: r.email ?? '', joinedAt: r.joined_at,
+  }));
+}
+
+/** who is in the lobby right now, without showing up there yourself (for the owner); returns a function that stops */
+export function watchLobby(onIds: (ids: Set<string>) => void): () => void {
+  const c = sb();
+  if (!c) return () => {};
+  const ch = c.channel('lobby');
+  ch.on('presence', { event: 'sync' }, () => onIds(new Set(Object.keys(ch.presenceState()))));
+  ch.subscribe();
+  return () => { void c.removeChannel(ch); };
+}

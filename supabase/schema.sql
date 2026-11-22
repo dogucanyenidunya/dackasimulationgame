@@ -395,3 +395,19 @@ end $$;
 revoke all on function public.game_status(), public.join_waitlist(), public.set_game_open(boolean, timestamptz) from public, anon, authenticated;
 grant execute on function public.game_status() to anon, authenticated;
 grant execute on function public.join_waitlist(), public.set_game_open(boolean, timestamptz) to authenticated;
+
+-- owners only: everyone on the waitlist, in order: their character's name, their email and when they joined
+create or replace function public.list_waitlist()
+returns table (pos bigint, user_id uuid, name text, email text, joined_at timestamptz)
+language plpgsql security definer set search_path = '' stable as $$
+begin
+  if not exists (select 1 from public.staff s where s.user_id = auth.uid() and s.role = 'owner') then raise exception 'owners only'; end if;
+  return query
+    select row_number() over (order by w.joined_at, w.user_id), w.user_id, coalesce(p.name, '')::text, coalesce(u.email, '')::text, w.joined_at
+      from public.waitlist w
+      left join public.profiles p on p.user_id = w.user_id
+      left join auth.users u on u.id = w.user_id
+     order by w.joined_at, w.user_id;
+end $$;
+revoke all on function public.list_waitlist() from public, anon, authenticated;
+grant execute on function public.list_waitlist() to authenticated;

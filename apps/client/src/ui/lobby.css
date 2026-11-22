@@ -69,3 +69,24 @@
 .lc-form input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
 .lobby-card .lc-form button.primary { padding: 8px 12px; font-size: 13px; }
 .lc-note { font-size: 11px; color: #7b8387; margin-top: 6px; }
+
+/* the owner's view of the waitlist (ui/waitlistView.ts) */
+.waitlist-overlay { position: fixed; z-index: 30; }
+.waitlist-card { background: #faf7f0; width: min(560px, 100%); text-align: left; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.wl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wl-head h2 { margin: 0; font-size: 20px; }
+.wl-head .linkish, .owner-panel .linkish { font: inherit; font-size: 13px; border: none; background: none; text-decoration: underline; cursor: pointer; color: #4b5459; padding: 0; }
+.wl-sub { font-size: 13px; color: #2f7d4a; margin: 4px 0 10px; }
+.wl-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.wl-tools input[type=search] { flex: 1; min-width: 160px; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.wl-tools label { font-size: 13px; color: #4b5459; display: flex; align-items: center; gap: 4px; }
+.wl-tools button.secondary { font: inherit; font-size: 13px; font-weight: 700; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.wl-list { overflow-y: auto; min-height: 80px; border-top: 1px solid var(--line); }
+.wl-row { display: grid; grid-template-columns: 48px 1fr auto; gap: 8px; align-items: center; padding: 8px 2px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.wl-pos { font-weight: 800; color: var(--accent-dark); }
+.wl-who { display: flex; flex-direction: column; min-width: 0; }
+.wl-who b, .wl-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-who small, .wl-when small { color: #6b7276; }
+.wl-when { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+.wl-on { color: #2f7d4a; font-style: normal; font-weight: 700; font-size: 12px; }
+.wl-empty { padding: 18px 4px; color: #6b7276; font-size: 13px; }

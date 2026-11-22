@@ -16,6 +16,7 @@ import { mountCare } from './ui/care';
 import { clearUnsubscribe, pendingUnsubscribe, unsubscribeNoteEmails } from './net/notes';
 import { gameStatus, joinWaitlist, mustWait, setGameOpen, type GameStatus } from './net/launch';
 import { mountLobby } from './ui/lobby';
+import { openWaitlist } from './ui/waitlistView';
 
 /** who is playing online (null = offline / signed out) */
 export interface NetUser { id: string; email: string }
@@ -202,6 +203,7 @@ async function titleScreen() {
       return;
     }
     if (act === 'unsub-no') { unsub = null; clearUnsubscribe(); render(); return; }
+    if (act === 'op-list') { openWaitlist(); return; }
     if ((act === 'op-open' || act === 'op-close' || act === 'op-date') && status) {
       const input = el.querySelector('.owner-panel input') as HTMLInputElement | null;
       const opensAt = input?.value ? new Date(input.value).toISOString() : null;
@@ -241,6 +243,7 @@ async function titleScreen() {
 function ownerPanel(s: GameStatus, error: string): string {
   return `<div class="owner-panel">
     <b>🔑 ${L({ tr: 'Oyun sahibi', en: 'Game owner' })}</b> · ${L({ tr: `bekleme listesinde ${s.total} kişi`, en: `${s.total} on the waitlist` })}
+    · <button type="button" class="linkish" data-act="op-list">${L({ tr: '👥 Hepsini gör', en: '👥 See them all' })}</button>
     <div class="op-state ${s.open ? 'open' : 'closed'}">${s.open ? L({ tr: '● Oyun herkese açık', en: '● The game is open to everyone' }) : L({ tr: '● Oyun kapalı: diğerleri lobide bekliyor', en: '● The game is closed: everyone else waits in the lobby' })}</div>
     <div class="op-row">
       <input type="datetime-local" aria-label="${L({ tr: 'Açılış zamanı (lobide geri sayım)', en: 'Launch time (the lobby counts down to it)' })}" title="${L({ tr: 'Açılış zamanı (lobide geri sayım)', en: 'Launch time (the lobby counts down to it)' })}">
