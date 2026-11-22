@@ -16,7 +16,7 @@ export function onLangChange(fn: () => void) { listeners.push(fn); }
 export function L(t: Text): string { return t[lang]; }
 
 const STRINGS = {
-  title_sub: { tr: 'Bir yatılı okul hikâyesi · 10 yıl', en: 'A boarding school story · 10 years' },
+  title_sub: { tr: 'Bir yatılı okul hikâyesi', en: 'A boarding school story' },
   new_game: { tr: 'Yeni oyun', en: 'New game' },
   continue: { tr: 'Devam et', en: 'Continue' },
   arrival_title: { tr: 'Ana Kapı', en: 'The main gate' },
