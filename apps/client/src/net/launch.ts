@@ -3,6 +3,7 @@
 // The switch lives in the database, so it's the same for everyone; the lobby hears about it on the 'lobby' channel.
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { sb } from './supabase';
+import type { CharacterLook } from '../art/textures';
 
 export interface GameStatus {
   open: boolean;
@@ -69,16 +70,40 @@ async function nudgeLobby() {
   await c.removeChannel(ch);
 }
 
+/** someone waiting in the lobby, as the others see them */
+export interface LobbyMember { id: string; name: string; look: CharacterLook }
+
+export interface LobbyLink {
+  leave: () => void;
+  /** tells another player in the lobby to look at their friends list again (a request, or an accepted one) */
+  nudgeFriend: (to: string) => void;
+}
+
 /**
- * In the lobby: `onNudge` when the owner opens or closes the game, `onCount` with how many are waiting in the lobby
- * right now. Returns a function that leaves.
+ * In the lobby: you're shown to the others (name and look), `onMembers` with everyone waiting right now (you included),
+ * `onNudge` when the owner opens or closes the game, `onFriend` when someone sends you a friend request or accepts yours.
  */
-export function joinLobby(me: string, onNudge: () => void, onCount: (n: number) => void): () => void {
+export function joinLobby(me: LobbyMember, h: { onNudge: () => void; onMembers: (m: LobbyMember[]) => void; onFriend: (from: string) => void }): LobbyLink {
   const c = sb();
-  if (!c) return () => {};
-  const ch: RealtimeChannel = c.channel('lobby', { config: { presence: { key: me } } });
-  ch.on('broadcast', { event: 'launch' }, () => onNudge());
-  ch.on('presence', { event: 'sync' }, () => onCount(Object.keys(ch.presenceState()).length));
-  ch.subscribe((status) => { if (status === 'SUBSCRIBED') void ch.track({ at: Date.now() }); });
-  return () => { void c.removeChannel(ch); };
+  if (!c) return { leave: () => {}, nudgeFriend: () => {} };
+  const ch: RealtimeChannel = c.channel('lobby', { config: { presence: { key: me.id } } });
+  ch.on('broadcast', { event: 'launch' }, () => h.onNudge());
+  ch.on('broadcast', { event: 'friend' }, ({ payload }) => {
+    const p = payload as { to: string; from: string };
+    if (p.to === me.id && typeof p.from === 'string') h.onFriend(p.from);
+  });
+  ch.on('presence', { event: 'sync' }, () => {
+    const out: LobbyMember[] = [];
+    for (const [id, metas] of Object.entries(ch.presenceState<{ name?: unknown; look?: unknown }>())) {
+      const m = metas[0];
+      if (!m) continue;
+      out.push({ id, name: typeof m.name === 'string' ? m.name.slice(0, 40) : '', look: (m.look && typeof m.look === 'object' ? m.look : {}) as CharacterLook });
+    }
+    h.onMembers(out);
+  });
+  ch.subscribe((status) => { if (status === 'SUBSCRIBED') void ch.track({ name: me.name, look: me.look }); });
+  return {
+    leave: () => { void c.removeChannel(ch); },
+    nudgeFriend: (to) => { void ch.send({ type: 'broadcast', event: 'friend', payload: { to, from: me.id } }); },
+  };
 }

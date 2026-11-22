@@ -79,7 +79,7 @@ async function titleScreen() {
   let unsubDone = '';
   if (net && pendingLinkToken()) clearLinkToken();
   // signed in, character made, game not open yet: straight to the lobby
-  if (waiting && net && existing && !unsub) { el.remove(); openLobby(existing, net, status!); return; }
+  if (waiting && net && existing && !unsub) { el.remove(); void openLobby(existing, net, status!); return; }
   let ownerError = '';
 
   const render = () => {
@@ -269,12 +269,12 @@ async function waitWithNewCharacter(character: CharacterData, net: NetUser) {
   const status = await gameStatus();
   // (opened meanwhile, or no longer reachable: just walk in)
   if (!status || !mustWait(status)) { startGame(save, net); return; }
-  openLobby(save, net, status);
+  void openLobby(save, net, status);
 }
 
-function openLobby(save: SaveData, net: NetUser, status: GameStatus) {
-  // someone who made their character before the waitlist existed still gets a place on it
-  if (!status.position) void joinWaitlist().then(async () => { const s = await gameStatus(); if (s) status = s; });
+async function openLobby(save: SaveData, net: NetUser, status: GameStatus) {
+  // someone who made their character before the waitlist existed gets a place on it first, so the lobby shows the number
+  if (!status.position) { await joinWaitlist(); status = (await gameStatus()) ?? status; }
   mountLobby(document.body, {
     save, userId: net.id, status,
     onEnter: () => { save.lang = getLang(); startGame(save, net); },
