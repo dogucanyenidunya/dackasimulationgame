@@ -2,7 +2,7 @@
 import { LAYOUT, MAP_H, MAP_W, SPAWN } from './content/campus';
 import type { Lang } from './i18n';
 import type { AttrId, CauseId, CharacterData } from './content/character';
-import { defaultState, withDefaults, type PlayerState } from './game/state';
+import { defaultState, growAttr, growRespect, growSkill, withDefaults, type PlayerState } from './game/state';
 
 export interface SaveData {
   v: 2;
@@ -35,12 +35,23 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     fog: '',
     seen: [],
     discovered: [],
-    flags: { [STORY_BONUS_REMOVED]: true },
+    flags: { [STORY_BONUS_REMOVED]: true, [PACED_TO_GRADE]: true },
     layout: LAYOUT,
   };
 }
 
 const STORY_BONUS_REMOVED = 'storyBonusRemoved';
+/** stats now grow at a pace that lasts from the 4th grade to the 12th (v0.11): older characters are brought into line once */
+const PACED_TO_GRADE = 'pacedToGrade';
+
+/** what an older character would have now if what they'd gained above `start` had come at the new, slower pace:
+ *  the same progress replayed in steps of `step` through `grow` (so whoever had grown more still ends up higher) */
+function repace(cur: number, start: number, step: number, grow: (v: number, gain: number) => number): number {
+  if (!(cur > start)) return cur;
+  let v = start, left = cur - start;
+  while (left > 1e-6) { const s = Math.min(step, left); const next = grow(v, s); left -= s; if (next === v && v > start) break; v = next; }
+  return v;
+}
 /** what each story used to add when the character was created (removed in v0.10) */
 const OLD_STORY_BONUS: Record<CauseId, { attrs: Partial<Record<AttrId, number>>; respect: number }> = {
   illness: { attrs: { social: 10 }, respect: 0 },
@@ -65,6 +76,14 @@ export function upgradeSave(data: SaveData): SaveData {
       data.character.respect = Math.max(0, data.character.respect - old.respect);
     }
     data.flags[STORY_BONUS_REMOVED] = true;
+  }
+  if (!data.flags[PACED_TO_GRADE]) {
+    // bring stats grown at the old, quick pace down to where this grade's pace would have them, once
+    const year = data.state.year, ch = data.character, st = data.state;
+    for (const k of Object.keys(ch.attributes) as AttrId[]) ch.attributes[k] = repace(ch.attributes[k], 10, 1, (v, g) => growAttr(v, g, year));
+    ch.respect = repace(ch.respect, 0, 5, (v, g) => growRespect(v, g, year));
+    for (const k of Object.keys(st.skills) as Array<keyof typeof st.skills>) st.skills[k] = repace(st.skills[k], 0, 4, (v, g) => growSkill(v, g, year));
+    data.flags[PACED_TO_GRADE] = true;
   }
   return data;
 }
