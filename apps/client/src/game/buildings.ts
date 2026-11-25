@@ -1731,7 +1731,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       id: 'challenge', label: T('⚔️ Meydan oku: bahçede koşu yarışı', '⚔️ Challenge them: a race across the yard'), hint: T('Kazanırsan saygı kazanırsın · kaybedersen moralin bozulur', 'Win and they respect you · lose and it stings'),
       locked: lock ?? once('challenge') ?? (indoors ? T(`Yarış dışarıda yapılır (${where} olmaz).`, `Races happen outside (not ${where}).`) : undefined),
       run: async () => {
-        nudge(ctx, { presence: 2, warmth: 2 }); mark('challenge'); ctx.advance(15);
+        nudge(ctx, { presence: 2, warmth: 2 }); mark('challenge'); st.once[`raced-${npc.id}`] = true; ctx.advance(15);
         if (Math.random() < win) {
           ctx.ch.respect += 5; ctx.befriend(npc.id, 12); ctx.gain({ mood: 6, energy: -6, attrs: { fitness: 1 } });
           await say(`Fıskiyeye senden önce varamadı. Nefes nefese elini uzattı: "Tamam… hakkını verdin." +5 saygınlık`, `They couldn't reach the fountain before you. Out of breath, they held out a hand: "Fine… fair's fair." +5 respect`);
@@ -1855,6 +1855,108 @@ function gate(actions: ActionView[], f: number, age: AgeRel, sameGrade = false, 
   const { open, next } = sortOut(actions, { tier: tierOf(f), age, sameGrade });
   if (next && hint) open.push({ id: 'next-tier', label: nextTierHint(next, age), locked: age === 'adult' ? T('Güvenini kazandıkça', 'As you earn their trust') : T('Birbirinizi tanıdıkça', 'As you get to know each other'), run: () => {} });
   return open;
+}
+
+/** what happened between you and them, from the dilemmas you've lived through (and a race or two) */
+export function historyWith(st: PlayerState, id: string): string[] {
+  const out: string[] = [];
+  for (const m of st.memories) {
+    if (m.id === 'telefon' && m.who === id) out.push(['call', 'bed'].includes(m.choice) ? 'phoneLeft' : 'phoneHelped');
+    if (m.id === 'arka' && (id === 'burak' || id === 'ece')) out.push(`arka-${m.choice}`);
+    if (m.id === 'parti' && m.who === id && st.once[`partner-${id}`]) out.push('partner');
+  }
+  if (st.once[`raced-${id}`]) out.push('raced');
+  return out;
+}
+
+/** options that only exist because of something you two went through */
+function historyActions(npc: NpcDef, ctx: GameCtx, lock: string | undefined): ActionView[] {
+  const st = ctx.st, h = historyWith(st, npc.id);
+  if (!h.length) return [];
+  const say = (tr: string, en: string) => ctx.panel.message(npc.name, T(tr, en));
+  const done = (key: string) => st.once[`${key}-${npc.id}`];
+  const setDone = (key: string) => { st.once[`${key}-${npc.id}`] = true; };
+  const out: ActionView[] = [];
+  const girl = npc.gender === 'girl';
+  if (h.includes('phoneHelped') && !done('phoneThanks')) out.push({
+    id: 'phoneThanks', label: T('📞 Telefon gecesini anın', '📞 Remember the phone night'), hint: T('Ortak anı · bir kez · +15 arkadaşlık', 'A shared memory · once · +15 friendship'),
+    locked: lock,
+    run: async () => {
+      setDone('phoneThanks'); nudge(ctx, { heart: 2 }); ctx.befriend(npc.id, 15); ctx.gain({ mood: 6 });
+      await say(`"O gece telefon sırasında… hiç unutmadım biliyor musun? Annem o akşam sesimi duyunca rahatlamış." Bir an sustu. "Senin sıran geldiğinde ben de yanında olacağım."`,
+        `"That night in the phone queue… I've never forgotten it, you know? My mum said hearing my voice that evening put her mind at rest." They paused. "When it's your turn, I'll be there too."`);
+    },
+  });
+  if (h.includes('phoneLeft') && !done('phoneSorry')) out.push({
+    id: 'phoneSorry', label: T('🙏 Telefon gecesi için özür dile', '🙏 Say sorry about the phone night'), hint: T('Ortak anı · bir kez · +12 arkadaşlık', 'A shared memory · once · +12 friendship'),
+    locked: lock,
+    run: async () => {
+      setDone('phoneSorry'); nudge(ctx, { heart: 3, warmth: -1 }); ctx.befriend(npc.id, 12);
+      await say(`"O gece seni orada ağlarken bırakıp gittim. Özür dilerim." Omuz silkti ama gözleri parladı. "Herkes evini arayamıyor işte… Ama sağ ol, söylediğin için."`,
+        `"That night I left you there crying. I'm sorry." They shrugged, but their eyes brightened. "Not everyone gets to call home… But thanks for saying it."`);
+    },
+  });
+  if (h.includes('arka-quiet') && !st.once.arkaTold) out.push({
+    id: 'sawYou', label: T('🤫 "O gece sizi gördüm, kimseye söylemedim" de', '🤫 Tell them "I saw you that night, and told no one"'), hint: T('Ortak sır · bir kez · ikisiyle de +20', 'A shared secret · once · +20 with both of them'),
+    locked: lock,
+    run: async () => {
+      st.once.arkaTold = true; nudge(ctx, { loyalty: 3, heart: 2 }); ctx.befriend('burak', 20); ctx.befriend('ece', 20);
+      await say(`Önce yüzü kızardı, sonra güldü. "Demek sendin… O top hâlâ orada duruyor biliyor musun?" Elini omzuna koydu. "Sağ ol ufaklık. Bunu ${girl ? 'Burak\'a' : 'Ece\'ye'} de söyleyeceğim. Bir şeye ihtiyacın olursa bize gel."`,
+        `First they went red, then they laughed. "So it was you… That ball's still lying there, you know." A hand on your shoulder. "Thanks, little one. I'll tell ${girl ? 'Burak' : 'Ece'} too. If you ever need anything, come to us."`);
+    },
+  });
+  if ((h.includes('arka-tell') || h.includes('arka-gossip')) && !done('snitchSorry')) out.push({
+    id: 'snitchSorry', label: h.includes('arka-tell') ? T('🙏 Belletmene söylediğin için özür dile', '🙏 Apologise for telling the belletmen') : T('🙏 Herkese anlattığın için özür dile', '🙏 Apologise for telling everyone'),
+    hint: T('Ortak anı · bir kez · +15 arkadaşlık', 'A shared memory · once · +15 friendship'),
+    locked: lock,
+    run: async () => {
+      setDone('snitchSorry'); nudge(ctx, { warmth: -2, heart: 2 }); ctx.befriend(npc.id, 15);
+      await say('Uzun uzun yüzüne baktı. "Küçüktün, korktun herhalde… Tamam. Ama bir dahakine önce bize gel."', 'They looked at you for a long time. "You were little, you were scared, I suppose… All right. But next time come to us first."');
+    },
+  });
+  if (h.includes('arka-deal') && !st.once.dealOver) {
+    const times = [1, 2, 3].filter((i) => st.once[`lever-${i}`]).length;
+    out.push({
+      id: 'leverage', label: T('🤝 O geceyi hatırlat, bir şey iste', '🤝 Remind them of that night and ask for something'), hint: T('Tost ya da 10 ₺ · −8 arkadaşlık · haftada bir · uzatırsan biter', 'A toastie or 10 ₺ · −8 friendship · once a week · push it and it ends'),
+      locked: lock ?? ((st.daily.leverNext ?? 0) > ctx.clock.day ? T('Bu hafta zaten istedin.', 'You already asked this week.') : undefined),
+      run: async () => {
+        nudge(ctx, { warmth: 3, rules: 1 }); st.daily.leverNext = ctx.clock.day + 7;
+        if (times >= 3) {
+          st.once.dealOver = true; ctx.befriend('burak', -15); ctx.befriend('ece', -15); ctx.gain({ mood: -4 });
+          await say('"Yeter artık." Sesi sertti. "İstiyorsan git söyle, umurumda değil. Ama bizden bir şey daha bekleme."', '"That\'s enough." Their voice was hard. "Go and tell if you want, I don\'t care. But don\'t expect anything more from us."');
+          return;
+        }
+        st.once[`lever-${times + 1}`] = true; ctx.befriend(npc.id, -8);
+        if (times % 2 === 0) ctx.gain({ hunger: 30, mood: 4 }); else ctx.gain({ money: 10 });
+        await say(times % 2 === 0 ? 'Gözlerini devirdi ama kantine gidip sana bir tost aldı. "Al. Unuttuk, değil mi?"' : 'İç çekip cebinden 10 ₺ çıkardı. "Son olsun bu."',
+          times % 2 === 0 ? 'They rolled their eyes but went to the canteen and got you a toastie. "Here. We\'ve forgotten, right?"' : 'They sighed and took 10 ₺ out of their pocket. "Let this be the last time."');
+      },
+    });
+  }
+  if (h.includes('partner') && !done('partyPartner')) out.push({
+    id: 'partyPartner', label: T('🎶 İlk partiyi anın', '🎶 Remember the first party'), hint: T('Ortak anı · bir kez · +12 arkadaşlık', 'A shared memory · once · +12 friendship'),
+    locked: lock,
+    run: async () => {
+      setDone('partyPartner'); nudge(ctx, { heart: 2, presence: 1 }); ctx.befriend(npc.id, 12); ctx.gain({ mood: 8 });
+      await say('"Halayda en önde biz vardık, hatırlıyor musun? Ayağına iki kere bastım!" İkiniz de güldünüz. "Seneye de birlikte gidelim mi?"', '"We were at the front of the halay, remember? I trod on your foot twice!" You both laughed. "Shall we go together next year too?"');
+    },
+  });
+  if (h.includes('raced')) {
+    const win = Math.max(0.2, Math.min(0.8, 0.3 + ctx.ch.attributes.fitness / 150 + (st.skills.basketball + st.skills.football) / 600));
+    const indoors = ctx.place() !== 'out';
+    out.push({
+      id: 'rematch', label: T('🏃 Rövanş: yine yarışın', '🏃 Rematch: race again'), hint: T(`O yarıştan beri aranızda bir oyun bu · kazanma şansın %${Math.round(win * 100)} · günde bir`, `It's your thing since that race · ${Math.round(win * 100)}% chance to win · once a day`),
+      locked: lock ?? (doneToday(ctx, `rematch-${npc.id}`) ? T('Bugün zaten yarıştınız.', 'You already raced today.') : indoors ? T('Yarış dışarıda yapılır.', 'Races happen outside.') : ctx.st.energy < 10 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
+      run: async () => {
+        markToday(ctx, `rematch-${npc.id}`); nudge(ctx, { presence: 1, loyalty: 1 }); ctx.advance(15); ctx.befriend(npc.id, 6);
+        const won = Math.random() < win;
+        ctx.gain({ mood: won ? 6 : 2, energy: -6, attrs: { fitness: 1 } });
+        await say(won ? 'Fıskiyeye yine sen önce vardın. "Yarın rövanş!" diye bağırdı, gülerek.' : 'Bu sefer o kazandı ve havaya zıpladı. "Bir–bir! Yarın yine!"',
+          won ? 'You got to the fountain first again. "Rematch tomorrow!" they shouted, laughing.' : 'This time they won and jumped in the air. "One all! Again tomorrow!"');
+      },
+    });
+  }
+  return out;
 }
 
 /** what an older student (abi / abla) can do for a younger one they know */
@@ -2070,7 +2172,7 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
         await ctx.panel.message(npc.name, T('Yanına oturdun ve sadece dinledin. "…Sağ ol. Buna ihtiyacım vardı."', 'You sat with them and just listened. "…Thanks. I needed that."'));
       },
     });
-    actions.push(...socialActions(npc, ctx, f, lock), ...olderActions(npc, ctx, lock));
+    actions.push(...socialActions(npc, ctx, f, lock), ...olderActions(npc, ctx, lock), ...historyActions(npc, ctx, lock));
     // what's open depends on how close you are and how old they are (game/interactions.ts)
     const mine = grade(ctx.st.year);
     const open = gate(actions, f, ageRel(npc, mine), (npc.grade ?? mine) === mine, met);
@@ -2112,7 +2214,8 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
       locked: doneToday(ctx, `hello-${npc.id}`) ? T('Bugün zaten selamlaştınız.', 'You already said hello today.') : undefined,
       run: async () => { markToday(ctx, `hello-${npc.id}`); ctx.befriend(npc.id, 5); await ctx.panel.message(npc.name, `"${L(line)}"`); },
     });
-    actions.push(...olderActions(npc, ctx, met ? undefined : T(`Önce ${npc.name} ile tanış.`, `Get to know ${npc.name} first.`)));
+    const lockMet = met ? undefined : T(`Önce ${npc.name} ile tanış.`, `Get to know ${npc.name} first.`);
+    actions.push(...olderActions(npc, ctx, lockMet), ...historyActions(npc, ctx, lockMet));
     const open = gate(actions, f, ageRel(npc, grade(st.year)), false, met);
     actions.length = 0;
     actions.push(...open);

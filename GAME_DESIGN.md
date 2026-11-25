@@ -1359,5 +1359,19 @@ Students walk to a building's door and go in, and come out of the same door. The
 | Cemil Emmi | Seni tanıyor (10+) | ♟️ Satranç oyna | Once a day: 5–30% chance to win (from Knowledge); the first win is +10 respect ("the first to beat me since Kerem") |
 | Cemil Emmi | Sana güveniyor (40+) | 📻 Eski günleri sor | Once a day: one of his stories from the school's past; +6 mood, a little Devreci |
 
-Next steps: options opened by what you've done together (shared memories and dilemmas), and options for younger students from Year 2.
+**Step 4 (v0.11):** shared history. Some options exist only because of something you two went through: a dilemma you lived through together (`st.memories`, read by `historyWith()`), or a race. The tier rules still apply on top. Most are one-off moments; the rematch and the "deal" repeat.
+
+| Because of | With | Interaction | What it does |
+|---|---|---|---|
+| 📞 Telefon sırası: you gave them your turn, shared it, or stayed with them | That kid (Tanıdık+) | 📞 Telefon gecesini anın | Once: they tell you they never forgot it; +15 friendship |
+| 📞 Telefon sırası: you made your call or went to bed | That kid | 🙏 Telefon gecesi için özür dile | Once: +12 friendship |
+| 🌙 Yurdun arkası: you walked away and said nothing | Burak Abi or Ece Abla | 🤫 "O gece sizi gördüm, kimseye söylemedim" | Once (for the pair): +20 with both; the secret becomes a bond |
+| 🌙 Yurdun arkası: you told the belletmen, or everyone | Burak Abi, Ece Abla | 🙏 Özür dile | Once each: +15 friendship |
+| 🌙 Yurdun arkası: you asked for something in return | Burak Abi, Ece Abla | 🤝 O geceyi hatırlat | Once a week: a toastie or 10 ₺ for −8 friendship; the fourth time they've had enough (−15 with both) and it's over |
+| 🎶 İlk parti: they said yes | Your partner (Tanıdık+) | 🎶 İlk partiyi anın | Once: +12 friendship, "shall we go together next year too?" |
+| ⚔️ You raced them once | Them (Tanıdık+) | 🏃 Rövanş | Once a day, outdoors: a friendly race; +6 friendship win or lose |
+
+The party dilemma now records who you asked (`who`) and whether they said yes (`once.partner-<id>`).
+
+Next steps: options for younger students from Year 2, and more shared-history options as later years add dilemmas.
 

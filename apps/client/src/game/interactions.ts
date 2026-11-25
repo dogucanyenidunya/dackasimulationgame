@@ -98,6 +98,15 @@ export const RULES: Record<string, Rule> = {
   sweep: { group: 'help', ages: ['adult'] },
   chess: { group: 'play', min: 'known', ages: ['adult'] },
   oldtimes: { group: 'talk', min: 'friend', ages: ['adult'] },
+
+  // shared history: these only appear when something happened between you (a dilemma, a race); the tier still applies
+  phoneThanks: { group: 'talk', min: 'known' },
+  phoneSorry: { group: 'talk' },
+  sawYou: { group: 'talk' },
+  snitchSorry: { group: 'talk' },
+  leverage: { group: 'risky' },
+  partyPartner: { group: 'talk', min: 'known' },
+  rematch: { group: 'play', min: 'known' },
 };
 
 const rank = (t: Tier) => TIERS.indexOf(t);

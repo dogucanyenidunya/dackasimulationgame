@@ -177,13 +177,14 @@ function parti(ctx: GameCtx): Dilemma {
     title: { tr: '🎶 İlk parti', en: '🎶 The first party' },
     intro: { tr: 'Karne töreninden sonra Kapalı Saha\'da okulun ilk partisi var. Bütün gün herkes aynı şeyi konuştu: halay ve ilk dans için kim kiminle eş olacak?', en: 'After the report card ceremony there\'s the school\'s first party in the Kapalı Saha. All day everyone has talked about one thing: who will be whose partner for the halay and the first dance?' },
     question: { tr: 'Sen ne yaparsın?', en: 'What do you do?' },
+    who: asked,
     choices: [
       ...(asked ? [{
         id: 'ask', label: { tr: `Eşin olmasını iste: ${asked.name}`, en: `Ask ${asked.name} to be your partner` },
         run: (): Text => {
           shape(st, { heart: 8, presence: 5 });
           const yes = Math.random() < Math.max(0.15, Math.min(0.9, 0.3 + friendOf(ctx, asked.id) / 100));
-          if (yes) { ctx.befriend(asked.id, 15); ctx.gain({ mood: 12 }); return { tr: `${asked.name} kızardı ve "Olur!" dedi. Halayda en önde siz vardınız.`, en: `${asked.name} went red and said "OK!". You two led the halay.` }; }
+          if (yes) { st.once[`partner-${asked.id}`] = true; ctx.befriend(asked.id, 15); ctx.gain({ mood: 12 }); return { tr: `${asked.name} kızardı ve "Olur!" dedi. Halayda en önde siz vardınız.`, en: `${asked.name} went red and said "OK!". You two led the halay.` }; }
           ctx.befriend(asked.id, 3); ctx.gain({ mood: -6 });
           return { tr: `${asked.name}: "Ah… başkasına söz verdim, özür dilerim." Yine de bir şarkıda yanında dans etti.`, en: `${asked.name}: "Oh… I've already promised someone, sorry." They still danced next to you for one song.` };
         },
