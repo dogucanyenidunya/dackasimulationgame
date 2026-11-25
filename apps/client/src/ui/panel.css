@@ -59,7 +59,8 @@
   content: ''; position: absolute; left: 10%; right: 10%; bottom: -1px; height: 2px;
   background: linear-gradient(90deg, rgba(240, 214, 154, 0), var(--p-gold-hi), rgba(240, 214, 154, 0)); box-shadow: 0 0 8px rgba(240, 214, 154, 0.6);
 }
-.overlay.panel .tabs button.locked { color: #5f6470; }
+.overlay.panel .tabs button.locked { color: #9aa0ab; }
+.overlay.panel .tabs button.locked.on { color: var(--p-gold-hi); }
 
 /* ---------- the room's text and its actions ---------- */
 .overlay.panel .room-note { color: var(--p-ink); font-size: 14.5px; line-height: 1.6; margin: 14px 0 16px; }

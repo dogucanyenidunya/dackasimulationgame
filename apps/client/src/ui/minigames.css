@@ -1,0 +1,99 @@
+/* The minigame screens — match night, Yetimball, the run to the phone, rock-paper-scissors with another player —
+   in the same navy and gold as the popups (popups.css holds the colours). Yetimball, the phone run and the peer
+   games inject their own base styles at runtime, after this file loads, so these rules carry an extra
+   `html body` to win over them. */
+
+/* the dimmed game behind */
+html body :is(.yb-overlay, .pg-overlay, .pr-overlay, .match-overlay) {
+  background: radial-gradient(ellipse at center, rgba(8, 12, 20, 0.6), rgba(4, 6, 12, 0.88));
+  backdrop-filter: blur(2px);
+}
+
+/* the cards: dark layers in the double gold frame, with gold corners */
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) {
+  position: relative;
+  color: var(--p-ink);
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(201, 163, 86, 0.10), rgba(201, 163, 86, 0) 60%),
+    linear-gradient(180deg, var(--p-bg2) 0%, var(--p-bg) 100%);
+  border: 1px solid var(--p-gold-lo);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 4px var(--p-bg),
+    inset 0 0 0 5px rgba(201, 163, 86, 0.55),
+    0 18px 50px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.8);
+  animation: p-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html body :is(.yb-card, .pg-card, .pr-card) { padding: 18px 20px 16px; }
+html body :is(.yb-card, .pg-card, .pr-card, .match-card)::before,
+html body :is(.yb-card, .pg-card, .pr-card, .match-card)::after {
+  content: ''; position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 2;
+  border: 2px solid var(--p-gold); filter: drop-shadow(0 0 3px rgba(240, 214, 154, 0.35));
+}
+html body :is(.yb-card, .pg-card, .pr-card, .match-card)::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+html body :is(.yb-card, .pg-card, .pr-card, .match-card)::after { bottom: 6px; right: 6px; border-left: none; border-top: none; }
+
+/* headings: the game's name in gold capitals, who's playing in muted text, a gold rule underneath */
+html body :is(.yb-head, .pr-head) { position: relative; padding-bottom: 10px; margin-bottom: 12px; }
+html body :is(.yb-head, .pr-head)::after {
+  content: ''; position: absolute; left: -4px; right: -4px; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, rgba(201, 163, 86, 0), var(--p-gold) 20%, var(--p-gold-hi) 50%, var(--p-gold) 80%, rgba(201, 163, 86, 0));
+}
+html body :is(.yb-head, .pr-head) b {
+  font-family: var(--p-title); font-weight: 700; font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--p-gold-hi);
+}
+html body :is(.yb-vs, .pr-head span) { color: var(--p-mute); opacity: 1; letter-spacing: 0.03em; }
+html body :is(.yb-status, .pg-status, .pr-status) { color: var(--p-ink); font-size: 14.5px; line-height: 1.5; }
+
+/* the playing fields keep their own drawing, framed in gold */
+html body :is(.yb-card, .pr-card) canvas { border-radius: 2px; box-shadow: 0 0 0 1px rgba(201, 163, 86, 0.55), 0 0 0 4px rgba(0, 0, 0, 0.45); }
+
+/* Yetimball's tug bar: a dark groove between the two sides, the marker glowing gold */
+html body .yb-bar span { color: var(--p-ink); font-weight: 700; }
+html body .yb-track { box-shadow: inset 0 0 0 1px rgba(201, 163, 86, 0.4), inset 0 1px 3px rgba(0, 0, 0, 0.6); }
+html body .yb-mark { background: linear-gradient(180deg, #fff3d4, var(--p-gold-hi)); box-shadow: 0 0 8px rgba(240, 214, 154, 0.9); }
+
+/* rock-paper-scissors: the score in gold, the three picks as big framed plates */
+html body .pg-score { font-family: var(--p-title); color: var(--p-gold-hi); letter-spacing: 0.08em; text-shadow: 0 0 12px rgba(240, 214, 154, 0.25); }
+html body .pg-picks button { min-width: 72px; }
+
+/* buttons inside every minigame card */
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button.primary {
+  font-family: var(--p-title); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 10px 22px; border-radius: 2px; color: #fff4dc;
+  background: linear-gradient(180deg, var(--p-wine-hi) 0%, var(--p-wine) 60%, #4c1420 100%);
+  border: 1px solid var(--p-gold);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 200, 0.25), inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.15s, filter 0.15s, transform 0.1s;
+}
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button.primary:hover:not(:disabled) {
+  filter: brightness(1.12); box-shadow: inset 0 1px 0 rgba(255, 220, 200, 0.3), 0 0 0 1px rgba(240, 214, 154, 0.35), 0 0 18px rgba(240, 214, 154, 0.3);
+}
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button:not(.primary) {
+  font-weight: 700; color: var(--p-ink); border-radius: 2px;
+  background: linear-gradient(180deg, var(--p-raise) 0%, #162132 100%);
+  border: 1px solid rgba(201, 163, 86, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button:not(.primary):hover:not(:disabled) {
+  border-color: var(--p-gold-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 1px rgba(240, 214, 154, 0.25), 0 0 14px rgba(240, 214, 154, 0.2);
+}
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button:active:not(:disabled) { transform: translateY(1px); }
+html body :is(.yb-card, .pg-card, .pr-card, .match-card) button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* match night: the scoreboard keeps its glowing digits, the team names go into the title capitals */
+html body .match-card { overflow: hidden; }
+html body .match-board { background: linear-gradient(180deg, #0b1019, #17202f); border-bottom: 1px solid rgba(201, 163, 86, 0.45); padding-top: 14px; }
+html body .mb-team { font-family: var(--p-title); font-weight: 700; font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; color: #f6eedb; }
+html body .mb-team i { border-radius: 2px; }
+html body .mb-score { border-radius: 2px; border: 1px solid var(--p-gold-lo); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.6); }
+html body .mb-clock { color: var(--p-gold); letter-spacing: 0.1em; }
+html body .match-foot { background: linear-gradient(180deg, #17202f, #0f1622); border-top: 1px solid rgba(201, 163, 86, 0.45); color: var(--p-ink); padding: 12px 18px 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html body :is(.yb-card, .pg-card, .pr-card, .match-card) { animation: none; }
+}
