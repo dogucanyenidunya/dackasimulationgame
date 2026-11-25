@@ -2,7 +2,8 @@
    relationships, friends, the class draw, the tour, confirm dialogs, the big map, the waitlist and the building
    panel — is a dark navy card with a fine double gold frame, ornamented corners, display capitals for titles,
    framed buttons that light up gold, and a short rise-and-fade. The diary stays paper (it's a notebook) but gets
-   the same frame. Toasts follow suit. Loaded once for the whole app (see main.ts). */
+   the same frame. The title screen's cards (sign-in, continue, the character creator) and the pause card use it
+   too; the HUD's own panels are in hud-theme.css. Loaded once for the whole app (see main.ts). */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap');
 
 :root {
@@ -22,13 +23,13 @@
 }
 
 /* ---------- the dimmed game behind every popup ---------- */
-.overlay.modal, .overlay.confirm-overlay, .overlay.panel, .overlay.big-map, .overlay.waitlist-overlay {
+.overlay.modal, .overlay.confirm-overlay, .overlay.panel, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay {
   background: radial-gradient(ellipse at center, rgba(8, 12, 20, 0.55), rgba(4, 6, 12, 0.82));
   backdrop-filter: blur(2px);
 }
 
 /* ---------- the card: dark layers inside a double gold frame ---------- */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card,
 .overlay.panel .panel-card {
   position: relative;
   color: var(--p-ink);
@@ -50,22 +51,22 @@
 }
 @keyframes p-rise { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
 /* ornamented corners: angle brackets in gold */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card::before,
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card::after,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card::before,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card::after,
 .overlay.panel .panel-card::before, .overlay.panel .panel-card::after {
   content: ''; position: absolute; width: 22px; height: 22px; pointer-events: none;
   border: 2px solid var(--p-gold);
   filter: drop-shadow(0 0 3px rgba(240, 214, 154, 0.35));
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card::before,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card::before,
 .overlay.panel .panel-card::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card::after,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card::after,
 .overlay.panel .panel-card::after { bottom: 6px; right: 6px; border-left: none; border-top: none; }
 
 /* ---------- text: light on dark, with gold for titles and labels ---------- */
 /* (everything inside the dark cards inherits the light ink, overriding the light theme's greys) */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) * { color: inherit; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card h2,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) * { color: inherit; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card h2,
 .overlay.panel .panel-head h2 {
   font-family: var(--p-title); font-weight: 700; font-size: 24px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--p-gold-hi);
@@ -73,29 +74,29 @@
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.modal-sub, .big-help, .sum-row span, .sum-row small, .rel-name span, .tr-where, .m-obj .prog, .m-req, .m-unlocks, .m-reward, .linkish, .field-help, .muted),
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.modal-sub, .big-help, .sum-row span, .sum-row small, .rel-name span, .tr-where, .m-obj .prog, .m-req, .m-unlocks, .m-reward, .linkish, .field-help, .muted),
 .overlay.panel .modal-sub { color: var(--p-mute); }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.sc-label, .m-label, .tr-label, .m-section, .field-label, .big-title, .clock-period) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.sc-label, .m-label, .tr-label, .m-section, .field-label, .big-title, .clock-period) {
   color: var(--p-gold); letter-spacing: 0.08em;
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.sc-name, .m-title, .tr-title, b, strong) { color: #f6eedb; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.ok, .good, .done-mark, .m-obj li.ok, .rel-row.good .rel-level) { color: var(--p-good); }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.bad, .nav-error, .why, .rel-row.bad .rel-level) { color: var(--p-bad); }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card .modal-body { font-size: 15px; line-height: 1.65; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.sc-name, .m-title, .tr-title, b, strong) { color: #f6eedb; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.ok, .good, .done-mark, .m-obj li.ok, .rel-row.good .rel-level) { color: var(--p-good); }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.bad, .nav-error, .why, .rel-row.bad .rel-level) { color: var(--p-bad); }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card .modal-body { font-size: 15px; line-height: 1.65; }
 
 /* the gold rule under a card's heading */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card :is(.panel-head, .profile-head, .big-head) { position: relative; padding-bottom: 12px; margin-bottom: 10px; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card :is(.panel-head, .profile-head, .big-head)::after,
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(.panel-head, .profile-head, .big-head) { position: relative; padding-bottom: 12px; margin-bottom: 10px; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(.panel-head, .profile-head, .big-head)::after,
 .overlay.modal > .modal-card > .modal-sub::after, .overlay.modal > .modal-card > h2:not(:has(+ .modal-sub))::after {
   content: ''; display: block; height: 1px; margin-top: 12px;
   background: linear-gradient(90deg, rgba(201, 163, 86, 0), var(--p-gold) 20%, var(--p-gold-hi) 50%, var(--p-gold) 80%, rgba(201, 163, 86, 0));
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card :is(.panel-head, .profile-head, .big-head)::after { position: absolute; left: -6px; right: -6px; bottom: 0; margin: 0; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(.panel-head, .profile-head, .big-head)::after { position: absolute; left: -6px; right: -6px; bottom: 0; margin: 0; }
 .overlay.modal > .modal-card > h2:not(:has(+ .modal-sub))::after { -webkit-text-fill-color: initial; }
 
 /* ---------- surfaces inside the cards ---------- */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.sum-row, .rel-row) { border-bottom-color: rgba(201, 163, 86, 0.18); }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) :is(.strength-card, .mission, .tree-detail, .secret-row, .invite-row) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.sum-row, .rel-row) { border-bottom-color: rgba(201, 163, 86, 0.18); }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) :is(.strength-card, .mission, .tree-detail, .secret-row, .invite-row) {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
   border: 1px solid rgba(201, 163, 86, 0.28); border-radius: 3px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -107,7 +108,7 @@
 :is(.overlay.modal, .overlay.confirm-overlay) > .card .mission.active .m-badge { background: var(--p-wine); border-color: var(--p-wine-hi); color: #fbe9d0; }
 :is(.overlay.modal, .overlay.confirm-overlay) > .card .mission.done .m-badge { background: #24503a; border-color: #4f9a68; color: #dff5e4; }
 :is(.overlay.modal, .overlay.confirm-overlay) > .card .mission.failed .m-badge { background: #5a2028; border-color: #b0505a; color: #fbe0dc; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) .modal-note {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) .modal-note {
   color: var(--p-gold-hi); background: linear-gradient(90deg, rgba(201, 163, 86, 0.16), rgba(201, 163, 86, 0.02)); border-left: 2px solid var(--p-gold); border-radius: 0;
 }
 /* the cards that had a coloured stripe on top keep it, in gold */
@@ -117,10 +118,10 @@
 .overlay.modal > .card .onboard-dots i.on { background: var(--p-gold-hi); box-shadow: 0 0 6px rgba(240, 214, 154, 0.6); }
 
 /* bars: a dark groove, the fill keeps its colour with a soft sheen */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.waitlist-overlay) > .card :is(.attr-bar, .rel-bar, .nbar, .bar, .care-bar-track) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(.attr-bar, .rel-bar, .nbar, .bar, .care-bar-track) {
   background: rgba(0, 0, 0, 0.4); box-shadow: inset 0 0 0 1px rgba(201, 163, 86, 0.3), inset 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.waitlist-overlay) > .card :is(.attr-bar, .rel-bar, .nbar, .bar) i { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 60%); }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(.attr-bar, .rel-bar, .nbar, .bar) i { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 60%); }
 :is(.overlay.modal) > .card .rel-bar .mid { background: rgba(201, 163, 86, 0.6); }
 
 /* portraits */
@@ -130,15 +131,15 @@
 }
 
 /* form fields */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.waitlist-overlay) > .card :is(input, select, textarea) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(input, select, textarea) {
   font: inherit; color: var(--p-ink); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 163, 86, 0.45); border-radius: 2px; padding: 8px 10px;
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.waitlist-overlay) > .card :is(input, select, textarea):focus { outline: none; border-color: var(--p-gold-hi); box-shadow: 0 0 0 2px rgba(240, 214, 154, 0.2); }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.waitlist-overlay) > .card ::placeholder { color: #6f7480; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card :is(input, select, textarea):focus { outline: none; border-color: var(--p-gold-hi); box-shadow: 0 0 0 2px rgba(240, 214, 154, 0.2); }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card ::placeholder { color: #6f7480; }
 
 /* ---------- buttons ---------- */
 /* primary: burgundy with a gold rim */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel) .card button.primary {
+:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel, .overlay.pause-overlay, .title-screen) .card button.primary {
   font-family: var(--p-title); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 11px 26px; border-radius: 2px; color: #fff4dc; -webkit-text-fill-color: #fff4dc;
   background: linear-gradient(180deg, var(--p-wine-hi) 0%, var(--p-wine) 60%, #4c1420 100%);
@@ -146,27 +147,27 @@
   box-shadow: inset 0 1px 0 rgba(255, 220, 200, 0.25), inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5);
   transition: box-shadow 0.15s, filter 0.15s, transform 0.1s;
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel) .card button.primary:hover:not(:disabled) {
+:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel, .overlay.pause-overlay, .title-screen) .card button.primary:hover:not(:disabled) {
   filter: brightness(1.12);
   box-shadow: inset 0 1px 0 rgba(255, 220, 200, 0.3), inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(240, 214, 154, 0.35), 0 0 18px rgba(240, 214, 154, 0.3);
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel) .card button.primary:active:not(:disabled) { transform: translateY(1px); }
+:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.panel, .overlay.pause-overlay, .title-screen) .card button.primary:active:not(:disabled) { transform: translateY(1px); }
 /* every other button: a dark framed plate */
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) button:not(.primary):not(.linkish) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) button:not(.primary):not(.linkish) {
   font: inherit; font-weight: 700; color: var(--p-ink); border-radius: 2px;
   background: linear-gradient(180deg, var(--p-raise) 0%, #162132 100%);
   border: 1px solid rgba(201, 163, 86, 0.45);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.35);
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) button:not(.primary):not(.linkish):hover:not(:disabled) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) button:not(.primary):not(.linkish):hover:not(:disabled) {
   border-color: var(--p-gold-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 1px rgba(240, 214, 154, 0.25), 0 0 14px rgba(240, 214, 154, 0.18);
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) button:not(.primary):not(.linkish):is(.on, [aria-pressed="true"]) {
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) button:not(.primary):not(.linkish):is(.on, [aria-pressed="true"]) {
   border-color: var(--p-gold-hi); color: var(--p-gold-hi);
 }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card:not(.diary-card) button:disabled { opacity: 0.5; cursor: not-allowed; }
-:is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card button:focus-visible { outline: 2px solid var(--p-gold-hi); outline-offset: 2px; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card:not(.diary-card) button:disabled { opacity: 0.5; cursor: not-allowed; }
+:where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card button:focus-visible { outline: 2px solid var(--p-gold-hi); outline-offset: 2px; }
 .overlay.modal > .card .linkish { color: var(--p-gold-hi); }
 
 /* ---------- the diary: still a paper notebook, now in the gold frame ---------- */
@@ -191,8 +192,8 @@
 .toast.good { border-left-color: var(--p-good); }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card, .overlay.panel .panel-card { animation: none; }
+  :where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card, .overlay.panel .panel-card { animation: none; }
 }
 @media (max-width: 560px) {
-  :is(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay) > .card h2, .overlay.panel .panel-head h2 { font-size: 19px; }
+  :where(.overlay.modal, .overlay.confirm-overlay, .overlay.big-map, .overlay.waitlist-overlay, .overlay.pause-overlay, .title-screen) > .card h2, .overlay.panel .panel-head h2 { font-size: 19px; }
 }

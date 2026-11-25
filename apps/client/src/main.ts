@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CampusScene } from './scenes/CampusScene';
 import './ui/popups.css';
+import './ui/hud-theme.css';
 import { getLang, setLang, t, onLangChange, type Lang } from './i18n';
 import { backupSave, clearSave, hasBackup, loadSave, newSave, restoreBackup, writeSave, type SaveData } from './save';
 import { runCreator } from './ui/creator';

@@ -1,0 +1,162 @@
+/* The HUD, the title screen and the character creator in the same dark navy and gold as the popups (popups.css
+   holds the shared colours, the card frame, the buttons and the text rules; this adds what only these have).
+   The HUD's panels are glassy so the campus shows faintly through them, framed by a single gold hairline. */
+
+/* ---------- HUD panels: the clock card, the minimap, the mission tracker ---------- */
+#hud :is(.hud-clock, .hud-mini, .tracker) {
+  color: var(--p-ink);
+  background: linear-gradient(180deg, rgba(26, 37, 54, 0.9) 0%, rgba(14, 20, 30, 0.9) 100%);
+  border: 1px solid rgba(201, 163, 86, 0.55);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 18px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+}
+/* a little gold corner on the top-left of each */
+#hud :is(.hud-clock, .tracker)::before {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 10px; height: 10px; pointer-events: none;
+  border-top: 1.5px solid var(--p-gold); border-left: 1.5px solid var(--p-gold);
+}
+#hud .tracker { position: relative; border-left: 1px solid rgba(201, 163, 86, 0.55); }
+#hud .tracker:hover { background: linear-gradient(180deg, rgba(34, 48, 70, 0.94), rgba(18, 26, 38, 0.94)); border-color: var(--p-gold-hi); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), 0 0 14px rgba(240, 214, 154, 0.2); }
+#hud .hud-mini canvas { border-radius: 2px; box-shadow: 0 0 0 1px rgba(201, 163, 86, 0.4); }
+
+#hud .hud-name { font-family: var(--p-title); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--p-gold-hi); }
+#hud .clock-day { color: var(--p-mute); }
+#hud .clock-time { color: #f6eedb; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(240, 214, 154, 0.15); }
+#hud .clock-period, #hud .tr-label { color: var(--p-gold); letter-spacing: 0.08em; }
+#hud :is(.tr-title, .money-xp) { color: #f6eedb; }
+#hud .tr-step { color: var(--p-ink); }
+#hud .tr-where, #hud .discovery { color: var(--p-mute); }
+#hud .collapse-btn { color: var(--p-gold); }
+#hud .collapse-btn:hover { color: var(--p-gold-hi); }
+
+/* needs, XP and discovery: dark grooves, the fills keep their colours with a soft sheen */
+#hud :is(.nbar, .discovery .bar) { background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 1px rgba(201, 163, 86, 0.28), inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+#hud :is(.nbar i, .discovery .bar span) { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 60%); }
+#hud .need.low .nbar { box-shadow: inset 0 0 0 1px rgba(240, 138, 124, 0.9), 0 0 6px rgba(240, 138, 124, 0.5); }
+
+/* the row of round-cornered HUD buttons: small dark plates */
+#hud .hud-buttons button {
+  color: var(--p-ink); border-radius: 2px;
+  background: linear-gradient(180deg, var(--p-raise), #162132);
+  border: 1px solid rgba(201, 163, 86, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#hud .hud-buttons button:hover { background: linear-gradient(180deg, #27374f, #1a2638); border-color: var(--p-gold-hi); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 10px rgba(240, 214, 154, 0.25); }
+
+/* ---------- prompts, banners, the countdown, chat ---------- */
+#hud :is(.hud-prompt, .hud-banner, .hud-countdown) {
+  color: #f6eedb; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(26, 37, 54, 0.94), rgba(14, 20, 30, 0.94));
+  border: 1px solid rgba(201, 163, 86, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+#hud .hud-prompt { letter-spacing: 0.02em; }
+#hud .hud-countdown.urgent { background: linear-gradient(180deg, var(--p-wine-hi), var(--p-wine)); border-color: var(--p-gold); }
+#hud .hud-countdown .cd-bar { background: rgba(0, 0, 0, 0.45); }
+#hud :is(.hud-banner, .hud-countdown) button { font: inherit; color: var(--p-ink); border-radius: 2px; background: linear-gradient(180deg, var(--p-raise), #162132); border: 1px solid rgba(201, 163, 86, 0.5); cursor: pointer; }
+#hud .chat-line { background: rgba(14, 20, 30, 0.82); border: 1px solid rgba(201, 163, 86, 0.25); border-radius: 2px; }
+#hud .chat-form input { color: var(--p-ink); background: rgba(14, 20, 30, 0.92); border: 1px solid rgba(201, 163, 86, 0.5); border-radius: 2px; }
+#hud .chat-form button.primary { border-radius: 2px; background: linear-gradient(180deg, var(--p-wine-hi), var(--p-wine)); border: 1px solid var(--p-gold); color: #fff4dc; }
+
+/* ---------- the title screen ---------- */
+.title-screen {
+  background:
+    radial-gradient(ellipse at 50% 115%, rgba(201, 163, 86, 0.22), transparent 55%),
+    radial-gradient(ellipse at 50% 30%, rgba(110, 31, 45, 0.28), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(201, 163, 86, 0.035) 0 1px, transparent 1px 64px),
+    radial-gradient(ellipse at 50% 35%, #1d2a3e 0%, #121a26 55%, #070a10 100%);
+}
+.title-screen > .title-card { padding: 34px 36px 26px; }
+/* the name in big gold capitals, with a ruled crest under it */
+.title-screen > .title-card h1 {
+  font-family: var(--p-title); font-weight: 700; font-size: 58px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.05;
+  background: linear-gradient(180deg, #fff3d4 0%, #f0d69a 40%, #c9a356 70%, #8a6a32 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 18px rgba(240, 214, 154, 0.18));
+}
+.title-screen > .title-card .sub {
+  position: relative; color: var(--p-mute); font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; padding-top: 14px;
+}
+.title-screen > .title-card .sub::before {
+  content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 1px;
+  background: linear-gradient(90deg, rgba(201, 163, 86, 0), var(--p-gold-hi), rgba(201, 163, 86, 0));
+}
+.title-screen > .title-card .sub::after {
+  content: ''; position: absolute; top: -4px; left: 50%; width: 8px; height: 8px; margin-left: -4px; transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--p-gold-hi), var(--p-gold-lo)); box-shadow: 0 0 0 2px var(--p-bg2);
+}
+.title-screen > .title-card .stack button { width: 100%; }
+.title-screen > .title-card .lang button:not(.primary):not(.linkish) { color: var(--p-mute); background: none; border: none; box-shadow: none; }
+.title-screen > .title-card .lang button.on:not(.primary):not(.linkish) { color: var(--p-gold-hi); text-decoration: none; border-bottom: 1px solid var(--p-gold); }
+.title-screen > .title-card .proto { color: #6f7480; letter-spacing: 0.06em; }
+.title-screen > .card :is(.account, .tester-note, .soon-note) {
+  color: var(--p-ink); background: linear-gradient(90deg, rgba(201, 163, 86, 0.14), rgba(201, 163, 86, 0.02)); border-left: 2px solid var(--p-gold); border-radius: 0;
+}
+.title-screen > .card .account.sent { border-left-color: var(--p-good); }
+.title-screen > .card .signin label { color: var(--p-mute); }
+.title-screen > .card .linkish { color: var(--p-gold-hi); }
+.title-screen > .card .linkish:hover { color: #fff3d4; }
+
+/* ---------- the character creator ---------- */
+.title-screen > .card.creator { padding: 0; }
+.title-screen > .card.creator .creator-steps { padding-top: 16px; }
+.title-screen > .card.creator .creator-steps div { color: var(--p-mute); border-radius: 2px; letter-spacing: 0.04em; }
+.title-screen > .card.creator .creator-steps .on { color: #fbe9d0; background: linear-gradient(180deg, var(--p-wine-hi), var(--p-wine)); box-shadow: inset 0 0 0 1px var(--p-gold); }
+.title-screen > .card.creator .creator-steps .done { color: var(--p-good); }
+.title-screen > .card.creator .creator-preview {
+  background: radial-gradient(ellipse at 50% 20%, rgba(201, 163, 86, 0.16), transparent 70%), linear-gradient(180deg, #1f2c40, #121a26);
+  border: 1px solid rgba(201, 163, 86, 0.35); border-radius: 3px;
+}
+.title-screen > .card.creator .creator-preview .cp-bust {
+  background: radial-gradient(circle at 45% 35%, #3a4a66, #141c2a);
+  box-shadow: 0 0 0 2px var(--p-gold), 0 0 0 5px var(--p-bg), 0 0 18px rgba(240, 214, 154, 0.25);
+}
+.title-screen > .card.creator .preview-name { font-family: var(--p-title); color: var(--p-gold-hi); letter-spacing: 0.04em; }
+.title-screen > .card.creator .preview-age { color: var(--p-mute); }
+.title-screen > .card.creator .creator-nav { border-top: 1px solid rgba(201, 163, 86, 0.3); }
+/* colour swatches: a gold ring for the chosen one */
+.title-screen > .card.creator .swatches button { border: 2px solid var(--p-bg); box-shadow: 0 0 0 1px rgba(201, 163, 86, 0.4); background-image: none; }
+.title-screen > .card.creator .swatches button.on { box-shadow: 0 0 0 2px var(--p-gold-hi), 0 0 10px rgba(240, 214, 154, 0.45); }
+/* option cards (personality, story) */
+.title-screen > .card.creator :is(.opt) { text-align: left; }
+.title-screen > .card.creator :is(.opt.on, .seg button.on) {
+  color: #fbe9d0; border-color: var(--p-gold-hi);
+  background: linear-gradient(180deg, rgba(154, 51, 70, 0.55), rgba(110, 31, 45, 0.55));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 12px rgba(240, 214, 154, 0.18);
+}
+.title-screen > .card.creator :is(.mix-bar) { background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 1px rgba(201, 163, 86, 0.28); }
+.title-screen > .card.creator .mix-bar i { background: linear-gradient(90deg, var(--p-gold-lo), var(--p-gold-hi)); }
+.title-screen > .card.creator .mix-left { color: var(--p-gold-hi); }
+
+/* ---------- the daily care card on the title screen (care.css) ---------- */
+.title-screen .care {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  border: 1px solid rgba(201, 163, 86, 0.35); border-radius: 3px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.title-screen .care .care-bust {
+  background: radial-gradient(circle at 45% 35%, #3a4a66, #141c2a); border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--p-gold), 0 0 0 4px var(--p-bg), 0 0 10px rgba(240, 214, 154, 0.25);
+}
+.title-screen .care .care-name { font-family: var(--p-title); color: var(--p-gold-hi); letter-spacing: 0.04em; }
+.title-screen .care :is(.care-mood, .care-status) { color: var(--p-mute); }
+.title-screen .care .care-bar-track { background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 1px rgba(201, 163, 86, 0.28); }
+.title-screen .care .care-bar-track span { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 60%); }
+.title-screen .care .care-act.done { color: var(--p-good); border-color: rgba(143, 214, 154, 0.45); background: linear-gradient(180deg, #1f3527, #15261c); }
+.title-screen .care :is(.care-msg) { color: var(--p-gold-hi); background: linear-gradient(90deg, rgba(201, 163, 86, 0.16), rgba(201, 163, 86, 0.02)); border-left: 2px solid var(--p-gold); border-radius: 0; }
+.title-screen .care :is(.care-compose select, .care-compose textarea) { color: var(--p-ink); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 163, 86, 0.45); border-radius: 2px; }
+
+/* creator surfaces that aren't buttons: option and personality cards, the sticky points line, the story intro */
+.title-screen > .card.creator .opt {
+  color: var(--p-ink);
+  background: linear-gradient(180deg, var(--p-raise), #162132);
+  border: 1px solid rgba(201, 163, 86, 0.4); border-radius: 2px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.title-screen > .card.creator .opt b { color: #f6eedb; }
+.title-screen > .card.creator :is(.opt span, .opt .mix-gain, .mix-lean, .mix-intro) { color: var(--p-mute); }
+.title-screen > .card.creator .mix-intro { background: var(--p-bg2); box-shadow: 0 6px 6px -6px rgba(0, 0, 0, 0.6); }
+.title-screen > .card.creator .story-intro { color: var(--p-ink); background: linear-gradient(90deg, rgba(201, 163, 86, 0.14), rgba(201, 163, 86, 0.02)); border-left: 2px solid var(--p-gold); border-radius: 0; }
+.title-screen > .card.creator :is(input, select) { color: var(--p-ink); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 163, 86, 0.45); border-radius: 2px; }
+.title-screen > .card.creator option { color: #1d2326; }
