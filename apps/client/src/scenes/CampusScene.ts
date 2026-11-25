@@ -14,6 +14,7 @@ import { sfx } from '../audio';
 import { bushSpots, frontAt, makeBuildingArt, makeShadowArt, type BuildingArt } from '../art/buildingArt';
 import { CABIN_SIZE, GATE_LEAF_SIZE, PYRAMID_SIZE, SOUTH_FACE, TRIBUNE_LIFT, TUNNEL_ARCH_SIZE, TUNNEL_WALL, WALL_FACE, makeGatewayTextures, tribuneKey } from '../art/gateway';
 import { dressGround } from '../art/ground';
+import { bakeRoom } from '../art/interior';
 import { drawFences } from '../art/fences';
 import { Ambient } from './ambient';
 import { YetimCat } from './yetim';
@@ -843,10 +844,14 @@ export class CampusScene extends Phaser.Scene {
   // ---------- dorm room (walkable interior) ----------
 
   private createRoom(tileset: Phaser.Tilemaps.Tileset) {
-    const roomMap = this.make.tilemap({ data: buildRoom(), tileWidth: TILE, tileHeight: TILE });
+    const roomData = buildRoom();
+    const roomMap = this.make.tilemap({ data: roomData, tileWidth: TILE, tileHeight: TILE });
     const ts = roomMap.addTilesetImage(TILESET_KEY, TILESET_KEY, TILE, TILE, TILESET_MARGIN, TILESET_SPACING)!;
     const layer = roomMap.createLayer(0, ts, ROOM_OX * TILE, 0)!;
     layer.setCollision(ROOM_SOLID as unknown as number[]);
+    // what you see is the smooth baked room; the tile layer stays for collisions
+    layer.setVisible(false);
+    this.add.image(ROOM_OX * TILE, 0, bakeRoom(this, 'room-dorm', roomData)).setOrigin(0).setScale(1 / ART_RES).setDepth(0.01);
     this.physics.add.collider(this.player, layer);
     void tileset;
     // your desk and bed get a little name tag
@@ -911,10 +916,13 @@ export class CampusScene extends Phaser.Scene {
   // ---------- dining hall (Yemekhane) ----------
 
   private createDining() {
-    const map = this.make.tilemap({ data: buildDining(), tileWidth: TILE, tileHeight: TILE });
+    const diningData = buildDining();
+    const map = this.make.tilemap({ data: diningData, tileWidth: TILE, tileHeight: TILE });
     const ts = map.addTilesetImage(TILESET_KEY, TILESET_KEY, TILE, TILE, TILESET_MARGIN, TILESET_SPACING)!;
     const layer = map.createLayer(0, ts, DINING_OX * TILE, 0)!;
     layer.setCollision([...ROOM_SOLID, ...DINING_SOLID] as unknown as number[]);
+    layer.setVisible(false);
+    this.add.image(DINING_OX * TILE, 0, bakeRoom(this, 'room-dining', diningData)).setOrigin(0).setScale(1 / ART_RES).setDepth(0.01);
     this.physics.add.collider(this.player, layer);
     // a pool of diners: whoever the routine says is eating right now takes a seat
     for (let i = 0; i < NPCS.length; i++) {
@@ -1137,10 +1145,13 @@ export class CampusScene extends Phaser.Scene {
   // ---------- classroom (Eğitim Binası) ----------
 
   private createClassroom() {
-    const map = this.make.tilemap({ data: buildClassroom(), tileWidth: TILE, tileHeight: TILE });
+    const classData = buildClassroom();
+    const map = this.make.tilemap({ data: classData, tileWidth: TILE, tileHeight: TILE });
     const ts = map.addTilesetImage(TILESET_KEY, TILESET_KEY, TILE, TILE, TILESET_MARGIN, TILESET_SPACING)!;
     const layer = map.createLayer(0, ts, CLASS_OX * TILE, 0)!;
     layer.setCollision(ROOM_SOLID as unknown as number[]);
+    layer.setVisible(false);
+    this.add.image(CLASS_OX * TILE, 0, bakeRoom(this, 'room-class', classData)).setOrigin(0).setScale(1 / ART_RES).setDepth(0.01);
     this.physics.add.collider(this.player, layer);
     this.classLabels.push(this.add.text((CLASS_OX + MY_CLASS_DESK[0] + 0.5) * TILE, (MY_CLASS_DESK[1] + 0.1) * TILE, L({ tr: 'Senin sıran', en: 'Your desk' }), {
       fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
