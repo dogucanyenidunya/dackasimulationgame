@@ -3095,7 +3095,8 @@ export class CampusScene extends Phaser.Scene {
     const belId = this.save.character.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet';
     if (phase === 'etut') {
       // you walk to the dorm yourself; being 5+ minutes late costs discipline and your belletmen's goodwill
-      if (c.minutes >= 18 * 60 + 5 && st.daily.lateEtut !== day) {
+      // (leave from your belletmen: not late until 18:30)
+      if (c.minutes >= 18 * 60 + (st.daily.etutPass === day ? 30 : 5) && st.daily.lateEtut !== day) {
         st.daily.lateEtut = day;
         shape(st, { rules: 1 });
         this.penalize(5, L({ tr: `${belletmen}: "Etüte geç kaldın!"`, en: `${belletmen}: "You're late for study time!"` }));
@@ -4145,7 +4146,8 @@ export class CampusScene extends Phaser.Scene {
     // people who don't like you sometimes make your life harder
     const foes = dislikers(st);
     const shield = myGroup(st) ? 0.5 : 1;
-    if (foes.length && !hasSecret(st, 'kalkan') && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
+    // (an abi or abla who has your back keeps them off you for a week)
+    if (foes.length && !hasSecret(st, 'kalkan') && !((st.daily.protectedUntil ?? 0) >= c.day) && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
     // weekly pocket money every Monday
     const week = weekOf(c.day);
     if (weekdayOf(c.day) === 0 && st.lastAllowanceWeek < week) {

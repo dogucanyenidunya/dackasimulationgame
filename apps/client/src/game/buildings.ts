@@ -7,7 +7,7 @@ import { TEACHERS } from '../content/classroom';
 import { bioOf, personaOf } from '../content/bios';
 import { DEFAULT_LOOK } from '../art/character';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
-import { MATCH_TIP, matchOn, ceremonyNow, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
+import { MATCH_TIP, matchOn, ceremonyNow, ETUT_START, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { GIVER_IDS, MISSIONS, missionById, missionDone, oldersToMeet, questsFrom, reached, statusOf, type Mission, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
@@ -22,7 +22,8 @@ import type { YbResult } from '../ui/yetimball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
-import { ageRel, nextTierHint, sortOut, tierOf } from './interactions';
+import { ageRel, blockedBy, nextTierHint, sortOut, tierOf, trustLine, type AgeRel } from './interactions';
+import { dislikers } from './social';
 import { lessonEvent, lessonFiller, lessonOpening, type MomentResult } from './lessonMoments';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
@@ -422,7 +423,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         const q = askFor(sub.id, Math.floor(Math.random() * 1000));
         if (await ctx.panel.quiz(T(`Yıl sonu sınavı · ${L(sub.name)}`, `Year-end exam · ${L(sub.name)}`), L(q.q), q.options.map(L), q.answer, `${i + 1}/${SUBJECTS.length}`)) right++;
       }
-      const pct = Math.min(100, Math.round((right / SUBJECTS.length) * 100 + ctx.ch.attributes.knowledge / 4 + (hasSecret(ctx.st, 'azim') ? 5 : 0)));
+      const pct = Math.min(100, Math.round((right / SUBJECTS.length) * 100 + ctx.ch.attributes.knowledge / 4 + (hasSecret(ctx.st, 'azim') ? 5 : 0) + (ctx.st.once[`notes-${ctx.st.year}`] ? 5 : 0)));
       ctx.advance(60);
       if (pct >= 50) {
         ctx.st.examPassed = true;
@@ -787,6 +788,44 @@ export function araOgun(ctx: GameCtx): PanelView {
   return { title: T('Ara öğün', 'Afternoon snack'), sub: 'Yemekhane', status: status(ctx), rooms: [snackRoom(ctx)] };
 }
 
+/** Şakir Abi and Cemil Emmi keep their trust in `friends` under these ids */
+const SAKIR = 'sakir';
+const CEMIL = 'cemil';
+
+/** Şakir Abi behind the counter: he gets to know the regulars (every purchase counts) */
+function sakirActions(ctx: GameCtx): ActionView[] {
+  const f = Math.round(ctx.st.friends[SAKIR] ?? 0);
+  const once = (key: string) => (doneToday(ctx, `${key}-sakir`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
+  const mark = (key: string) => markToday(ctx, `${key}-sakir`);
+  const say = (tr: string, en: string) => ctx.panel.message('Şakir Abi', T(tr, en));
+  return gate([
+    {
+      id: 'banter', label: T(`🗣️ Şakir Abi'yle laflaş · ${trustLine(f)}`, `🗣️ Chat with Şakir · ${trustLine(f)}`), hint: T('5 dk · +4 güven · günde bir · aldığın her şey de güvenini artırır', '5 min · +4 trust · once a day · everything you buy counts too'),
+      locked: once('banter'),
+      run: async () => {
+        mark('banter'); ctx.advance(5); ctx.befriend(SAKIR, 4); ctx.gain({ mood: 2 });
+        await say('"Maç kaç kaç bitti, duydun mu? Ben radyodan dinledim." Tezgâhı silerken anlattı da anlattı.', '"Did you hear the score last night? I listened on the radio." He went on and on while wiping the counter.');
+      },
+    },
+    {
+      id: 'onthehouse', label: T('🫖 "Bir çay, bir simit… benden"', '🫖 "Tea and a simit, on me"'), hint: T('Bedava · +15 tokluk · +5 moral · günde bir', 'Free · +15 fullness · +5 mood · once a day'),
+      locked: once('treat'),
+      run: async () => {
+        mark('treat'); ctx.gain({ hunger: 15, mood: 5 });
+        await say('"Otur bakalım şöyle. Para mara istemem, sen benim müdavimimsin."', '"Sit yourself down. I don\'t want your money; you\'re one of my regulars."');
+      },
+    },
+    {
+      id: 'counter', label: T('🧺 Tezgâhta yardım et', '🧺 Help behind the counter'), hint: T('30 dk · +10 ₺ · +3 güven · günde bir', '30 min · +10 ₺ · +3 trust · once a day'),
+      locked: once('counter') ?? (ctx.st.energy < 10 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
+      run: async () => {
+        mark('counter'); nudge(ctx, { warmth: -1, ambition: 1 }); ctx.advance(30); ctx.befriend(SAKIR, 3); ctx.gain({ money: 10, energy: -6, xp: 5 });
+        await say('Teneffüs kalabalığında simitleri sen uzattın, bozukları o saydı. "Al bakalım, alın terinin hakkı." +10 ₺', 'In the break-time rush you handed out the simits while he counted the change. "Here you go, you earned it." +10 ₺');
+      },
+    },
+  ], f, 'adult');
+}
+
 /** Şakir Abi's canteen, inside the Spor Salonu */
 function kantinRoom(ctx: GameCtx): RoomView {
   const minutes = ctx.clock.minutes;
@@ -799,11 +838,13 @@ function kantinRoom(ctx: GameCtx): RoomView {
       : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).'),
     actions: [
       ...visitActions(ctx),
+      ...(kantinOpen ? sakirActions(ctx) : []),
       ...KANTIN.map((k) => ({
         id: k.id, label: `${L(k.name)} · ${k.price} ₺`, hint: T(`Sıcak, hemen yenir · +${k.hunger} tokluk · +${k.mood} moral`, `Hot, eaten on the spot · +${k.hunger} fullness · +${k.mood} mood`),
         locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < k.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
         run: () => {
           ctx.gain({ money: -k.price, hunger: k.hunger, mood: k.mood });
+          ctx.befriend(SAKIR, 1);
           ctx.advance(10);
           ctx.toast(T(`${L(k.name)} · afiyet olsun!`, `${L(k.name)} · enjoy!`));
         },
@@ -821,6 +862,7 @@ function kantinRoom(ctx: GameCtx): RoomView {
             if (!what) return;
             if (what === 'keep' && !pocket(ctx, k.id)) { ctx.toast(T('Ceplerin dolu. Önce dolabına bırak ya da ye.', 'Your pockets are full. Put some in your locker or eat them first.')); return; }
             ctx.gain({ money: -k.price });
+            ctx.befriend(SAKIR, 1);
             if (what === 'eat') { ctx.gain({ hunger: sn.hunger, mood: sn.mood }); ctx.advance(5); ctx.toast(T(`${L(sn.name)} · afiyet olsun!`, `${L(sn.name)} · enjoy!`)); }
             else ctx.toast(T(`${L(sn.name)} cebinde. Dolabına koyabilirsin.`, `${L(sn.name)} is in your pocket. You can put it in your locker.`), 'good');
           },
@@ -1808,6 +1850,154 @@ function questNote(npc: NpcDef, ctx: GameCtx): string {
   return T(' · 📜 Sana bir görevi var.', ' · 📜 Has a quest for you.');
 }
 
+/** keeps what's open with this person (by tier and age) and adds the "more opens up" hint when something is waiting */
+function gate(actions: ActionView[], f: number, age: AgeRel, sameGrade = false, hint = true): ActionView[] {
+  const { open, next } = sortOut(actions, { tier: tierOf(f), age, sameGrade });
+  if (next && hint) open.push({ id: 'next-tier', label: nextTierHint(next, age), locked: age === 'adult' ? T('Güvenini kazandıkça', 'As you earn their trust') : T('Birbirinizi tanıdıkça', 'As you get to know each other'), run: () => {} });
+  return open;
+}
+
+/** what an older student (abi / abla) can do for a younger one they know */
+function olderActions(npc: NpcDef, ctx: GameCtx, lock: string | undefined): ActionView[] {
+  const st = ctx.st, day = ctx.clock.day;
+  const once = (key: string) => (doneToday(ctx, `${key}-${npc.id}`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
+  const mark = (key: string) => markToday(ctx, `${key}-${npc.id}`);
+  const say = (tr: string, en: string) => ctx.panel.message(npc.name, T(tr, en));
+  const girl = npc.gender === 'girl';
+  const kantinOpen = ctx.clock.minutes >= 8 * 60 && ctx.clock.minutes < 18 * 60;
+  const foes = dislikers(st).filter((n) => n.id !== npc.id);
+  const worst = [...foes].sort((a, b) => (st.friends[a.id] ?? 0) - (st.friends[b.id] ?? 0))[0];
+  const year = grade(st.year);
+  return [
+    {
+      id: 'advice', label: T(`🧭 ${girl ? 'Ablana' : 'Abine'} akıl danış`, '🧭 Ask their advice'), hint: T('10 dk · burada işlerin nasıl döndüğünü anlatır · +6 arkadaşlık · günde bir', '10 min · they tell you how things work here · +6 friendship · once a day'),
+      locked: lock ?? once('advice'),
+      run: async () => {
+        mark('advice'); nudge(ctx, { heart: 1 }); ctx.advance(10); ctx.befriend(npc.id, 6); ctx.gain({ mood: 3, xp: 5 });
+        const tips: Array<[string, string]> = [
+          ['Etüt 18:00\'de başlar. Beş dakika geç kalırsan belletmen yazar, üstüne bir de sana bozulur.', "Study time starts at 18:00. Five minutes late and the belletmen writes you up, and holds it against you too."],
+          ['Gece Selim Hoca fenerle dolaşır. Işığına girmezsen seni görmez; gir, yandın.', "At night Mr. Selim walks round with a torch. Stay out of its beam and he won't see you; step into it and you're done."],
+          ['Ödevi aldığın gün bitir. Ertesi sabah defterde yoksa Murat Hoca sıfır verir, tartışması yok.', "Finish your homework the day you get it. If it isn't in your notebook the next morning, Mr. Murat gives you a zero, no arguing."],
+          ['Disiplin puanı silinir mi? Silinir. Temiz geçen her gün biraz düşer; yeter ki üst üste batırma.', "Do discipline points go away? They do. Each clean day takes a few off; just don't keep messing up."],
+          ['Bir grubun olsun. Arkanda birileri varken sana bulaşan da azalır.', "Find your group. With people behind you, fewer people mess with you."],
+          ['Pazartesi 08:10\'da bayrak töreni var. Kahvaltıyı uzatma, sıraya geç kalan hemen göze batar.', "The flag ceremony is Monday at 08:10. Don't linger over breakfast; anyone late to the line stands out at once."],
+          ['Sınavda sadece o gün bildiklerin değil, bütün yıl okuduğun da işe yarar. Kütüphaneyi boş bırakma.', "In the exam it's not just what you know that day; everything you read during the year counts. Don't skip the library."],
+        ];
+        const [tr, en] = tips[(day + npc.id.length) % tips.length];
+        await say(`"${tr}"`, `"${en}"`);
+      },
+    },
+    {
+      id: 'errand', label: T('🏃 Ayak işi yap', '🏃 Run an errand for them'), hint: T('15 dk · kantinden bir şey getirirsin · +10 arkadaşlık · günde bir', '15 min · fetch something from the canteen · +10 friendship · once a day'),
+      locked: lock ?? once('errand') ?? (kantinOpen ? undefined : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).')),
+      run: async () => {
+        mark('errand'); nudge(ctx, { warmth: -1, loyalty: 1 }); ctx.advance(15); ctx.befriend(npc.id, 10); ctx.gain({ xp: 5, energy: -3 });
+        const tip = Math.random() < 0.5;
+        if (tip) ctx.gain({ money: 5 });
+        await say(
+          `Kantine koşup ${girl ? 'ablana' : 'abine'} bir gazozla bir paket bisküvi getirdin.${tip ? ' "Üstü sende kalsın ufaklık." +5 ₺' : ' "Eyvallah, sağ ol."'}`,
+          `You ran to the canteen and brought back a soda and a packet of biscuits.${tip ? ' "Keep the change, little one." +5 ₺' : ' "Cheers, thanks."'}`,
+        );
+      },
+    },
+    {
+      id: 'protect', label: T(`🛡️ ${girl ? 'Ablandan' : 'Abinden'} arka çıkmasını iste`, '🛡️ Ask them to have your back'), hint: worst ? T(`${worst.name} seninle uğraşıyor · bir hafta kimse sana bulaşmaz · haftada bir`, `${worst.name} keeps picking on you · nobody messes with you for a week · once a week`) : T('Biri sana bulaşırsa', 'When someone picks on you'),
+      locked: lock ?? (!worst ? T('Şu an sana bulaşan kimse yok.', 'Nobody is picking on you right now.') : (st.daily.protectNext ?? 0) > day ? T('Bu hafta zaten konuştu.', 'They already had a word this week.') : undefined),
+      run: async () => {
+        nudge(ctx, { loyalty: 2, warmth: 1 });
+        st.daily.protectNext = day + 7; st.daily.protectedUntil = day + 7;
+        ctx.befriend(worst!.id, 15); ctx.befriend(npc.id, 4); ctx.gain({ mood: 6 });
+        await say(
+          `"${worst!.name} mi? Tamam, ben bir konuşurum onunla." Ertesi gün ${worst!.name} yanından geçerken başını önüne eğdi. Bu hafta kimse sana bulaşmaz.`,
+          `"${worst!.name}? Fine, I'll have a word." The next day ${worst!.name} kept their eyes down walking past you. Nobody will mess with you this week.`,
+        );
+      },
+    },
+    {
+      id: 'notes', label: T(`📒 ${girl ? 'Ablanın' : 'Abinin'} eski defterlerini iste`, '📒 Ask for their old notebooks'), hint: T(`${year}. sınıftaki notları · +3 Bilgi · yıl sonu sınavında +5 · yılda bir`, `Their grade ${year} notes · +3 Knowledge · +5 in the year-end exam · once a year`),
+      locked: lock ?? (st.once[`notes-${st.year}`] ? T('Bu yılın defterlerini zaten aldın.', "You've already got this year's notebooks.") : undefined),
+      run: async () => {
+        st.once[`notes-${st.year}`] = true; nudge(ctx, { ambition: 1, loyalty: 1 }); ctx.befriend(npc.id, 5); ctx.gain({ attrs: { knowledge: 3 }, xp: 10 });
+        await say(
+          `"Benim ${year}. sınıf defterlerim, hepsi burada. Kenarlarına sınavda ne çıktıysa yazdım. Kaybetme, sonra senden küçüğe verirsin."`,
+          `"My grade ${year} notebooks, all of them. I wrote what came up in the exam in the margins. Don't lose them; pass them on to someone younger after."`,
+        );
+      },
+    },
+  ];
+}
+
+/** a subject teacher or the deputy head: what opens as they come to trust you */
+function teacherActions(npc: NpcDef, ctx: GameCtx): ActionView[] {
+  const once = (key: string) => (doneToday(ctx, `${key}-${npc.id}`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
+  const mark = (key: string) => markToday(ctx, `${key}-${npc.id}`);
+  const say = (tr: string, en: string) => ctx.panel.message(npc.name, T(tr, en));
+  const subjectTeacher = npc.id.startsWith('ogr-');
+  const subject = L(npc.role).replace(/ öğretmeni$| teacher$/, '');
+  return [
+    {
+      id: 'ask', label: subjectTeacher ? T(`❓ ${subject} dersiyle ilgili soru sor`, `❓ Ask a question about ${subject}`) : T('❓ Bir şey sor', '❓ Ask something'), hint: T('10 dk · +1 Bilgi · +5 güven · günde bir', '10 min · +1 Knowledge · +5 trust · once a day'),
+      locked: once('ask'),
+      run: async () => {
+        mark('ask'); nudge(ctx, { ambition: 1 }); ctx.advance(10); ctx.befriend(npc.id, 5); ctx.gain({ attrs: { knowledge: 1 }, xp: 5 });
+        await say('"Güzel soru. Bak, şöyle düşün…" Tahtaya çizer gibi havada anlattı; sonunda kafanda bir şey yerine oturdu.', '"Good question. Look, think of it like this…" They sketched it in the air as if on a blackboard, and something clicked into place.');
+      },
+    },
+    ...(subjectTeacher ? [{
+      id: 'extra', label: T('📝 Ek çalışma iste', '📝 Ask for extra work'), hint: T('20 dk · −8 enerji · +2 Bilgi · +6 güven · günde bir', '20 min · −8 energy · +2 Knowledge · +6 trust · once a day'),
+      locked: once('extra') ?? (ctx.st.energy < 8 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
+      run: async () => {
+        mark('extra'); nudge(ctx, { ambition: 2 }); focusTick(ctx, 'study'); ctx.advance(20); ctx.befriend(npc.id, 6); ctx.gain({ attrs: { knowledge: 2 }, energy: -8, xp: 10 });
+        await say('Çantasından fotokopili bir yaprak çıkardı. "Bunları çöz, yarın bana getir. Zor olanları boş bırakma, dene en azından."', 'They pulled a photocopied sheet from their bag. "Do these and bring them to me tomorrow. Don\'t leave the hard ones blank; at least try."');
+      },
+    }] : []),
+    {
+      id: 'guidance', label: T('💬 Hocanla dertleş', '💬 Talk to them about how you are'), hint: T('15 dk · +10 moral · +4 güven · günde bir', '15 min · +10 mood · +4 trust · once a day'),
+      locked: once('guidance'),
+      run: async () => {
+        mark('guidance'); nudge(ctx, { heart: 1 }); ctx.advance(15); ctx.befriend(npc.id, 4); ctx.gain({ mood: 10 });
+        await say(`"Nasılsın ${ctx.ch.first}, gerçekten? Evi özlüyor musun?" Bir süre konuştunuz. Kalkarken omzuna dokundu: "Kapım hep açık, biliyorsun."`, `"How are you, ${ctx.ch.first}, really? Do you miss home?" You talked for a while. As you got up they touched your shoulder: "My door is always open, you know that."`);
+      },
+    },
+  ];
+}
+
+/** your belletmen and the night patrol: owning up, opening up, and (once they trust you) a little leeway */
+function belletmenActions(npc: NpcDef, ctx: GameCtx): ActionView[] {
+  const st = ctx.st, day = ctx.clock.day;
+  const once = (key: string) => (doneToday(ctx, `${key}-${npc.id}`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
+  const mark = (key: string) => markToday(ctx, `${key}-${npc.id}`);
+  const say = (tr: string, en: string) => ctx.panel.message(npc.name, T(tr, en));
+  const mine = npc.id === (ctx.ch.gender === 'girl' ? 'bel-hatice' : 'bel-mehmet');
+  return [
+    {
+      id: 'sorry', label: T('🙏 Özür dile', '🙏 Apologise'), hint: T('+10 güven · günde bir', '+10 trust · once a day'),
+      locked: once('sorry'),
+      run: async () => {
+        mark('sorry'); nudge(ctx, { rules: -1, warmth: -1 }); ctx.befriend(npc.id, 10);
+        await say('"Bir daha olmasın." Sesi hâlâ sertti ama yüzü biraz yumuşadı.', '"Don\'t let it happen again." Their voice was still stern, but their face softened a little.');
+      },
+    },
+    {
+      id: 'confide', label: T('💬 İçini dök', '💬 Open up to them'), hint: T('10 dk · +10 moral · +3 güven · günde bir', '10 min · +10 mood · +3 trust · once a day'),
+      locked: once('confide'),
+      run: async () => {
+        mark('confide'); nudge(ctx, { heart: 2 }); ctx.advance(10); ctx.befriend(npc.id, 3); ctx.gain({ mood: 10 });
+        await say(`Evi özlediğini, bazı geceler uyuyamadığını anlattın. Dinledi, sonra çayını uzattı. "Herkes ilk sene böyledir ${ctx.ch.first}. Geçer. Ben buradayım."`, `You told them you miss home and some nights can't sleep. They listened, then passed you their tea. "Everyone's like this the first year, ${ctx.ch.first}. It passes. I'm here."`);
+      },
+    },
+    ...(mine ? [{
+      id: 'pass', label: T('🎟️ Etüte geç gelmek için izin iste', '🎟️ Ask to be late for study time'), hint: T('Bugün 18:30\'a kadar geç sayılmazsın · haftada bir', "You won't count as late until 18:30 today · once a week"),
+      locked: (st.daily.passNext ?? 0) > day ? T('Bu hafta zaten izin aldın.', 'You already had leave this week.')
+        : !hasEtut(day) || ctx.clock.minutes >= ETUT_START ? T('Etütten önce sorman lazım.', 'You have to ask before study time.') : undefined,
+      run: async () => {
+        nudge(ctx, { rules: 1 }); st.daily.etutPass = day; st.daily.passNext = day + 7;
+        await say('"Peki. Ama 18:30\'da masanda ol, bir dakika bile geç kalma. Sana güvendiğim için."', '"All right. But be at your desk by 18:30, not a minute later. Only because I trust you."');
+      },
+    }] : []),
+  ];
+}
+
 /** the card at the top of anyone's panel: what kind of person they are and their story */
 function profileFor(npc: NpcDef, ctx: GameCtx, met: boolean) {
   const p = personaOf(npc);
@@ -1841,11 +2031,13 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
       locked: doneToday(ctx, `help-${npc.id}`) ? T('Bugün zaten yardım ettin.', 'You already helped today.') : undefined,
       run: () => { nudge(ctx, { rules: -2 }); markToday(ctx, `help-${npc.id}`); ctx.advance(15); ctx.befriend(npc.id, 8); ctx.toast(T(`${npc.name} ile meydandaki küçükleri yoklamaya topladınız.`, `You helped ${npc.name} round up the little ones for roll call.`), 'good'); },
     });
+    actions.push(...gate(belletmenActions(npc, ctx), f, 'adult'));
   } else if (npc.kind === 'teacher') {
     actions.push({
-      id: 'hello', label: T('Selam ver', 'Say hello'),
-      run: async () => { await ctx.panel.message(npc.name, `"${L(line)}"`); },
+      id: 'hello', label: T('Selam ver', 'Say hello'), hint: T('+2 güven · günde bir', '+2 trust · once a day'),
+      run: async () => { if (!doneToday(ctx, `hello-${npc.id}`)) { markToday(ctx, `hello-${npc.id}`); ctx.befriend(npc.id, 2); } await ctx.panel.message(npc.name, `"${L(line)}"`); },
     });
+    actions.push(...gate(teacherActions(npc, ctx), f, 'adult'));
   } else if (npc.kind === 'classmate' || npc.kind === 'student') {
     const lock = met ? undefined : T(`Önce ${npc.name} ile tanış.`, `Get to know ${npc.name} first.`);
     if (!met) actions.push(meetAction(npc, ctx));
@@ -1878,13 +2070,12 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
         await ctx.panel.message(npc.name, T('Yanına oturdun ve sadece dinledin. "…Sağ ol. Buna ihtiyacım vardı."', 'You sat with them and just listened. "…Thanks. I needed that."'));
       },
     });
-    actions.push(...socialActions(npc, ctx, f, lock));
+    actions.push(...socialActions(npc, ctx, f, lock), ...olderActions(npc, ctx, lock));
     // what's open depends on how close you are and how old they are (game/interactions.ts)
     const mine = grade(ctx.st.year);
-    const { open, next } = sortOut(actions, { tier: tierOf(f), age: ageRel(npc, mine), sameGrade: (npc.grade ?? mine) === mine });
+    const open = gate(actions, f, ageRel(npc, mine), (npc.grade ?? mine) === mine, met);
     actions.length = 0;
     actions.push(...open);
-    if (next && met) actions.push({ id: 'next-tier', label: nextTierHint(next), locked: T('Birbirinizi tanıdıkça', 'As you get to know each other'), run: () => {} });
   } else {
     const st = ctx.st;
     const lock = needMission(ctx, 'abi_sandvic');
@@ -1921,12 +2112,16 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
       locked: doneToday(ctx, `hello-${npc.id}`) ? T('Bugün zaten selamlaştınız.', 'You already said hello today.') : undefined,
       run: async () => { markToday(ctx, `hello-${npc.id}`); ctx.befriend(npc.id, 5); await ctx.panel.message(npc.name, `"${L(line)}"`); },
     });
+    actions.push(...olderActions(npc, ctx, met ? undefined : T(`Önce ${npc.name} ile tanış.`, `Get to know ${npc.name} first.`)));
+    const open = gate(actions, f, ageRel(npc, grade(st.year)), false, met);
+    actions.length = 0;
+    actions.push(...open);
   }
   return {
     title: npc.name, sub: L(npc.role), status: status(ctx), profile: profileFor(npc, ctx, met),
     rooms: [{
       id: 'talk', name: npc.name,
-      note: npc.kind === 'teacher' ? L(npc.role) : npc.kind === 'belletmen' ? T(`Gece öğretmeni · ilişkiniz: ${f}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · your relationship: ${f}. Being late hurts it; if it's low, they watch you more closely.`)
+      note: npc.kind === 'teacher' ? `${L(npc.role)} · ${trustLine(f)}` : npc.kind === 'belletmen' ? T(`Gece öğretmeni · ${trustLine(f)}. Geç kalırsan bozulur; düşükse seni daha sıkı izler.`, `Night teacher · ${trustLine(f)}. Being late hurts it; if it's low, they watch you more closely.`)
         : `${f >= FRIEND_AT ? '💛 ' : ''}${L(friendLevel(f))} · ${f}/100${npc.kind === 'classmate' && f < FRIEND_AT ? T(` (arkadaşlık için ${FRIEND_AT})`, ` (${FRIEND_AT} to be friends)`) : ''}${about}${met ? '' : T(' · henüz tanışmadınız', " · you haven't met yet")}${GIVER_IDS.includes(npc.id) ? questNote(npc, ctx) : ''}`,
       actions,
     }],
@@ -2349,6 +2544,60 @@ function councilHallActions(ctx: GameCtx): ActionView[] {
 
 // ---------------- Cemil Emmi (boys' dorm caretaker) ----------------
 
+/** Cemil Emmi between tasks: a hand with the broom, a game of chess, and the old days */
+function cemilActions(ctx: GameCtx): ActionView[] {
+  const st = ctx.st;
+  const f = Math.round(st.friends[CEMIL] ?? 0);
+  const once = (key: string) => (doneToday(ctx, `${key}-cemil`) ? T('Bugün zaten yaptın.', 'Already done today.') : undefined);
+  const mark = (key: string) => markToday(ctx, `${key}-cemil`);
+  const say = (tr: string, en: string) => ctx.panel.message('Cemil Emmi', T(tr, en));
+  const win = Math.min(0.3, 0.05 + ctx.ch.attributes.knowledge / 400);
+  const times: Array<[string, string]> = [
+    ['"Ben buraya geldiğimde bu ağaçlar senin boyundaydı. Şimdi bak." Çınara uzun uzun baktı.', '"When I came here these trees were your height. Look at them now." He gazed up at the plane tree for a long while.'],
+    ['"Bir kış kaloriferler bozulmuştu. Koğuştakiler yatakları yan yana çekip yorganları birleştirdi, sabaha kadar fıkra anlattılar. Kimse üşümedi."', '"One winter the heating broke down. The boys pushed their beds together, piled up the blankets and told jokes until morning. Nobody was cold."'],
+    ['"Benim çocuklarım büyüdü, gitti; doktor oldu, mühendis oldu, öğretmen oldu. Bayramda hâlâ gelip elimi öperler. Sen de gelirsin, biliyorum."', '"My boys grew up and left: doctors, engineers, teachers. They still come at the holidays to kiss my hand. You will too, I know."'],
+    ['"Mezuniyet günü bütün devre şu kapının önünde marşı söyledi. Ben de süpürgeye yaslanıp ağladım, kimseye söyleme."', '"On graduation day the whole year sang the anthem in front of that door. I leaned on my broom and cried. Don\'t tell anyone."'],
+  ];
+  return gate([
+    {
+      id: 'sweep', label: T('🧹 Süpürmesine yardım et', '🧹 Help him sweep'), hint: T('15 dk · +8 güven · günde bir', '15 min · +8 trust · once a day'),
+      locked: once('sweep'),
+      run: async () => {
+        mark('sweep'); nudge(ctx, { warmth: -1, rules: -1 }); ctx.advance(15); ctx.befriend(CEMIL, 8); ctx.gain({ energy: -4, xp: 5 });
+        await say('"Köşelere de bak, köşelere! Hah, şöyle. Aferin evlat."', '"Get the corners too, the corners! That\'s it. Good lad."');
+      },
+    },
+    {
+      id: 'chess', label: T('♟️ Satranç oyna', '♟️ Play chess'), hint: T(`30 dk · kazanma şansın %${Math.round(win * 100)} (Bilgi'ne göre) · +güven · günde bir`, `30 min · ${Math.round(win * 100)}% chance to win (from your Knowledge) · +trust · once a day`),
+      locked: once('chess'),
+      run: async () => {
+        mark('chess'); nudge(ctx, { ambition: 1 }); ctx.advance(30);
+        if (Math.random() < win) {
+          const first = !st.once.beatCemil;
+          st.once.beatCemil = true;
+          ctx.befriend(CEMIL, 6);
+          if (first) ctx.ch.respect += 10;
+          ctx.gain({ mood: 10, xp: first ? 40 : 10, attrs: { knowledge: 1 } });
+          await say(first ? '"Mat mı? Bu mat!" Uzun uzun tahtaya baktı, sonra güldü. "Kerem\'den sonra beni yenen ilk sensin. Yarın rövanş!" +10 saygınlık' : '"Yine mi? Sen bu işi öğrendin evlat."',
+            first ? '"Checkmate? That\'s checkmate!" He stared at the board for a long time, then laughed. "You\'re the first to beat me since Kerem. Rematch tomorrow!" +10 respect' : '"Again? You\'ve got the hang of this, lad."');
+        } else {
+          ctx.befriend(CEMIL, 3); ctx.gain({ attrs: { knowledge: 1 } });
+          await say('"Şah… ve mat." Taşları yavaşça topladı. "Atını çok erken oynuyorsun. Yarın yine gel."', '"Check… and mate." He gathered the pieces slowly. "You bring your knight out too early. Come again tomorrow."');
+        }
+      },
+    },
+    {
+      id: 'oldtimes', label: T('📻 Eski günleri sor', '📻 Ask about the old days'), hint: T('15 dk · +6 moral · +4 güven · günde bir', '15 min · +6 mood · +4 trust · once a day'),
+      locked: once('oldtimes'),
+      run: async () => {
+        mark('oldtimes'); nudge(ctx, { loyalty: 2, heart: 1 }); ctx.advance(15); ctx.befriend(CEMIL, 4); ctx.gain({ mood: 6 });
+        const [tr, en] = times[ctx.clock.day % times.length];
+        await say(tr, en);
+      },
+    },
+  ], f, 'adult');
+}
+
 export function cemilPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const c = st.cemil;
@@ -2377,6 +2626,7 @@ export function cemilPanel(ctx: GameCtx): PanelView {
       },
     });
   }
+  actions.push(...cemilActions(ctx));
   const notes: Record<string, string> = {
     none: tooOld ? T('"Sen artık büyüdün evlat. Yeni görevler yakında."', '"You\'re a big kid now. New tasks soon."') : T('Yaşlı hademe Cemil Emmi, elinde süpürgesiyle seni süzüyor. "Gel bakalım, sana bir görevim var."', 'Old caretaker Cemil Emmi eyes you, broom in hand. "Come here, I have a task for you."'),
     assigned: c.peeFails > 0
@@ -2386,7 +2636,7 @@ export function cemilPanel(ctx: GameCtx): PanelView {
     rewarded: T('"Yeni görevler yolda. Şimdilik dersine çalış."', '"New tasks are on the way. Study for now."'),
   };
   return {
-    title: 'Cemil Emmi', sub: T('Erkek Yurdu · hademe', "Boys' dorm · caretaker"), status: status(ctx),
+    title: 'Cemil Emmi', sub: T(`Erkek Yurdu · hademe · ${trustLine(Math.round(st.friends[CEMIL] ?? 0))}`, `Boys' dorm · caretaker · ${trustLine(Math.round(st.friends[CEMIL] ?? 0))}`), status: status(ctx),
     rooms: [{ id: 'cemil', name: 'Cemil Emmi', note: notes[c.pee], actions }],
   };
 }

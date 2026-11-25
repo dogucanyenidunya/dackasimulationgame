@@ -1338,5 +1338,26 @@ Students walk to a building's door and go in, and come out of the same door. The
 | Anlaşamıyor / Rakip | ⚔️ Meydan oku | Once a day, outdoors, not with someone younger: a race; win for +5 respect and +12 friendship, lose and it stings |
 | Anlaşamıyor / Rakip | 🕊️ Arabulucu bul | Once a day: a friend you have in common (in their group) sits you down together; +20 friendship |
 
-Next steps: options for older students and adults, and options opened by what you've done together.
+**Step 3 (v0.11):** options with older students and with adults. With an adult the same score reads as **trust**: Seni pek tanımıyor, Seni tanıyor (10+), Sana güveniyor (40+), Sana çok güveniyor (70+); Sana mesafeli / Sana kızgın below zero. Abis and ablas without a set grade count as lise students (older). Şakir Abi and Cemil Emmi keep their trust under `friends.sakir` and `friends.cemil`.
+
+| Who | Needs | Interaction | What it does |
+|---|---|---|---|
+| Abi / abla | Tanıdık (10+) | 🧭 Akıl danış | Once a day: a real tip about how the school works (study time, the night patrol, homework, discipline, groups, the ceremony, the exam); +6 friendship |
+| Abi / abla | Tanıdık (10+) | 🏃 Ayak işi yap | Once a day, while the canteen is open: fetch them something; +10 friendship, sometimes they let you keep the change (+5 ₺) |
+| Abi / abla | Arkadaş (40+) | 🛡️ Arka çıkmasını iste | Once a week, only when someone dislikes you: they have a word with the worst one (+15 friendship with them), and nobody plays a nasty trick on you for 7 days |
+| Abi / abla | Yakın (70+) | 📒 Eski defterlerini iste | Once a year: their notes for your grade; +3 Knowledge and +5 in the year-end exam |
+| Teacher | Anyone | ❓ Soru sor | Once a day: +1 Knowledge, +5 trust (saying hello gives +2) |
+| Subject teacher | Seni tanıyor (10+) | 📝 Ek çalışma iste | Once a day: −8 energy, +2 Knowledge, +6 trust; counts towards the Dersler focus |
+| Teacher | Sana güveniyor (40+) | 💬 Hocanla dertleş | Once a day: +10 mood, +4 trust |
+| Belletmen | Sana mesafeli / kızgın | 🙏 Özür dile | Once a day: +10 trust |
+| Belletmen | Seni tanıyor (10+) | 💬 İçini dök | Once a day: +10 mood, +3 trust |
+| Your belletmen | Sana güveniyor (40+) | 🎟️ Etüte geç gelme izni | Once a week, asked before 18:00 on a study day: you aren't late until 18:30 |
+| Şakir Abi | Anyone | 🗣️ Laflaş | Once a day: +4 trust; every purchase is +1 trust |
+| Şakir Abi | Sana güveniyor (40+) | 🫖 Bir çay, bir simit… benden | Once a day, free: +15 fullness, +5 mood |
+| Şakir Abi | Sana çok güveniyor (70+) | 🧺 Tezgâhta yardım et | Once a day, 30 min: +10 ₺ |
+| Cemil Emmi | Anyone | 🧹 Süpürmesine yardım et | Once a day: +8 trust |
+| Cemil Emmi | Seni tanıyor (10+) | ♟️ Satranç oyna | Once a day: 5–30% chance to win (from Knowledge); the first win is +10 respect ("the first to beat me since Kerem") |
+| Cemil Emmi | Sana güveniyor (40+) | 📻 Eski günleri sor | Once a day: one of his stories from the school's past; +6 mood, a little Devreci |
+
+Next steps: options opened by what you've done together (shared memories and dilemmas), and options for younger students from Year 2.
 

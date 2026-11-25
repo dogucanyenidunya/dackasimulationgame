@@ -33,7 +33,8 @@ export type AgeRel = 'younger' | 'peer' | 'older' | 'adult';
 
 export function ageRel(npc: NpcDef, playerGrade: number): AgeRel {
   if (npc.kind === 'teacher' || npc.kind === 'belletmen') return 'adult';
-  const g = npc.grade ?? playerGrade;
+  // (the abis and ablas without a set grade are lise students)
+  const g = npc.grade ?? (npc.kind === 'abi' ? 10 : playerGrade);
   return g <= playerGrade - 2 ? 'younger' : g >= playerGrade + 2 ? 'older' : 'peer';
 }
 
@@ -78,6 +79,25 @@ export const RULES: Record<string, Rule> = {
   // when things are bad: settle it in a race (not with someone younger), or find a friend in common to make peace
   challenge: { group: 'risky', max: 'cold', ages: ['peer', 'older'] },
   mediate: { group: 'help', max: 'cold' },
+
+  // older students (abi / abla): what they can do for a little one they know
+  advice: { group: 'talk', min: 'known', ages: ['older'] },
+  errand: { group: 'help', min: 'known', ages: ['older'] },
+  protect: { group: 'help', min: 'friend', ages: ['older'] },
+  notes: { group: 'help', min: 'close', ages: ['older'] },
+
+  // adults: teachers, belletmens and the staff. For them the score reads as trust, not friendship
+  ask: { group: 'talk', ages: ['adult'] },
+  extra: { group: 'help', min: 'known', ages: ['adult'] },
+  guidance: { group: 'talk', min: 'friend', ages: ['adult'] },
+  confide: { group: 'talk', min: 'known', ages: ['adult'] },
+  pass: { group: 'help', min: 'friend', ages: ['adult'] },
+  banter: { group: 'talk', ages: ['adult'] },
+  onthehouse: { group: 'help', min: 'friend', ages: ['adult'] },
+  counter: { group: 'help', min: 'close', ages: ['adult'] },
+  sweep: { group: 'help', ages: ['adult'] },
+  chess: { group: 'play', min: 'known', ages: ['adult'] },
+  oldtimes: { group: 'talk', min: 'friend', ages: ['adult'] },
 };
 
 const rank = (t: Tier) => TIERS.indexOf(t);
@@ -105,7 +125,22 @@ export function sortOut<A extends { id: string }>(actions: A[], who: Who): { ope
   return { open, next };
 }
 
+/** with an adult the same score is how much they trust you */
+export const TRUST_NAME: Record<Tier, Text> = {
+  rival: { tr: 'Sana kızgın', en: 'Angry with you' },
+  cold: { tr: 'Sana mesafeli', en: 'Wary of you' },
+  stranger: { tr: 'Seni pek tanımıyor', en: "Doesn't know you yet" },
+  known: { tr: 'Seni tanıyor', en: 'Knows you' },
+  friend: { tr: 'Sana güveniyor', en: 'Trusts you' },
+  close: { tr: 'Sana çok güveniyor', en: 'Trusts you a lot' },
+  best: { tr: 'Sana kendi çocuğu gibi bakıyor', en: 'Treats you like family' },
+};
+
+/** "Sana güveniyor · 42/100" for an adult */
+export const trustLine = (f: number) => `${L(TRUST_NAME[tierOf(f)])} · ${L({ tr: 'güven', en: 'trust' })} ${f}/100`;
+
 /** the hint at the bottom: what you'd need to be for more to open (it doesn't say what) */
-export function nextTierHint(next: Tier): string {
+export function nextTierHint(next: Tier, age?: AgeRel): string {
+  if (age === 'adult') return L({ tr: `🤝 "${L(TRUST_NAME[next])}" olunca yeni şeyler açılır`, en: `🤝 More opens up at "${L(TRUST_NAME[next])}"` });
   return L({ tr: `💛 ${L(TIER_NAME[next])} olunca yeni şeyler açılır`, en: `💛 More opens up once you're ${L(TIER_NAME[next]).toLowerCase()}s` });
 }
