@@ -22,6 +22,7 @@ import type { YbResult } from '../ui/yetimball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
+import { ageRel, nextTierHint, sortOut, tierOf } from './interactions';
 import { lessonEvent, lessonFiller, lessonOpening, type MomentResult } from './lessonMoments';
 
 export interface Gain { xp?: number; attrs?: Partial<Attributes>; mood?: number; energy?: number; hunger?: number; money?: number }
@@ -1797,6 +1798,12 @@ export function npcPanel(npc: NpcDef, ctx: GameCtx): PanelView {
       },
     });
     actions.push(...socialActions(npc, ctx, f, lock));
+    // what's open depends on how close you are and how old they are (game/interactions.ts)
+    const mine = grade(ctx.st.year);
+    const { open, next } = sortOut(actions, { tier: tierOf(f), age: ageRel(npc, mine), sameGrade: (npc.grade ?? mine) === mine });
+    actions.length = 0;
+    actions.push(...open);
+    if (next && met) actions.push({ id: 'next-tier', label: nextTierHint(next), locked: T('Birbirinizi tanıdıkça', 'As you get to know each other'), run: () => {} });
   } else {
     const st = ctx.st;
     const lock = needMission(ctx, 'abi_sandvic');

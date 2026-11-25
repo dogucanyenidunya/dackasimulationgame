@@ -1319,3 +1319,14 @@ Students walk to a building's door and go in, and come out of the same door. The
 | 🗂️ Düzen | Disiplin | 3 | whole days without a discipline point |
 | ⚖️ Dengeli | — | — | no bonus, no drag, no goal |
 
+**Who you can do what with (v0.11, step 1 of the interaction plan):** student interactions now depend on how close you are and how old they are (`game/interactions.ts`). Each interaction is a row with the tier it needs (Yabancı, Tanıdık, Arkadaş, Yakın, En iyi; or Anlaşamıyor / Rakip), the ages it suits (younger, peer, older: two or more grades apart) and its group (talk, play, help, risky); the panel shows only what's open, in that order, and a hint naming the next tier that would open more (but not what).
+
+| Needs | Interactions |
+|---|---|
+| Anyone | Meet, chat, say hello, share a simit; mock (not an older student) |
+| Tanıdık (10+) | Jokes, games together, Yetimball, comfort (secret skill), nicknames (not an older student), gossip |
+| Arkadaş (40+) | Borrow money, copy homework (same grade only), share a secret (60+, or 40+ with Sırdaş) |
+| Anlaşamıyor / Rakip | Apologise |
+
+Next steps: new Arkadaş / Yakın / Rakip interactions, options for older students and adults, and options opened by what you've done together.
+
