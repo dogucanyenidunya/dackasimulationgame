@@ -72,6 +72,12 @@ export const RULES: Record<string, Rule> = {
   gossip: { group: 'risky', min: 'known' },
   // you can mock anyone your age or younger, even a stranger; not an older student
   mock: { group: 'risky', ages: ['peer', 'younger'] },
+  study: { group: 'help', min: 'friend' },
+  heart: { group: 'talk', min: 'close' },
+  story: { group: 'talk', min: 'close' },
+  // when things are bad: settle it in a race (not with someone younger), or find a friend in common to make peace
+  challenge: { group: 'risky', max: 'cold', ages: ['peer', 'older'] },
+  mediate: { group: 'help', max: 'cold' },
 };
 
 const rank = (t: Tier) => TIERS.indexOf(t);

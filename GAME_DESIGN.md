@@ -1328,5 +1328,15 @@ Students walk to a building's door and go in, and come out of the same door. The
 | Arkadaş (40+) | Borrow money, copy homework (same grade only), share a secret (60+, or 40+ with Sırdaş) |
 | Anlaşamıyor / Rakip | Apologise |
 
-Next steps: new Arkadaş / Yakın / Rakip interactions, options for older students and adults, and options opened by what you've done together.
+**Step 2 (v0.11):** new interactions for friends, close friends and people you don't get along with.
+
+| Needs | Interaction | What it does |
+|---|---|---|
+| Arkadaş (40+) | 📚 Birlikte ders çalış | Once a day, 30 min: finishes your next homework together (or +1 Knowledge), +8 friendship |
+| Yakın (70+) | 🫂 Dertleş | Once a day, 20 min: +12 mood, +6 friendship |
+| Yakın (70+) | 🕯️ Kaybını anlat | Once per friend: you tell them about the day you lost your parent and they tell you theirs; +20 friendship |
+| Anlaşamıyor / Rakip | ⚔️ Meydan oku | Once a day, outdoors, not with someone younger: a race; win for +5 respect and +12 friendship, lose and it stings |
+| Anlaşamıyor / Rakip | 🕊️ Arabulucu bul | Once a day: a friend you have in common (in their group) sits you down together; +20 friendship |
+
+Next steps: options for older students and adults, and options opened by what you've done together.
 

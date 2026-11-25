@@ -1640,6 +1640,75 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
       run: async () => { nudge(ctx, { heart: 3 }); mark('secret'); ctx.befriend(npc.id, 15); ctx.gain({ mood: 6 }); await say('"Kimseye söylemeyeceğim. Sen de benimkini dinler misin?"', '"I won\'t tell a soul. Will you listen to mine too?"'); },
     });
   }
+  // ---- friends (40+): study together ----
+  list.push({
+    id: 'study', label: T('📚 Birlikte ders çalış', '📚 Study together'),
+    hint: hw ? T(`30 dk · ${subjName(hw.s)} ödevini birlikte bitirirsiniz · +arkadaşlık`, `30 min · you finish the ${subjName(hw.s)} homework together · +friendship`) : T('30 dk · +1 Bilgi · +arkadaşlık · günde bir', '30 min · +1 Knowledge · +friendship · once a day'),
+    locked: lock ?? once('study') ?? (phaseOf(ctx.clock.minutes, ctx.clock.day) === 'night' ? T('Işıklar söndü.', 'Lights are out.') : undefined),
+    run: async () => {
+      nudge(ctx, { loyalty: 1, ambition: 1 }); focusTick(ctx, 'study'); mark('study');
+      ctx.advance(30); ctx.befriend(npc.id, 8);
+      if (hw) {
+        st.school.homework.shift();
+        st.school.scores[hw.s].push(Math.min(100, 70 + Math.round(ctx.ch.attributes.knowledge / 4)));
+        ctx.gain({ xp: 15, energy: -4, attrs: { knowledge: 1 } });
+        await say(`${subjName(hw.s)} ödevini birlikte çözdünüz. "Sen olmasan bu soruyu hiç anlamayacaktım."`, `You worked through the ${subjName(hw.s)} homework together. "I'd never have got that question without you."`);
+      } else {
+        ctx.gain({ xp: 10, energy: -4, attrs: { knowledge: 1 } });
+        await say('Ertesi günün derslerine birlikte göz attınız; birbirinize soru sordunuz.', "You looked over tomorrow's lessons together and quizzed each other.");
+      }
+    },
+  });
+  // ---- close friends (70+): a heart-to-heart, and once, the story of your loss ----
+  list.push({
+    id: 'heart', label: T('🫂 Dertleş', '🫂 Have a heart-to-heart'), hint: T('20 dk · +12 moral · +arkadaşlık · günde bir', '20 min · +12 mood · +friendship · once a day'),
+    locked: lock ?? once('heart'),
+    run: async () => {
+      nudge(ctx, { heart: 2 }); focusTick(ctx, 'friends'); mark('heart');
+      ctx.advance(20); ctx.befriend(npc.id, 6); ctx.gain({ mood: 12 });
+      await say('Yatakhanenin merdivenlerine oturdunuz. Ev, özlem, okuldaki dertler… Kalkarken ikinizin de içi hafiflemişti.', 'You sat on the dorm stairs. Home, missing people, school troubles… When you got up, you both felt lighter.');
+    },
+  });
+  if (!st.once[`told-${npc.id}`]) {
+    const whom = ctx.ch.loss === 'mother' ? T('anneni', 'your mum') : ctx.ch.loss === 'father' ? T('babanı', 'your dad') : T('anneni ve babanı', 'both your parents');
+    list.push({
+      id: 'story', label: T('🕯️ Kaybını anlat', '🕯️ Tell them about your loss'), hint: T('Bir kez · yakın arkadaşlar için', 'Once · for close friends'),
+      locked: lock,
+      run: async () => {
+        nudge(ctx, { heart: 5 }); st.once[`told-${npc.id}`] = true;
+        ctx.advance(30); ctx.befriend(npc.id, 20); ctx.gain({ mood: 8 });
+        await say(`Ona ${whom} kaybettiğin günü ilk kez bu kadar açık anlattın. Uzun süre sustu; sonra o da kendi kaybını anlattı. O akşam ikiniz de bir şeyin değiştiğini biliyordunuz.`,
+          `For the first time you told them, openly, about the day you lost ${whom}. They were quiet for a long time; then they told you about their own loss. That evening you both knew something had changed.`);
+      },
+    });
+  }
+  // ---- when things are bad (Anlaşamıyor / Rakip): settle it in a race, or find someone to make peace ----
+  {
+    const win = Math.max(0.2, Math.min(0.8, 0.3 + ctx.ch.attributes.fitness / 150 + (st.skills.basketball + st.skills.football) / 600));
+    list.push({
+      id: 'challenge', label: T('⚔️ Meydan oku: bahçede koşu yarışı', '⚔️ Challenge them: a race across the yard'), hint: T('Kazanırsan saygı kazanırsın · kaybedersen moralin bozulur', 'Win and they respect you · lose and it stings'),
+      locked: lock ?? once('challenge') ?? (indoors ? T(`Yarış dışarıda yapılır (${where} olmaz).`, `Races happen outside (not ${where}).`) : undefined),
+      run: async () => {
+        nudge(ctx, { presence: 2, warmth: 2 }); mark('challenge'); ctx.advance(15);
+        if (Math.random() < win) {
+          ctx.ch.respect += 5; ctx.befriend(npc.id, 12); ctx.gain({ mood: 6, energy: -6, attrs: { fitness: 1 } });
+          await say(`Fıskiyeye senden önce varamadı. Nefes nefese elini uzattı: "Tamam… hakkını verdin." +5 saygınlık`, `They couldn't reach the fountain before you. Out of breath, they held out a hand: "Fine… fair's fair." +5 respect`);
+        } else {
+          ctx.ch.respect = Math.max(0, ctx.ch.respect - 2); ctx.befriend(npc.id, -3); ctx.gain({ mood: -6, energy: -6 });
+          await say('Son düzlükte seni geçti ve dönüp güldü. Etraftakiler de güldü.', 'They passed you on the last stretch and turned round laughing. So did everyone watching.');
+        }
+      },
+    });
+    const go = NPCS.find((n) => n.id !== npc.id && !!npc.group && n.group === npc.group && (st.friends[n.id] ?? 0) >= FRIEND_AT);
+    list.push({
+      id: 'mediate', label: T('🕊️ Arabulucu bul', '🕊️ Find someone to make peace'), hint: go ? T(`${go.name} ikinizi de tanıyor · +20`, `${go.name} knows you both · +20`) : T('Ortak bir arkadaş gerekir', 'You need a friend in common'),
+      locked: lock ?? once('mediate') ?? (go ? undefined : T(`${npc.name} ile ortak bir arkadaşınız yok.`, `You and ${npc.name} have no friend in common.`)),
+      run: async () => {
+        nudge(ctx, { warmth: -2, heart: 1 }); mark('mediate'); ctx.advance(15); ctx.befriend(npc.id, 20);
+        await say(`${go!.name} ikinizi kantinde aynı masaya oturttu. Önce kimse konuşmadı; sonra gülmeye başladınız.`, `${go!.name} sat you both down at the same canteen table. Nobody spoke at first; then you started laughing.`);
+      },
+    });
+  }
   if (f < 0) {
     list.push({
       id: 'sorry', label: T('🙏 Özür dile', '🙏 Apologize'), hint: T('+15 · araları düzeltir', '+15 · patches things up'),
