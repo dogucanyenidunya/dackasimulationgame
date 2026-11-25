@@ -78,7 +78,7 @@ You arrive at Daçka as a 9-year-old boarder with a suitcase and no friends. Ten
 2. **Authentic boarding-school life.** The game follows the real rhythm: the bell, *etüt* (evening study), the dining hall, lights-out, report cards (*karne*), weekend leave, ceremonies.
 3. **Every path is valid.** Top student, sports star, class clown, artist or leader: each path has its own rewards and endings.
 4. **Small choices, long memory.** A fight in Year 2 or a friendship in Year 4 still matters in Year 10.
-5. **Safe and kind by design.** Players may be real kids, so mischief and conflict stay playful, and griefing is designed out.
+5. **Respectful by design.** The players are adults, many of them Daçka alumni, some of whom really lost a parent. The characters are children, so what happens between characters stays right for their age, and griefing between players is designed out.
 
 ---
 
@@ -808,12 +808,9 @@ Romance is a separate status on top of friendship. It's built around **hanging o
 
 Romance is possible between **any genders**.
 
-**Player-to-player romance safety.** A character's age isn't the player's real age, so these rules stop adults from targeting real children:
-- Romance between two players is only possible when their **real ages are within ±2 years** of each other.
-- **Hard line at 18:** adult accounts (18+) can only romance adult accounts, and under-18 accounts only under-18 accounts, even within the ±2 window. For example, 17 with 19 is **not** allowed.
-- **Under-13 accounts get NPC romance only.**
-- What two characters can do is set by the **younger character's** age (e.g. a 15- and a 16-year-old character can only hold hands).
-- Both players must have **"Romance with players"** switched on. It's **on by default for 18+** and **off by default for minors**, who can switch it on themselves. Accounts that need parental consent need it for this setting too.
+**Player-to-player romance.** The players are adults (§20), so there are no real-age rules between players. What matters is the characters:
+- What two characters can do is set by the **younger character's** age, using the same limits as for NPCs (e.g. a 15- and a 16-year-old character can only hold hands).
+- Both players must have **"Romance with players"** switched on. It's **off by default**: an adult playing a child character opts in.
 - Romance unlocks no extra private channels. DMs follow the normal friend rules.
 - **Report or block ends the relationship instantly.** Romance-related reports go to the top of the moderation queue.
 
@@ -1096,8 +1093,8 @@ rewards:
 ## 19. Data model (first draft)
 
 ```
-users              id, email, password_hash, birth_year, age_band, locale, parental_consent,
-                   settings(jsonb: romance_with_players, safe_chat), created_at
+users              id, email, password_hash, adult_confirmed_at, locale,
+                   settings(jsonb: romance_with_players), created_at
 campus_worlds      id, name, region, capacity, status
 cohorts            id, world_id, name, admitted_at
 characters         id, user_id, world_id, cohort_id, name, gender, appearance(jsonb),
@@ -1131,12 +1128,12 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 
 ## 20. Safety, privacy & legal
 
-**Players may be children,** quite possibly real Daçka students, some of whom have really lost a parent. Plan for that from day one.
+**The players are adults,** many of them Daçka alumni and some of whom really lost a parent as children. The game is not made for children, even though its characters are children. Plan for that from day one: the tone can be honest about loss, homesickness and cruelty between kids, while what happens between characters stays right for their age.
+
+**Who can play.** [DECIDE] Confirm the player is 18 or over at sign-up (one checkbox and a timestamp, no birth date stored), or simply state that the game is for adults.
 
 **Privacy law:** **KVKK** (Turkey), plus **GDPR** for EU players.
-- Ask for birth year at sign-up.
-- Under 13: parental consent required, and **Safe Chat** mode (preset phrases only) by default.
-- Collect the minimum personal data.
+- Collect the minimum personal data: an email address, and nothing about the player's real age beyond the 18+ confirmation.
 
 **Chat safety:**
 - Profanity filter in Turkish and English
@@ -1146,10 +1143,10 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 - No sharing of phone numbers or links (pattern filter)
 
 **Content rules:**
-- Romance stays innocent: hanging out and holding hands under 16, plus hugs and a kiss on the cheek from 16. **No sexual content at any age.** Player-to-player romance is limited by real-age band (§10.7).
+- Romance between characters stays innocent because the **characters** are children: hanging out and holding hands under 16, plus hugs and a kiss on the cheek from 16. **No sexual content at any character age.** Player-to-player romance follows the same character rules and is opt-in (§10.7).
 - Backstory content is respectful and can be toned down (§5.2).
 - Fights stay cartoonish, with no weapons or injuries beyond a bandage.
-- Bullying of real players is designed out (§8.3).
+- Bullying between players is designed out (§8.3). Bullying NPCs is possible and has lasting consequences (the temperament axes and secret skills).
 
 **Name and brand:**
 - The game and the school are called **Daçka**. Use no official logo or emblem; make an original crest instead.
@@ -1195,10 +1192,14 @@ Static content (quests, items, NPCs, questions) stays in YAML and is loaded at s
 - Player romance: within ±2 years of real age (with the 18 hard line)
 - Pool exists
 
+**Answered in v0.11:**
+- Players are adults (many of them alumni), not children. Real-age romance rules, parental consent and Safe Chat are gone; character-age limits stay (§10.7, §20)
+- The v0.5 real-age romance rule above is replaced by this
+
 **Still open:**
 1. **Year 2–10 missions:** want to define them like Year 1? I can draft each year in the same format for you to edit.
 2. **Traditions:** which real traditions, events, slang and school songs should be in the game?
-3. **Players:** who do you most want playing: current students, alumni or the general public?
+3. **Age check:** a one-time 18+ confirmation at sign-up, or just a statement that the game is for adults? (§20)
 4. **Monetization:** fully free and non-commercial, or cosmetic purchases later?
 5. **Team:** are you building this alone? Who makes the art and music?
 6. **Tone:** is the playful approach to fights and night-time mischief right?
