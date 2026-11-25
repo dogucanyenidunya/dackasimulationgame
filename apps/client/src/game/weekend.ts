@@ -1,6 +1,6 @@
 // Weekends (GDD §3.1.1): evci students go home Friday 17:00 → Sunday 17:40; daimi students stay at school.
 import type { NpcDef } from '../content/npcs';
-import { weekday } from './schedule';
+import { FIRST_MONDAY, weekday } from './schedule';
 
 export { weekday };
 
@@ -10,7 +10,7 @@ export const BACK_ON_SUNDAY = 17 * 60 + 40;
 export const VISIT_START = 10 * 60;
 export const VISIT_END = 16 * 60;
 
-export const isFriday = (day: number) => weekday(day) === 4;
+export const isFriday = (day: number) => weekday(day) === 4 && day >= FIRST_MONDAY;
 export const isSunday = (day: number) => weekday(day) === 6;
 
 /** about half the students are evci (deterministic per student) */

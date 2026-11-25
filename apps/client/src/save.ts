@@ -30,8 +30,8 @@ export function newSave(lang: Lang, character: CharacterData): SaveData {
     character,
     state: withLean(defaultState(), character),
     player: { x: SPAWN.x, y: SPAWN.y, dir: 3 },
-    // the story starts on the Saturday morning of the registration weekend
-    clock: { day: 1, minutes: 9 * 60 },
+    // the story starts on the Friday morning of the registration days (day 0; the first Monday is day 3)
+    clock: { day: 0, minutes: 9 * 60 },
     fog: '',
     seen: [],
     discovered: [],

@@ -4,7 +4,7 @@
 // the running track and the basketball markings. Everything is drawn with canvas paths and seamless patterns,
 // one chunk at a time, so nothing is ever a block of pixels. It also picks where puddles form and pigeons land.
 import Phaser from 'phaser';
-import { COURTS, EXTRA_COURTS, MAP_H, MAP_W, PLAZAS, T, TILE, TRACK, inPoly } from '../content/campus';
+import { COURTS, EXTRA_COURTS, MAP_H, MAP_W, PLAZAS, T, TILE, TRACK, inPoly, timWallAt } from '../content/campus';
 import { ART_RES, rng } from './textures';
 
 export interface GroundInfo {
@@ -181,7 +181,8 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
   const groundArea = new Path2D(), pathArea = new Path2D(), plazaArea = new Path2D(), forestArea = new Path2D();
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
     const t = tile(x, y);
-    if (isGround(t)) groundArea.rect(x * TILE, y * TILE, TILE, TILE);
+    // (the TIM yard's low wall stands on the lawn: it's drawn as a sprite on top)
+    if (isGround(t) || (t === T.FENCE && timWallAt(x, y))) groundArea.rect(x * TILE, y * TILE, TILE, TILE);
     else if (isPath(t)) pathArea.rect(x * TILE, y * TILE, TILE, TILE);
     else if (t === T.FOREST) forestArea.rect(x * TILE, y * TILE, TILE, TILE);
   }

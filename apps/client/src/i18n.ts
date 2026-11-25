@@ -26,8 +26,8 @@ const STRINGS = {
   },
   arrival_go: { tr: 'İçeri gir', en: 'Walk in' },
   arrival_personal: {
-    tr: '{guardian} seni kapıya kadar getirdi. Sıkıca sarıldınız, sonra el sallayıp gitti. Bugün Cumartesi: kayıt dönemi başladı ve bütün okul koşturuyor. Pazar akşamına kadar kaydını yaptır, sağlık kontrolünden geç, kıyafetlerini ve kitaplarını al; Pazartesi dersler başlıyor. 9 yaşındasın ve içeri tek başına gireceksin.',
-    en: "{guardian} walked you to the gate. You hugged tight, then they waved and left. It's Saturday: registration weekend has started and the whole school is rushing about. By Sunday evening, get registered, pass the health check and collect your clothes and books; lessons start on Monday. You're 9 years old, and you'll walk in alone.",
+    tr: '{guardian} seni kapıya kadar getirdi. Sıkıca sarıldınız, sonra el sallayıp gitti. Bugün Cuma: kayıt dönemi başladı ve bütün okul koşturuyor. Üç günün var: Pazar akşamına kadar kaydını yaptır, sağlık kontrolünden geç, kıyafetlerini ve kitaplarını al; Pazartesi dersler başlıyor. 9 yaşındasın ve içeri tek başına gireceksin.',
+    en: "{guardian} walked you to the gate. You hugged tight, then they waved and left. It's Friday: registration has started and the whole school is rushing about. You have three days: by Sunday evening, get registered, pass the health check and collect your clothes and books; lessons start on Monday. You're 9 years old, and you'll walk in alone.",
   },
   own_dorm: { tr: 'Burası senin yurdun: A1 Blok, 1. Kat.', en: 'This is your dorm: Block A1, Floor 1.' },
   locked_girls: { tr: 'Kapı kilitli: burası kızların yurdu.', en: "The door is locked: this is the girls' dorm." },

@@ -68,8 +68,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'kayit', kind: 'main',
-    title: { tr: 'Kayıt Dönemi', en: 'Registration Weekend' },
-    desc: { tr: 'Cumartesi ve Pazar, bütün okul için kayıt dönemi. Pazar akşamına kadar okula kaydol, Revir\'de sağlık kontrolünden geç, Spor Salonu\'ndaki depodan kıyafetlerini ve Kütüphane\'den kitaplarını al. Süre dolunca kalan işlerini görevliler tamamlar; Pazartesi dersler başlar.', en: "Saturday and Sunday are registration weekend for the whole school. By Sunday evening, enrol, pass the health check at the infirmary, and collect your clothes from the stores in the Spor Salonu and your books at the library. When time runs out the staff finish whatever is left; lessons start on Monday." },
+    title: { tr: 'Kayıt Dönemi', en: 'Registration' },
+    desc: { tr: 'Cuma, Cumartesi ve Pazar bütün okul için kayıt dönemi. Pazar akşamına kadar okula kaydol, Revir\'de sağlık kontrolünden geç, Spor Salonu\'ndaki depodan kıyafetlerini ve Kütüphane\'den kitaplarını al. Süre dolunca kalan işlerini görevliler tamamlar; Pazartesi dersler başlar.', en: "Friday, Saturday and Sunday are registration days for the whole school. By Sunday evening, enrol, pass the health check at the infirmary, and collect your clothes from the stores in the Spor Salonu and your books at the library. When time runs out the staff finish whatever is left; lessons start on Monday." },
     requires: [],
     unlocks: { tr: 'Sınıf kurası ve Pazartesi günü dersler', en: 'The class draw, and lessons on Monday' },
     objectives: [

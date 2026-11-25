@@ -15,24 +15,35 @@ export interface Period {
 
 const h = (hh: number, mm = 0) => hh * 60 + mm;
 
-/** 0 = Monday … 6 = Sunday. The story starts on a Saturday: day 1 and 2 are the registration weekend, day 3 the first Monday */
+/** 0 = Monday … 6 = Sunday. The story starts on a Friday: days 0–2 are the registration days, day 3 the first Monday */
 export const weekday = (day: number) => (((day + 4) % 7) + 7) % 7;
-/** 1 on the first Monday, 2 a week later… (0 during the registration weekend) */
+/** 1 on the first Monday, 2 a week later… (0 during the registration days) */
 export const weekOf = (day: number) => Math.floor((day + 4) / 7);
+/** the first school day: no lessons, ceremonies or weekend buses before it */
+export const FIRST_MONDAY = 3;
 
-/** the registration weekend ("kayıt dönemi"): Saturday morning to Sunday evening, with the clock running fast */
+/** the registration days ("kayıt dönemi"): Friday morning to Sunday evening, with the clock running fast */
 export const RUSH_START = h(9);
 export const RUSH_NIGHT = h(20);
 export const RUSH_MORNING = h(8);
 export const RUSH_END = h(18);
+/** the first registration day (older saves started theirs on day 1) and the last */
+export const RUSH_FIRST = 0;
 export const RUSH_DAYS = 2;
-/** game minutes of registration time left (the Saturday night in between doesn't count) */
-export function rushLeft(day: number, minutes: number): number {
-  if (day > RUSH_DAYS || (day === RUSH_DAYS && minutes >= RUSH_END)) return 0;
-  const today = day === 1 ? Math.max(0, RUSH_NIGHT - Math.max(minutes, RUSH_START)) : Math.max(0, RUSH_END - Math.max(minutes, RUSH_MORNING));
-  return today + (day === 1 ? RUSH_END - RUSH_MORNING : 0);
+/** the desks' opening hours on a registration day */
+function rushHours(day: number): [number, number] {
+  return [day <= RUSH_FIRST ? RUSH_START : RUSH_MORNING, day >= RUSH_DAYS ? RUSH_END : RUSH_NIGHT];
 }
-export const RUSH_TOTAL = RUSH_NIGHT - RUSH_START + RUSH_END - RUSH_MORNING;
+/** game minutes of registration time left (the nights in between don't count) */
+export function rushLeft(day: number, minutes: number): number {
+  let left = 0;
+  for (let d = Math.max(day, RUSH_FIRST); d <= RUSH_DAYS; d++) {
+    const [a, b] = rushHours(d);
+    left += d === day ? Math.max(0, b - Math.max(minutes, a)) : b - a;
+  }
+  return left;
+}
+export const RUSH_TOTAL = rushLeft(RUSH_FIRST, 0);
 
 export const PERIODS: Period[] = [
   { id: 'breakfast', kind: 'meal', meal: 'breakfast', start: h(7), end: h(8, 30), name: { tr: 'Kahvaltı', en: 'Breakfast' } },
@@ -55,7 +66,7 @@ export const PLAZA_START = h(20);
 export const LIGHTS_OUT = h(22);
 export const WAKE_UP = h(7);
 /** no evening study on Fridays and Saturdays: 18:00–22:00 is all free time around the dorms */
-export const hasEtut = (day: number) => (weekday(day) < 4 || weekday(day) === 6) && !isMatchDay(day);
+export const hasEtut = (day: number) => day >= FIRST_MONDAY && (weekday(day) < 4 || weekday(day) === 6) && !isMatchDay(day);
 
 /** the second Sunday: Darüşşafaka play Banvit in the Spor Salonu at 19:00, and the whole school goes (no evening study) */
 let matchDay = 9;
@@ -93,6 +104,7 @@ export const presentKey = (periodId: string) => `inclass-${periodId}`;
 
 /** flag ceremony on the Merkez Meydan: Monday before the first lesson, Friday after the last; [start, end, the anthem] */
 export function ceremonyWindow(day: number): [number, number, number] | null {
+  if (day < FIRST_MONDAY) return null;
   const wd = weekday(day);
   return wd === 0 ? [h(8, 10), h(8, 25), h(8, 15)] : wd === 4 ? [h(15, 22), h(15, 40), h(15, 30)] : null;
 }
@@ -102,12 +114,14 @@ export const CEREMONY: Text = { tr: 'Bayrak töreni · Merkez Meydan', en: 'Flag
 export const BREAK: Text = { tr: 'Teneffüs', en: 'Break' };
 export const NIGHT: Text = { tr: 'Gece · ışıklar kapalı', en: 'Night · lights out' };
 export const WEEKEND_FREE: Text = { tr: 'Hafta sonu', en: 'Weekend' };
+const FREE_TIME: Text = { tr: 'Serbest zaman', en: 'Free time' };
 
 export const isWeekend = (day: number) => weekday(day) >= 5;
 
 export function currentPeriod(day: number, minutes: number): Period | null {
   const p = PERIODS.find((x) => minutes >= x.start && minutes < x.end) ?? null;
-  if (p && p.kind === 'lesson' && isWeekend(day)) return null;
+  // weekends (and the registration days) have no lessons and no sports & clubs slot: all free time between meals
+  if (p && (p.kind === 'lesson' || p.kind === 'sports') && (isWeekend(day) || day < FIRST_MONDAY)) return null;
   if (p && p.kind === 'etut' && !hasEtut(day)) return NO_ETUT_EVENING;
   return p;
 }
@@ -116,7 +130,7 @@ export function currentPeriod(day: number, minutes: number): Period | null {
  *  `prev`/`next` are the lessons either side; `short` = the ten minutes between two lessons (the teacher stays in). */
 export interface ClassBreak { key: string; prev: Period | null; next: Period | null; short: boolean }
 export function classBreak(day: number, minutes: number): ClassBreak | null {
-  if (isWeekend(day) || minutes < h(8) || minutes >= h(15, 30)) return null;
+  if (isWeekend(day) || day < FIRST_MONDAY || minutes < h(8) || minutes >= h(15, 30)) return null;
   if (currentPeriod(day, minutes)?.kind === 'lesson') return null;
   const lessons = PERIODS.filter((p) => p.kind === 'lesson');
   const prev = [...lessons].reverse().find((p) => p.end <= minutes) ?? null;
@@ -133,7 +147,7 @@ export function subjectFor(day: number, periodId: string): SubjectId {
 export function periodLabel(day: number, minutes: number): Text {
   if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return NIGHT;
   const p = currentPeriod(day, minutes);
-  if (!p) return isWeekend(day) ? WEEKEND_FREE : BREAK;
+  if (!p) return isWeekend(day) ? WEEKEND_FREE : day < FIRST_MONDAY ? FREE_TIME : BREAK;
   if (p.kind === 'lesson') {
     const s = SUBJECTS.find((x) => x.id === subjectFor(day, p.id))!;
     return { tr: `${p.name.tr}: ${s.name.tr}`, en: `${p.name.en}: ${s.name.en}` };

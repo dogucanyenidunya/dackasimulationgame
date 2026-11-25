@@ -563,7 +563,7 @@ export class Hud {
 
   setClock(day: number, minutes: number, periodText: string, weatherText = '') {
     const names = t('days').split(',');
-    this.clockDay.textContent = `${names[weekday(day)]} · ${t('day_n', { n: day })}${weatherText ? ` · ${weatherText}` : ''}`;
+    this.clockDay.textContent = `${names[weekday(day)]}${weatherText ? ` · ${weatherText}` : ''}`;
     const h = Math.floor(minutes / 60) % 24;
     const m = Math.floor(minutes % 60);
     this.clockTime.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -703,7 +703,10 @@ export class Hud {
     this.modalOpen = true;
     this.modal.innerHTML = '';
     this.modal.appendChild(content);
+    let closed = false;
     const close = () => {
+      if (closed) return;
+      closed = true;
       this.modal.classList.add('hidden');
       this.modalOpen = false;
       window.removeEventListener('keydown', onKey, true);
@@ -713,6 +716,8 @@ export class Hud {
       if (closeKeys.includes(e.key)) { e.preventDefault(); e.stopPropagation(); close(); }
     };
     content.querySelector('button.primary')?.addEventListener('click', close);
+    // a card that redraws itself (its first button gets replaced) marks its close button with data-close instead
+    content.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
     // defer so the key press that opened the modal doesn't close it
     setTimeout(() => window.addEventListener('keydown', onKey, true), 150);
     this.modal.classList.remove('hidden');

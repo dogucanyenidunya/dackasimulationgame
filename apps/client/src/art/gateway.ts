@@ -85,6 +85,38 @@ export function makeGatewayTextures(scene: Phaser.Scene) {
   canvas('tunnel-roof', TUNNEL_SIZE.w, TUNNEL_SIZE.h, paintTunnelRoof);
   canvas('wallblock', TILE, TILE + WALL_FACE, (c) => paintWall(c, true));
   canvas('walltop', TILE, TILE, (c) => paintWall(c, false));
+  for (let m = 0; m < 16; m++) canvas(`lowwall-${m}`, TILE, TILE, (c) => paintLowWall(c, m));
+}
+
+/** which of a low wall's neighbours are wall too (bit 1 = north, 2 = east, 4 = south, 8 = west) */
+export const lowWallMask = (n: boolean, e: boolean, s: boolean, w: boolean) => (n ? 1 : 0) | (e ? 2 : 0) | (s ? 4 : 0) | (w ? 8 : 0);
+
+/** a low garden wall along the middle of its tile: a narrow coping seen from above and, on east–west runs, a short
+ *  stone face (about knee height to the campus's perimeter wall), so it never hides the people behind it */
+function paintLowWall(c: Ctx, mask: number) {
+  const n = !!(mask & 1), e = !!(mask & 2), s = !!(mask & 4), w = !!(mask & 8);
+  const st = WALL_STONE, X0 = 12, X1 = 20, Y0 = 8, Y1 = 14, FACE = 10;
+  if (e || w || (!n && !s)) {
+    const a = w ? 0 : X0, b = e ? TILE : X1;
+    c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(a, Y1 + FACE, b - a, 3);
+    c.fillStyle = st; c.fillRect(a, Y1, b - a, FACE);
+    c.fillStyle = shade(st, 0.84); for (let y = Y1 + 3; y < Y1 + FACE - 2; y += 4) c.fillRect(a, y, b - a, 1);
+    for (let x = a + 5; x < b; x += 10) c.fillRect(x, Y1 + 1, 1, 3);
+    c.fillStyle = shade(st, 0.72); c.fillRect(a, Y1 + FACE - 2, b - a, 2);
+    c.fillStyle = shade(st, 1.2); c.fillRect(a, Y0, b - a, Y1 - Y0);
+    c.fillStyle = shade(st, 1.38); c.fillRect(a, Y0, b - a, 1);
+  }
+  if (n || s) {
+    const a = n ? 0 : Y0, b = s ? TILE : Y1;
+    c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(X1, a, 3, b - a);
+    c.fillStyle = shade(st, 1.2); c.fillRect(X0, a, X1 - X0, b - a);
+    c.fillStyle = shade(st, 1.38); c.fillRect(X0, a, 1, b - a);
+    c.fillStyle = shade(st, 1.04); for (let y = a + 4; y < b; y += 8) c.fillRect(X0, y, X1 - X0, 1);
+    if (!s) {
+      c.fillStyle = st; c.fillRect(X0, b, X1 - X0, FACE);
+      c.fillStyle = shade(st, 0.72); c.fillRect(X0, b + FACE - 2, X1 - X0, 2);
+    }
+  }
 }
 
 /** the south face of the aqueduct: a tall arch to walk through, a cornice, a row of small arches and a parapet,

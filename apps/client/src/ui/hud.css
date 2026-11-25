@@ -443,6 +443,20 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 
 button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* the one-time tour on the first visit */
+.onboard-card { width: min(520px, 100%); max-height: 100%; overflow: auto; padding: 22px; border-top: 6px solid var(--gold); }
+.onboard-card .m-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-dark); }
+.onboard-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 12px; }
+.onboard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.onboard-list li { display: grid; grid-template-columns: 28px 1fr; gap: 8px; line-height: 1.45; }
+.onboard-list .ob-ic { font-size: 18px; text-align: center; }
+.onboard-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 12px; }
+.onboard-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.onboard-dots i.on { background: var(--accent); }
+.onboard-btns { display: flex; align-items: center; gap: 8px; }
+.onboard-btns span { flex: 1; }
+.onboard-btns .linkish { font: inherit; font-size: 13px; border: none; background: none; text-decoration: underline; cursor: pointer; color: #4b5459; padding: 0; }
+
 /* the diary page at bedtime */
 .diary-card { width: min(520px, 100%); max-height: 100%; display: flex; flex-direction: column; padding: 22px 24px; background: #fbf6e9; border: 1px solid #e0d3b4; box-shadow: 0 12px 34px rgba(0,0,0,0.35); background-image: repeating-linear-gradient(transparent 0 27px, rgba(70, 110, 160, 0.13) 27px 28px); }
 .diary-head h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 10px; color: #3a2a18; }

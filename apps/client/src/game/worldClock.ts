@@ -3,9 +3,9 @@
 // and every browser arrives at the same answer (to within its own clock's accuracy).
 import { LIGHTS_OUT, PERIODS, WAKE_UP } from './schedule';
 
-/** real milliseconds per game minute: day (07:00–22:00) ≈ 1 game hour per 80 s; night is compressed (the whole night ≈ 2 real minutes) */
+/** real milliseconds per game minute: day (07:00–22:00) ≈ 1 game hour per 80 s; night is compressed (the whole night ≈ 40 real seconds) */
 export const MS_PER_MIN_DAY = 80_000 / 60;
-export const MS_PER_MIN_NIGHT = 120_000 / (8.5 * 60);
+export const MS_PER_MIN_NIGHT = 40_000 / (8.5 * 60);
 
 /** on school days the lessons themselves run twice as fast: a lesson takes about half a minute, not a whole one */
 export const LESSON_SPEED = 2;

@@ -14,7 +14,7 @@ export const TILE = 32;
 export const MAP_W = 96;
 export const MAP_H = 56;
 /** bump when buildings move: old saves get their fog and position reset */
-export const LAYOUT = 7;
+export const LAYOUT = 8;
 
 export const T = {
   FOREST: 0,
@@ -190,7 +190,7 @@ export const BUILDINGS: Building[] = [
     id: 'erkek_yurdu', shape: [[8, 8.5], [12.5, 5.5], [24, 5.5], [26.3, 5.8], [27.8, 6.6], [28.4, 7.6], [28.5, 9], [28.5, 17.2], [8, 21.5]], roof: 'grey',
     courtyard: [[11, 8.5], [25.5, 8.5], [25.5, 14.8], [11, 17.8]],
   }),
-  bld({ id: 'kiz_yurdu', shape: [[7, 25.5], [18.5, 31], [14.5, 40], [5.5, 35.5]], roof: 'grey', courtyard: circlePts(11.2, 34, 1.7, 14) }),
+  bld({ id: 'kiz_yurdu', shape: [[7, 25.5], [19, 31.25], [19, 40], [5.5, 35.5]], roof: 'grey', courtyard: circlePts(11.2, 34, 1.7, 14) }),
   bld({ id: 'tim', shape: circlePts(TIM_C[0], TIM_C[1], TIM_R, 32), roof: 'white', roofStyle: 'dome' }),
   bld({
     id: 'egitim', shape: [[26.5, 23.5], [28.5, 19.5], [39, 21.5], [39, 44], [36, 44], [35.5, 34], [34, 27.5]], roof: 'grey',
@@ -235,6 +235,7 @@ export const PATHS: Rect[] = [
   { x: 27, y: 19, w: 10, h: 1 },   // Yurt Meydanı → Kapalı Saha door, along Eğitim
   { x: 29, y: 10, w: 1, h: 9 },    // up the dorm's east side to the basketball court
   { x: 12, y: 26, w: 2, h: 2 },    // girls' dorm door → Yurt Meydanı
+  { x: 19, y: 29, w: 1, h: 8 },    // Yurt Meydanı → down the girls' dorm's east side to the Revir door
   { x: 56, y: 40, w: 2, h: 11 },   // round the Cemiyet's east end to the Müze door at the back
 ];
 
@@ -286,6 +287,8 @@ export const CAMPUS_WALLS: Rect[] = [{ x: 38, y: 12, w: 1, h: 10 }, { x: 35, y: 
 /** the tall walls round the TIM Gösteri Merkezi's yard (the perimeter wall, the Eğitim wing and the garden wall
  *  close its other sides): there is no way in from the campus, only from the street through its own gate */
 export const TIM_WALLS: Rect[] = [{ x: 20, y: 33, w: 15, h: 1 }, { x: 20, y: 33, w: 1, h: 14 }];
+/** is this tile part of the TIM yard's wall? (a low, thin garden wall, so whoever stands behind it still shows) */
+export const timWallAt = (x: number, y: number) => TIM_WALLS.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
 
 /** Ana Kapı, in the south fence on Darüşşafaka Cd */
 export const GATE: Rect = { x: 39, y: 52, w: 3, h: 1 };
@@ -469,9 +472,9 @@ export const LOCATIONS: Location[] = [
   {
     id: 'revir', kind: 'building',
     name: { tr: 'Revir', en: 'Revir' }, sub: { tr: 'Kız Yurdu −1. kat · herkese açık', en: "Infirmary · girls' dorm floor −1 · everyone" },
-    info: { tr: 'Hemşire gece gündüz burada. Kendi dış girişi var; herkes kullanabilir.', en: 'The nurse is here day and night. It has its own outside entrance, so everyone can use it.' },
-    rect: { x: 13, y: 32, w: 4, h: 4 }, doors: [{ x: 16, y: 33, side: 'e', kind: 'revir' }],
-    label: { x: 14.6, y: 36.4 }, revealRect: { x: 6, y: 26, w: 12, h: 14 }, minimapColor: '#c0392b',
+    info: { tr: 'Revir görevlisi Kasım Abi gece gündüz burada. Kendi dış girişi var (yurdun doğu yüzünde); herkes kullanabilir.', en: 'Kasım Abi, who runs the infirmary, is here day and night. It has its own outside entrance on the dorm\'s east side, so everyone can use it.' },
+    rect: { x: 15, y: 34, w: 4, h: 4 }, doors: [{ x: 18, y: 36, side: 'e', kind: 'revir' }],
+    label: { x: 16.4, y: 38.4 }, revealRect: { x: 6, y: 26, w: 12, h: 14 }, minimapColor: '#c0392b',
   },
   {
     id: 'erkek_yurdu', kind: 'building',

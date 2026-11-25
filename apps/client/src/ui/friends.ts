@@ -60,7 +60,7 @@ export function friendsCard(d: FriendsCardDeps): { el: HTMLElement; render: () =
     el.innerHTML = `
       <div class="panel-head">
         <div><h2>${L({ tr: 'Arkadaşlar', en: 'Friends' })}</h2><div class="modal-sub">${L({ tr: 'Gerçek oyuncular · kampüste adlarının yanında ★ görünür', en: 'Real players · they show with a ★ on campus' })}</div></div>
-        <button type="button" class="primary">${L({ tr: 'Kapat', en: 'Close' })}</button>
+        <button type="button" class="primary" data-close>${L({ tr: 'Kapat', en: 'Close' })}</button>
       </div>
       ${list === null ? `<p class="nav-error" style="margin-top:12px">${L({ tr: 'Arkadaş listesi şu an açılamıyor. Biraz sonra tekrar dene.', en: "Your friends list can't be loaded right now. Try again in a bit." })}</p>` : ''}
       <div class="strength-card" style="margin-top:12px">

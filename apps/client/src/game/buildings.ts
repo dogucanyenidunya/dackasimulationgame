@@ -1218,7 +1218,19 @@ export function tvPanel(ctx: GameCtx): PanelView {
       actions: [{
         id: 'tv', label: T('Biraz televizyon izle', 'Watch some TV'), hint: T('30 dk · +5 moral · +3 enerji', '30 min · +5 mood · +3 energy'),
         locked: phase === 'etut' ? T(`${belletmenName(ctx)}: "Etütte televizyon yok!"`, `${belletmenName(ctx)}: "No TV during study time!"`) : phase === 'night' ? T('Işıklar söndü.', 'Lights are out.') : undefined,
-        run: () => { nudge(ctx, { ambition: -1 }); ctx.advance(30); ctx.gain({ mood: 5, energy: 3 }); },
+        run: () => {
+          nudge(ctx, { ambition: -1 });
+          const shows = [
+            T('Çizgi film vardı; koltuğa gömülüp bir bölüm izledin.', 'A cartoon was on; you sank into the sofa for an episode.'),
+            T('Belgeselde penguenler buzun üstünde kayıyordu. Herkes güldü.', 'Penguins were sliding on the ice in a documentary. Everyone laughed.'),
+            T('Bir yarışma programı vardı; sorulardan üçünü sen bildin!', 'A quiz show was on, and you got three of the questions right!'),
+            T('Maç özetleri vardı; en güzel golü üç kere tekrar izlediniz.', 'The match highlights were on; you watched the best goal three times.'),
+          ];
+          ctx.panel.close();
+          ctx.advance(30, { label: T('📺 Televizyon izliyorsun', '📺 Watching TV') });
+          ctx.gain({ mood: 5, energy: 3 });
+          ctx.toast(`📺 ${shows[Math.floor(Math.random() * shows.length)]} +5 ${T('moral', 'mood')}`, 'good');
+        },
       }],
     }],
   };
@@ -1257,7 +1269,7 @@ export function exitPanel(ctx: GameCtx): PanelView {
 
 function revir(ctx: GameCtx): PanelView {
   return {
-    title: 'Revir', sub: T('Hemşire Gül Hanım · gece gündüz açık', 'Nurse Gül · open day and night'), status: status(ctx),
+    title: 'Revir', sub: T('Revir görevlisi Kasım Abi · gece gündüz açık', 'Kasım Abi · open day and night'), status: status(ctx),
     rooms: [{
       id: 'revir', name: 'Revir',
       note: T('Temiz çarşaflar ve hafif bir kolonya kokusu.', 'Clean sheets and a faint smell of cologne.'),
@@ -1267,7 +1279,7 @@ function revir(ctx: GameCtx): PanelView {
           run: async () => {
             ctx.st.sick = false; ctx.st.health = Math.max(ctx.st.health, 75);
             ctx.advance(180); ctx.gain({ energy: 20, mood: 5 });
-            await ctx.panel.message('Gül Hanım', T('"Ateşin düştü. Bol sıvı iç, ellerini yıka ve geceleri dışarıda kalma!"', '"Your fever is down. Drink plenty, wash your hands and don\'t stay out at night!"'));
+            await ctx.panel.message('Kasım Abi', T('"Ateşin düştü. Bol sıvı iç, ellerini yıka ve geceleri dışarıda kalma!"', '"Your fever is down. Drink plenty, wash your hands and don\'t stay out at night!"'));
           },
         } as ActionView] : []),
         ...(!ctx.st.once.healthCheck ? [{
@@ -1280,8 +1292,8 @@ function revir(ctx: GameCtx): PanelView {
             ctx.gain({ xp: 20 });
             const vision = 8 + Math.floor(Math.random() * 3);
             await ctx.panel.message(T('Sağlık kontrolü', 'Health check'), T(
-              `Gül Hanım boyunu ölçtü, kulaklarına ve dişlerine baktı, aşı kartını kontrol etti. Göz testi: 10 üzerinden ${vision}. "Sağlığın yerinde! Bol su iç, öğünlerini atlama. Kendini kötü hissedersen gece gündüz buradayım."`,
-              `Nurse Gül measured your height, checked your ears and teeth and looked over your vaccination card. Eye test: ${vision}/10. "You're healthy! Drink plenty of water and don't skip meals. If you ever feel unwell, I'm here day and night."`));
+              `Kasım Abi boyunu ölçtü, kulaklarına ve dişlerine baktı, aşı kartını kontrol etti. Göz testi: 10 üzerinden ${vision}. "Sağlığın yerinde! Bol su iç, öğünlerini atlama. Kendini kötü hissedersen gece gündüz buradayım."`,
+              `Kasım Abi measured your height, checked your ears and teeth and looked over your vaccination card. Eye test: ${vision}/10. "You're healthy! Drink plenty of water and don't skip meals. If you ever feel unwell, I'm here day and night."`));
           },
         } as ActionView] : []),
         {
@@ -1295,7 +1307,7 @@ function revir(ctx: GameCtx): PanelView {
           run: () => { markToday(ctx, 'rest'); ctx.advance(60); ctx.gain({ energy: 20 }); ctx.toast(T('Kendini daha iyi hissediyorsun.', 'You feel better.'), 'good'); },
         },
         {
-          id: 'nurse', label: T('Hemşireyle sohbet et', 'Chat with the nurse'), hint: T('10 dk · +5 moral', '10 min · +5 mood'),
+          id: 'nurse', label: T('Kasım Abi ile sohbet et', 'Chat with Kasım Abi'), hint: T('10 dk · +5 moral', '10 min · +5 mood'),
           locked: doneToday(ctx, 'nurse') ? T('Bugün zaten konuştunuz.', 'You already talked today.') : undefined,
           run: () => { nudge(ctx, { heart: 1 }); markToday(ctx, 'nurse'); ctx.advance(10); ctx.gain({ mood: 5 }); },
         },
