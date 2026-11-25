@@ -2,6 +2,7 @@
 import { L, type Text } from '../i18n';
 import { sfx } from '../audio';
 import { paintCharacter, type CharacterLook } from '../art/textures';
+import './panel.css';
 
 export interface ActionView {
   id: string;
