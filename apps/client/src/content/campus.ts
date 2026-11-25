@@ -199,7 +199,7 @@ export const BUILDINGS: Building[] = [
     // wall facing TIM to the main street. The Kütüphane opens off its north side, the classrooms off its south.
     passages: [{ x: 29, y: 25, w: 11, h: 2 }],
   }),
-  bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], greenPatches: [{ x: 43, y: 18.8, w: 10.5, h: 2 }] }),
+  bld({ id: 'yemekhane', shape: rectPts({ x: 41.5, y: 14, w: 13.5, h: 9 }), roof: 'white', solar: [{ x: 43, y: 15.3, w: 10.5, h: 2.5 }], skylights: [{ x: 43.5, y: 19.2, w: 4.2, h: 1.2 }, { x: 49.3, y: 19.2, w: 4.2, h: 1.2 }] }), // (glass over the dining hall)
   bld({ id: 'spor', shape: [[58, 16.5], [59.5, 15], [68.5, 15], [70, 16.5], [70, 39.5], [58, 39.5]], roof: 'white', roofStyle: 'vault' }),
   bld({ id: 'cemiyet', shape: rectPts({ x: 42, y: 40, w: 14, h: 9 }), roof: 'grey', courtyard: rectPts({ x: 45, y: 42, w: 5, h: 2 }) }),
   // the indoor court between the boys' dorm and Eğitim, against the garden wall: a balloon court, an air-filled dome of green tarp
