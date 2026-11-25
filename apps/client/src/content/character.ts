@@ -217,6 +217,23 @@ export const BOARDING_OPTIONS: Array<{ id: Boarding; name: Text; desc: Text }> =
   { id: 'daimi', name: { tr: 'Daimi', en: 'Daimi (stays at school)' }, desc: { tr: 'Hafta sonları okulda kalırsın. Ders yok, Cemiyet kapalı; Pazar günleri ailen ziyarete gelir.', en: 'You stay at school at weekends. No lessons, the Cemiyet building is closed; your family visits on Sundays.' } },
 ];
 
+/**
+ * The pocket money the family sends every Sunday (₺, a range; each week's amount is drawn from it). Daimi students
+ * get more, since they don't go home at weekends (evci students also get money at home); losing the father usually
+ * hits the household's income hardest, and with both parents gone it's relatives who send it.
+ */
+export const ALLOWANCE: Record<Boarding, Record<Loss, [number, number]>> = {
+  daimi: { mother: [30, 45], father: [20, 35], both: [15, 30] },
+  evci: { mother: [20, 30], father: [15, 25], both: [10, 20] },
+};
+
+/** this week's allowance: somewhere in the family's range, in round 5 ₺ steps like real pocket money */
+export function weeklyAllowance(boarding: Boarding, loss: Loss, rnd: () => number = Math.random): number {
+  const [lo, hi] = ALLOWANCE[boarding]?.[loss] ?? ALLOWANCE.daimi.mother;
+  const steps = Math.floor((hi - lo) / 5);
+  return lo + 5 * Math.floor(rnd() * (steps + 1));
+}
+
 export function capitalize(s: string): string {
   return s.charAt(0).toLocaleUpperCase(getLang() === 'tr' ? 'tr-TR' : 'en-US') + s.slice(1);
 }

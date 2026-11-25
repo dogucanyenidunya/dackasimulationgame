@@ -61,7 +61,7 @@ import { ATTRS, CAUSES } from '../content/character';
 import { CLASS_LETTERS, SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
 import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp, growAttr, growRespect } from '../game/state';
-import { GUARDIANS, mixBonus, mixLean, mixName, moodGuard, traitMix, type AttrId } from '../content/character';
+import { GUARDIANS, mixBonus, mixLean, mixName, moodGuard, traitMix, weeklyAllowance, type AttrId } from '../content/character';
 import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData } from '../save';
 
 const REVEAL_RADIUS = 7;
@@ -4148,12 +4148,15 @@ export class CampusScene extends Phaser.Scene {
     const shield = myGroup(st) ? 0.5 : 1;
     // (an abi or abla who has your back keeps them off you for a week)
     if (foes.length && !hasSecret(st, 'kalkan') && !((st.daily.protectedUntil ?? 0) >= c.day) && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
-    // weekly pocket money every Monday
+    // every Sunday the family sends pocket money: how much depends on whether you're evci or daimi and who you lost
     const week = weekOf(c.day);
-    if (weekdayOf(c.day) === 0 && st.lastAllowanceWeek < week) {
+    if (weekdayOf(c.day) === 6 && st.lastAllowanceWeek < week) {
       st.lastAllowanceWeek = week;
-      st.money += 25;
-      this.hud.toast(L({ tr: 'Haftalık harçlık: +25 ₺', en: 'Weekly pocket money: +25 ₺' }), 'good');
+      const ch = this.save.character;
+      const amount = weeklyAllowance(ch.boarding ?? 'daimi', ch.loss);
+      st.money += amount;
+      const from = GUARDIANS.find((g) => g.id === ch.guardian)?.your ?? { tr: 'Ailen', en: 'Your family' };
+      this.hud.toast(L({ tr: `💌 ${L(from)} harçlık gönderdi: +${amount} ₺`, en: `💌 ${L(from)} sent pocket money: +${amount} ₺` }), 'good');
     }
   }
 
