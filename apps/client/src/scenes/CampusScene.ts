@@ -244,6 +244,8 @@ export class CampusScene extends Phaser.Scene {
   private diners: Phaser.Physics.Arcade.Sprite[] = [];
   private cooks: Phaser.GameObjects.Sprite[] = [];
   private dinerKey = '';
+  /** while you eat: everyone who has sat beside you or across from you so far (someone who finishes first still counts) */
+  private mealMates: { near: (d: Phaser.GameObjects.Sprite) => boolean; met: Map<string, NpcDef> } | null = null;
   private tray: { meal: import('../game/state').MealId; name: string } | null = null;
   /** your tray on the table while you eat */
   private trayAt: { x: number; y: number } | null = null;
@@ -1052,6 +1054,7 @@ export class CampusScene extends Phaser.Scene {
     if (key === this.dinerKey) return;
     this.dinerKey = key;
     const ids = new Set(here.map((n) => n.id));
+    this.noteMealMates(); // (before anyone gets up from your table)
     // those who have finished get up
     for (const d of this.diners) {
       const def = d.getData('def') as NpcDef | null;
@@ -1142,16 +1145,36 @@ export class CampusScene extends Phaser.Scene {
     const tableOf = (s: Seat) => s.y + (s.faces === 0 ? 1 : -1);
     const near = (s: Seat) => tableOf(s) === tableOf(seat) && (s.faces === seat.faces ? Math.abs(s.x - seat.x) === 1 : Math.abs(s.x - seat.x) <= 1);
     const seated = () => this.diners.filter((d) => d.visible && d.getData('def'));
-    const tablemates = () => seated().filter((d) => near(d.getData('seat') as Seat)).map((d) => d.getData('def') as NpcDef).slice(0, 4);
-    // friends of yours eating somewhere else in the hall
-    const elsewhere = () => seated().filter((d) => !near(d.getData('seat') as Seat) && this.isFriend(d.getData('def') as NpcDef)).map((d) => d.getData('def') as NpcDef);
+    const meal = { near: (d: Phaser.GameObjects.Sprite) => near(d.getData('seat') as Seat), met: new Map<string, NpcDef>() };
+    // (at the end your meal is already over, so the last look round is done here)
+    const tablemates = () => {
+      for (const d of seated()) if (meal.near(d)) meal.met.set((d.getData('def') as NpcDef).id, d.getData('def') as NpcDef);
+      if (this.mealMates === meal) this.mealMates = null;
+      return [...meal.met.values()].slice(0, 4);
+    };
+    // friends of yours eating somewhere else in the hall (and who never sat with you)
+    const elsewhere = () => seated().filter((d) => !meal.met.has((d.getData('def') as NpcDef).id) && this.isFriend(d.getData('def') as NpcDef)).map((d) => d.getData('def') as NpcDef);
     this.trayAt = { x: this.player.x, y: this.player.y + (seat.faces === 0 ? 14 : -14) };
     this.sleeping = true;
     this.sleepRun = {
       kind: 'eat', msPerMin: MEAL_MS_PER_MIN, acc: 0, left: MEAL_MINUTES, total: MEAL_MINUTES, busy: false, events: [],
-      onDone: () => { this.trayAt = null; eatMeal(ctx, tray.meal, tray.name, tablemates(), elsewhere()); this.persist(); },
+      onDone: () => { this.trayAt = null; const mates = tablemates(); eatMeal(ctx, tray.meal, tray.name, mates, elsewhere()); this.persist(); },
     };
+    // (once the meal has started: noting who's at your table checks that you're still eating)
+    this.mealMates = meal;
+    this.noteMealMates();
     this.hud.toast(L({ tr: `${tray.name}: afiyet olsun!`, en: `${tray.name}: enjoy your meal!` }), 'good');
+  }
+
+  /** whoever sits beside you or across from you right now joins the people you ate with */
+  private noteMealMates() {
+    const m = this.mealMates;
+    if (!m) return;
+    if (this.sleepRun?.kind !== 'eat') { this.mealMates = null; return; } // (you got up before finishing)
+    for (const d of this.diners) {
+      const def = d.getData('def') as NpcDef | null;
+      if (d.visible && def && m.near(d)) m.met.set(def.id, def);
+    }
   }
 
   private freeSeatNear(): { x: number; y: number; faces: 0 | 3 } | null {

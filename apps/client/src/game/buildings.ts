@@ -707,6 +707,16 @@ export function washHands(ctx: GameCtx) {
   markToday(ctx, 'wash'); ctx.advance(3); ctx.toast(T('Eller tertemiz. 🧼', 'Squeaky clean hands. 🧼'), 'good');
 }
 
+/** changes how someone feels about you, and says by how much it really changed (bonuses, and the ±100 ends, included) */
+function befriendBy(ctx: GameCtx, id: string, amount: number): number {
+  const before = ctx.st.friends[id] ?? 0;
+  ctx.befriend(id, amount);
+  return (ctx.st.friends[id] ?? 0) - before;
+}
+
+/** "Zeynep (+8)", or just the name when nothing changed (already as close as can be) */
+const withChange = (name: string, d: number) => (d ? `${name} (${d > 0 ? '+' : '−'}${Math.abs(d)})` : name);
+
 /** you've finished your tray (the scene lets the meal last a while first): you're full, and you got to know the people at your table */
 export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates: NpcDef[], friendsElsewhere: NpcDef[] = []) {
   markToday(ctx, `meal-${meal}`);
@@ -724,14 +734,14 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
   ctx.gain({ hunger: 100, mood: 5, xp: 10 });
   // a friend in the hall you didn't sit with feels a little left out
   if (friendsElsewhere.length) {
-    friendsElsewhere.forEach((n) => ctx.befriend(n.id, -3));
-    ctx.toast(T(`${friendsElsewhere.map((n) => n.name).join(', ')} başka bir masada oturduğuna biraz bozuldu.`, `${friendsElsewhere.map((n) => n.name).join(', ')} ${friendsElsewhere.length > 1 ? 'were' : 'was'} a bit hurt that you sat at another table.`));
+    const who = friendsElsewhere.map((n) => withChange(n.name, befriendBy(ctx, n.id, -3))).join(', ');
+    ctx.toast(T(`${who} başka bir masada oturduğuna biraz bozuldu.`, `${who} ${friendsElsewhere.length > 1 ? 'were' : 'was'} a bit hurt that you sat at another table.`));
   }
   ctx.log({ kind: 'meal', a: mealName, b: tablemates.map((n) => n.name).join(', ') });
   if (tablemates.length) {
     // eating side by side or across from someone brings you a little closer (a friend most of all)
-    tablemates.forEach((n) => ctx.befriend(n.id, (ctx.st.friends[n.id] ?? 0) >= FRIEND_AT ? 10 : n.kind === 'classmate' ? 8 : 5));
-    ctx.toast(T(`Masada: ${tablemates.map((n) => n.name).join(', ')}. Afiyet olsun!`, `At your table: ${tablemates.map((n) => n.name).join(', ')}. Enjoy!`), 'good');
+    const who = tablemates.map((n) => withChange(n.name, befriendBy(ctx, n.id, (ctx.st.friends[n.id] ?? 0) >= FRIEND_AT ? 10 : n.kind === 'classmate' ? 8 : 5))).join(', ');
+    ctx.toast(T(`💛 Birlikte yediniz: ${who}. Afiyet olsun!`, `💛 You ate together: ${who}. Enjoy!`), 'good');
   } else {
     ctx.toast(T('Afiyet olsun!', 'Enjoy your meal!'), 'good');
   }
