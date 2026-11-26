@@ -128,7 +128,6 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
       if (r >= 0.3 && r < 0.45 && m >= H(9, 30) && m < H(11, 30)) return { in: 'kutuphane' };
     } else {
       const r = ud('pm');
-      if (r < 0.3 && m >= H(14) && m < H(15, 30)) return { in: 'spor' }; // a film at Şakir Abi's canteen
       if (r >= 0.3 && r < 0.5 && m >= H(14) && m < H(16)) return { in: 'spor' };
     }
   }

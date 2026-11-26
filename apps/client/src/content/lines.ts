@@ -77,7 +77,6 @@ const KIDS: Record<Moment, Text[]> = {
   ],
   weekend: [
     { tr: 'Hafta sonu kampüs ne kadar sessiz, değil mi?', en: "The campus is so quiet at the weekend, isn't it?" },
-    { tr: 'Kantinde film varmış, gidelim mi?', en: "There's a film at the canteen. Shall we go?" },
     { tr: 'Yarısı eve gitti; meydan bize kaldı.', en: 'Half of them have gone home; the plaza is ours.' },
     { tr: 'Bugün ders yok, canım hiçbir şey yapmak istemiyor.', en: "No lessons today, and I don't feel like doing anything." },
   ],

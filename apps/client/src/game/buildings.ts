@@ -890,17 +890,6 @@ function kantinRoom(ctx: GameCtx): RoomView {
         };
       }),
       {
-        id: 'movie', label: T('🎬 Kantinde film izle', '🎬 Watch a film in the canteen'), hint: T('90 dk · +12 moral · günde bir', '90 min · +12 mood · once a day'),
-        locked: !kantinOpen ? T('Kapalı', 'Closed')
-          : !isWeekend(ctx.clock.day) && minutes < 15 * 60 + 20 ? T('Filmler dersler bittikten sonra (15:20) ya da hafta sonu.', 'Films are on after lessons (15:20) or at weekends.')
-            : doneToday(ctx, 'movie') ? T('Bugün zaten film izledin.', 'You already watched a film today.') : undefined,
-        run: async () => { nudge(ctx, { ambition: -1 });
-          markToday(ctx, 'movie'); ctx.advance(90); ctx.gain({ mood: 12, energy: -5, xp: 10 });
-          const films = [T('eski bir Kemal Sunal filmi', 'an old Kemal Sunal comedy'), T('bir uzay macerası', 'a space adventure'), T('bir animasyon', 'an animated film'), T('bir futbol belgeseli', 'a football documentary')];
-          await ctx.panel.message(T('Film saati', 'Film time'), T(`Kantinin köşesindeki televizyonda ${films[ctx.clock.day % films.length]} vardı. Şakir Abi herkese patlamış mısır dağıttı.`, `The TV in the corner showed ${films[ctx.clock.day % films.length]}. Şakir handed out popcorn to everyone.`));
-        },
-      },
-      {
         id: 'hangout', label: T('Masada takıl', 'Hang out at a table'), hint: T('30 dk · +4 moral', '30 min · +4 mood'),
         locked: !kantinOpen ? T('Kapalı', 'Closed') : undefined,
         run: () => { nudge(ctx, { loyalty: 1 }); focusTick(ctx, 'friends');

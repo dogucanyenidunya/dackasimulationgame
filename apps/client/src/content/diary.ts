@@ -62,7 +62,6 @@ const ACTS: Record<string, Pair> = {
   call: ['Evi aradım; sesini duyunca içim ısındı.', 'I called home; hearing their voice warmed me right up.'],
   wedvisit: ['Ailem ziyarete geldi! Gittiklerinde biraz hüzünlendim.', 'My family came to visit! I felt a bit sad when they left.'],
   visit: ['Ailem ziyarete geldi! Gittiklerinde biraz hüzünlendim.', 'My family came to visit! I felt a bit sad when they left.'],
-  movie: ['Kantinde film izledik, Şakir Abi patlamış mısır dağıttı.', 'We watched a film at the canteen and Şakir handed out popcorn.'],
   train: ['Antrenmana gittim; yoruldum ama kendimi güçlü hissettim.', 'I went to training. I was tired but I felt strong.'],
   read: ['Kitabımı okudum; kendimi başka bir yerde gibi hissettim.', 'I read my book and felt like I was somewhere else.'],
   homework: ['Ödevimi bitirdim, içim rahatladı.', 'I finished my homework, what a relief.'],
