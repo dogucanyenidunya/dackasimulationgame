@@ -7,10 +7,10 @@ import { TEACHERS } from '../content/classroom';
 import { bioOf, personaOf } from '../content/bios';
 import { DEFAULT_LOOK } from '../art/character';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
-import { MATCH_TIP, matchOn, ceremonyNow, ETUT_START, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
+import { MATCH_TIP, lightsOut, matchOn, ceremonyNow, ETUT_START, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { GIVER_IDS, MISSIONS, missionById, missionDone, oldersToMeet, questsFrom, reached, statusOf, type Mission, type MissionCtx } from './missions';
-import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
+import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, carsiNow, isFriday, npcIsEvci } from './weekend';
 import { activityOf } from './routine';
 import { lineFor, type Moment } from '../content/lines';
 import { dilemmaDone, runDilemma, shape } from './dilemmas';
@@ -1256,7 +1256,7 @@ export function exitPanel(ctx: GameCtx): PanelView {
     });
   } else {
     actions.push({
-      id: 'leave', label: T('Dışarı çık', 'Go outside'), hint: phase === 'plaza' ? T('22:00\'ye kadar yalnızca yurtların çevresi', 'Only around the dorms until 22:00') : T('Kampüse', 'To the campus'),
+      id: 'leave', label: T('Dışarı çık', 'Go outside'), hint: phase === 'plaza' ? T(`${fmtTime(lightsOut())}'e kadar yalnızca yurtların çevresi`, `Only around the dorms until ${fmtTime(lightsOut())}`) : T('Kampüse', 'To the campus'),
       locked: phase === 'etut' ? T(`${bel}: "Etüt bitmeden çıkmak yok!" (20:00'ye ${20 * 60 - ctx.clock.minutes} dk)`, `${bel}: "Nobody leaves before study time ends!" (${20 * 60 - ctx.clock.minutes} min to 20:00)`) : undefined,
       run: () => { ctx.panel.close(); ctx.leaveDorm(); },
     });
@@ -1325,7 +1325,7 @@ function spor(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const sport = SPORTS.find((x) => x.id === st.sport);
   const { day, minutes } = ctx.clock;
-  const trainingTime = isWeekend(day) ? minutes >= 10 * 60 && minutes < 17 * 60 : minutes >= 15.5 * 60 && minutes < 17 * 60;
+  const trainingTime = !isWeekend(day) && minutes >= 15.5 * 60 && minutes < 17 * 60; // (weekdays after lessons; no training at weekends)
   const enroll: ActionView = {
     id: 'enroll', label: T('Bir spora yazıl', 'Join a sport'), hint: T('Seçmeler · 3 deneme · 2 isabet gerekli', 'Try-out · 3 attempts · 2 hits needed'),
     locked: needMission(ctx, 'spora_basla') ?? sickLock(ctx) ?? (!st.school.kit ? T('Spor ayakkabın yok. Spor Salonu\'ndaki depodan al.', 'You have no sports shoes. Get them at the stores in the Spor Salonu.')
@@ -1414,6 +1414,7 @@ function kapaliSaha(ctx: GameCtx): PanelView {
   const play: ActionView = {
     id: 'play', label: T('Bir oyuna katıl', 'Join a game'), hint: T('45 dk · −15 enerji · +Kondisyon · +moral (günde bir)', '45 min · −15 energy · +Fitness · +mood (once a day)'),
     locked: sickLock(ctx) ?? (phase === 'etut' ? T('Etüt saati: salon 20:00\'de açılıyor.', 'Study hour: the hall opens at 20:00.')
+      : phase === 'night' ? T('Işıklar söndü; salon yarın açılıyor.', 'Lights are out; the hall opens tomorrow.')
       : currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson' && reached('derse_gir', ctx.mc()) ? T('Ders saatinde salon kapalı.', 'The hall is closed during lessons.')
         : !st.school.kit ? T('Spor ayakkabın yok. Spor Salonu\'ndaki depodan al.', 'You have no sports shoes. Get them at the stores in the Spor Salonu.')
           : doneToday(ctx, 'kapali_saha') ? T('Bugün zaten oynadın.', 'You already played today.')
@@ -2230,19 +2231,6 @@ export function gatePanel(ctx: GameCtx): PanelView {
         ctx.goHome(`${text} ${T(`${guardian} sana 20 ₺ harçlık verdi.`, `${guardian} gave you 20 ₺ pocket money.`)}`);
       },
     });
-  } else {
-    const visitTime = isSunday(day) && minutes >= VISIT_START && minutes < VISIT_END;
-    actions.push({
-      id: 'visit', label: T('👪 Ziyaretçini karşıla', '👪 Meet your visitor'), hint: T('Pazar 10:00–16:00 · 60 dk · +15 moral · harçlık', 'Sunday 10:00–16:00 · 60 min · +15 mood · pocket money'),
-      locked: !visitTime ? T('Ziyaret günü Pazar 10:00–16:00.', 'Visiting day is Sunday 10:00–16:00.') : doneToday(ctx, 'visit') ? T('Bugün ziyaretçin geldi.', 'Your visitor already came today.') : undefined,
-      run: async () => {
-        markToday(ctx, 'visit');
-        ctx.advance(60, { wait: true, label: T('👪 Ziyaretçinle birliktesin', '👪 With your visitor') }); // (online you spend this hour, counted down)
-        ctx.gain({ mood: 15, money: 15 });
-        const where = familyTreat(ctx, 'kurabiye');
-        await ctx.panel.message(T('Ziyaret günü', 'Visiting day'), T(`${guardian} kapıda seni bekliyordu! Bahçede oturup sohbet ettiniz; sana ev yapımı kurabiye ve 15 ₺ harçlık getirdi.${where.tr}`, `${guardian} was waiting at the gate! You sat in the garden and talked; they brought homemade cookies and 15 ₺ pocket money.${where.en}`));
-      },
-    });
   }
   actions.push(carsiAction(ctx));
   return {
@@ -2251,7 +2239,7 @@ export function gatePanel(ctx: GameCtx): PanelView {
       id: 'gate', name: 'Ana Kapı',
       note: evci
         ? T('Cuma 15:20–17:00 arası servis burada bekler. Pazar 17:40\'ta dönersin.', 'On Fridays the bus waits here from 15:20 to 17:00. You come back on Sunday at 17:40.')
-        : T('Hafta sonları okuldasın. Pazar günleri ailen ziyarete gelir.', 'You stay at school at weekends. Your family visits on Sundays.'),
+        : T('Hafta sonları okuldasın. Ailen Çarşamba çarşı izninde kantine gelir.', 'You stay at school at weekends. Your family comes to the canteen on Wednesday afternoons.'),
       actions,
     }],
   };
@@ -2711,9 +2699,11 @@ export function cemilPanel(ctx: GameCtx): PanelView {
 
 const COURT_NAME: Record<CourtSport, Text> = { basketball: { tr: 'Basketbol sahası', en: 'Basketball court' }, football: { tr: 'Futbol sahası', en: 'Football pitch' } };
 
-export function courtPanel(ctx: GameCtx, sport: CourtSport): PanelView {
+/** `evening`: the court behind the dorms, open in the evening free time too (until lights out) */
+export function courtPanel(ctx: GameCtx, sport: CourtSport, evening = false): PanelView {
   const st = ctx.st;
   const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
+  const open = phase === 'day' || (evening && phase === 'plaza');
   const need = COURT_PLAYERS[sport];
   return {
     title: L(COURT_NAME[sport]), sub: T(`Becerin: ${st.skills[sport]}/100`, `Your skill: ${st.skills[sport]}/100`), status: status(ctx),
@@ -2722,7 +2712,8 @@ export function courtPanel(ctx: GameCtx, sport: CourtSport): PanelView {
       note: sport === 'basketball' ? T(`2'ye 2 maç için senin dışında ${need} kişi lazım.`, `For a 2-on-2 game you need ${need} more players.`) : T(`3'e 3 maç için senin dışında ${need} kişi lazım.`, `For a 3-on-3 game you need ${need} more players.`),
       actions: [{
         id: 'call', label: T('📣 Arkadaşlarını çağır', '📣 Call your friends over'), hint: T('Yakındaki arkadaşların gelir, sen bekle', 'Friends who are around will come; wait for them here'),
-        locked: phase !== 'day' ? T('Akşam sahalar kapalı.', 'The courts are closed in the evening.')
+        locked: !open ? (evening ? (phase === 'etut' ? T('Etüt saati: saha 20:00\'de açılıyor.', 'Study hour: the court opens at 20:00.') : T('Işıklar söndü; saha yarın açılıyor.', "Lights are out; the court opens tomorrow."))
+          : T('Akşam sahalar kapalı. Yatakhane arkasındaki saha ışıklar sönene kadar açık.', 'The courts are closed in the evening. The court behind the dorms is open until lights out.'))
           : currentPeriod(ctx.clock.day, ctx.clock.minutes)?.kind === 'lesson' && reached('derse_gir', ctx.mc()) ? T('Ders saatinde maç olmaz!', 'No games during lessons!')
             : st.energy < 25 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
         run: () => { nudge(ctx, { loyalty: 1, presence: 1 });

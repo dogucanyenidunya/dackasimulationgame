@@ -57,15 +57,22 @@ export const PERIODS: Period[] = [
   { id: 'sports', kind: 'sports', start: h(15, 30), end: h(17), name: { tr: 'Spor ve kulüpler', en: 'Sports & clubs' } },
   { id: 'dinner', kind: 'meal', meal: 'dinner', start: h(17), end: h(18), name: { tr: 'Akşam yemeği', en: 'Dinner' } },
   { id: 'etut', kind: 'etut', start: h(18), end: h(20), name: { tr: 'Etüt · yurdunda ol', en: 'Evening study · be in your dorm' } },
-  { id: 'plaza', kind: 'plaza', start: h(20), end: h(22), name: { tr: 'Yurtlar çevresinde serbest', en: 'Free time around the dorms' } },
+  { id: 'plaza', kind: 'plaza', start: h(20), end: h(22, 30), name: { tr: 'Yurtlar çevresinde serbest', en: 'Free time around the dorms' } },
 ];
 
 /** evening rules (GDD §6.6): study in the dorm, then the dorm plaza only, then bed */
 export const ETUT_START = h(18);
 export const PLAZA_START = h(20);
-export const LIGHTS_OUT = h(22);
+/** lights out by school stage: up to the 8th grade at 22:00, the lise (9th–12th grade) half an hour later */
+export const lightsOutFor = (grade: number) => (grade >= 9 ? h(22, 30) : h(22));
+/** the latest lights out of all: the campus clock runs its quick night from here */
+export const LATEST_LIGHTS_OUT = h(22, 30);
+let yourLightsOut = h(22);
+/** your own lights out (the scene sets it from your grade): the evening, curfew and night all follow it */
+export const lightsOut = () => yourLightsOut;
+export function setLightsOut(grade: number) { yourLightsOut = lightsOutFor(grade); }
 export const WAKE_UP = h(7);
-/** no evening study on Fridays and Saturdays: 18:00–22:00 is all free time around the dorms */
+/** no evening study on Fridays and Saturdays: 18:00 to lights out is all free time around the dorms */
 export const hasEtut = (day: number) => day >= FIRST_MONDAY && (weekday(day) < 4 || weekday(day) === 6) && !isMatchDay(day);
 
 /** the second Sunday: Darüşşafaka play Banvit in the Spor Salonu at 19:00, and the whole school goes (no evening study) */
@@ -82,12 +89,12 @@ export const matchOn = (day: number, minutes: number) => isMatchDay(day) && minu
 export const matchFree = (day: number, minutes: number) => isMatchDay(day) && minutes >= MATCH_OPEN && minutes < MATCH_FREE;
 export type DayPhase = 'day' | 'etut' | 'plaza' | 'night';
 export function phaseOf(minutes: number, day: number): DayPhase {
-  if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return 'night';
+  if (minutes >= lightsOut() || minutes < WAKE_UP) return 'night';
   if (minutes >= PLAZA_START) return 'plaza';
   if (minutes >= ETUT_START) return hasEtut(day) ? 'etut' : 'plaza';
   return 'day';
 }
-const NO_ETUT_EVENING: Period = { id: 'plaza', kind: 'plaza', start: ETUT_START, end: LIGHTS_OUT, name: { tr: 'Etüt yok · yurtlar çevresinde serbest', en: 'No study tonight · free time around the dorms' } };
+const NO_ETUT_EVENING: Period = { id: 'plaza', kind: 'plaza', start: ETUT_START, end: LATEST_LIGHTS_OUT, name: { tr: 'Etüt yok · yurtlar çevresinde serbest', en: 'No study tonight · free time around the dorms' } };
 
 /** afternoon snack (ara öğün) at the dining hall counter; it runs alongside sports & clubs */
 export const SNACK_START = h(16);
@@ -118,6 +125,26 @@ const FREE_TIME: Text = { tr: 'Serbest zaman', en: 'Free time' };
 
 export const isWeekend = (day: number) => weekday(day) >= 5;
 
+/** the weekend goes by in one jump, for everyone: from Friday 18:00 straight to Sunday 15:00 (nothing happens in
+ *  between: no hunger, no tiredness, no lessons missed). The registration days (before the first Monday) keep theirs. */
+export const WEEKEND_FROM = h(18);
+export const WEEKEND_TO = h(15);
+/** inside the skipped stretch: Friday evening, all of Saturday, Sunday morning */
+export function inWeekendGap(day: number, minutes: number): boolean {
+  if (day < FIRST_MONDAY) return false;
+  const wd = weekday(day);
+  return (wd === 4 && minutes >= WEEKEND_FROM) || wd === 5 || (wd === 6 && minutes < WEEKEND_TO);
+}
+/** where the jump lands: that weekend's Sunday at 15:00 */
+export const afterWeekend = (day: number) => ({ day: day + ((6 - weekday(day) + 7) % 7), minutes: WEEKEND_TO });
+/** does a jump from one moment to another (absolute minutes) pass a Friday 18:00, i.e. skip a weekend? */
+export function skipsWeekend(fromAbs: number, toAbs: number): boolean {
+  const d = Math.floor(fromAbs / (24 * 60));
+  let t = (d + ((4 - weekday(d) + 7) % 7)) * 24 * 60 + WEEKEND_FROM;
+  if (t < fromAbs) t += 7 * 24 * 60;
+  return t <= toAbs && t >= FIRST_MONDAY * 24 * 60;
+}
+
 export function currentPeriod(day: number, minutes: number): Period | null {
   const p = PERIODS.find((x) => minutes >= x.start && minutes < x.end) ?? null;
   // weekends (and the registration days) have no lessons and no sports & clubs slot: all free time between meals
@@ -145,7 +172,7 @@ export function subjectFor(day: number, periodId: string): SubjectId {
 }
 
 export function periodLabel(day: number, minutes: number): Text {
-  if (minutes >= LIGHTS_OUT || minutes < WAKE_UP) return NIGHT;
+  if (minutes >= lightsOut() || minutes < WAKE_UP) return NIGHT;
   const p = currentPeriod(day, minutes);
   if (!p) return isWeekend(day) ? WEEKEND_FREE : day < FIRST_MONDAY ? FREE_TIME : BREAK;
   if (p.kind === 'lesson') {

@@ -3,7 +3,7 @@
 // all agree about who is where. Each student runs a few minutes early or late, so nobody moves in step.
 import type { NpcDef } from '../content/npcs';
 import { ETUT_START, PLAZA_START, RUSH_NIGHT, ceremonyWindow, currentPeriod, hasEtut, matchOn, subjectFor } from './schedule';
-import { BACK_ON_SUNDAY, BUS_BOARDING, CARSI_START, VISIT_START, npcIsEvci, weekday } from './weekend';
+import { BACK_ON_SUNDAY, BUS_BOARDING, CARSI_START, npcIsEvci, weekday } from './weekend';
 
 /** inside a building (`dorm` = their own dorm) or off campus (`away`: they leave by the main gate) */
 export type Indoors = 'dorm' | 'yemekhane' | 'egitim' | 'spor' | 'kutuphane' | 'cemiyet' | 'revir' | 'away';
@@ -57,7 +57,7 @@ export function wakeTime(def: NpcDef, day: number): number {
 /** after getting up they spend a few minutes at their locker, getting dressed, before they leave the dorm */
 export const DRESS_MINUTES = 12;
 export function bedTime(def: NpcDef): number {
-  return H(21, 45) + habit(def, 'bed') * 12;
+  return H(21, 45) + habit(def, 'bed') * 12 + ((def.grade ?? 4) >= 9 ? 30 : 0); // (the lise go to bed half an hour later)
 }
 
 export function activityOf(def: NpcDef, c: RoutineClock): Activity {
@@ -122,11 +122,6 @@ function planned(def: NpcDef, c: RoutineClock): Activity {
   }
 
   if (weekend && optional && m < H(17)) {
-    // Sunday is visiting day: about half of those who stayed have family over for an hour
-    if (wd === 6 && ud('visit') < 0.5) {
-      const v = VISIT_START + Math.floor(ud('vt') * 5) * 60;
-      if (m >= v && m < v + 60) return { in: 'yemekhane' };
-    }
     if (m < H(12, 20)) {
       const r = ud('am');
       if (r < 0.3 && m >= H(10) && m < H(12)) return { in: 'spor' };

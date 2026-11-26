@@ -37,7 +37,7 @@ function pages(): Page[] {
       items: [
         ['🌫️', L({ tr: 'Kampüs sisle kaplı: dolaştıkça binalar ortaya çıkar. Kapılara yaklaşıp içeri girersin.', en: 'The campus starts in fog: buildings appear as you explore. Walk up to a door to go in.' })],
         ['🔔', L({ tr: 'Hafta içi kahvaltı 07:00, ilk ders 08:30. Akşam yemeğinden sonra 18:00–20:00 etüt: yurdunda ol.', en: 'On weekdays breakfast is at 07:00 and the first lesson at 08:30. After dinner, 18:00–20:00 is study time: be in your dorm.' })],
-        ['🌙', L({ tr: 'Işıklar 22:00\'de söner. Yurdundaki yatağına gidip uyu; gece hızlı geçer.', en: 'Lights go out at 22:00. Go to your bed in the dorm and sleep; the night goes by fast.' })],
+        ['🌙', L({ tr: 'Işıklar 22:00\'de (lisede 22:30\'da) söner. Yurdundaki yatağına gidip uyu; gece hızlı geçer.', en: 'Lights go out at 22:00 (22:30 in the lise). Go to your bed in the dorm and sleep; the night goes by fast.' })],
         ['🍽️', L({ tr: 'Yemekhane yalnızca öğün saatlerinde açık. Aç kalırsan hastalanırsın; Revir Kız Yurdu\'nun doğu yüzünde.', en: "The dining hall is only open at mealtimes. Go hungry and you'll get ill; the infirmary is on the east side of the girls' dorm." })],
       ],
     },

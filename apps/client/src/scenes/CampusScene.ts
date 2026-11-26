@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import { onboardingCard } from '../ui/onboarding';
 import {
-  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, timWallAt, wallAt,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, DORM_COURT, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, timWallAt, wallAt,
   MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, BARRIERS, CAGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
   AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
@@ -40,7 +40,7 @@ import {
 } from '../content/dormroom';
 import { CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
-import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
+import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
@@ -53,7 +53,7 @@ import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
 import { writeDiary, type DiaryEvent } from '../content/diary';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { CEREMONY, ETUT_START, FIRST_MONDAY, LIGHTS_OUT, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
+import { CEREMONY, ETUT_START, FIRST_MONDAY, lightsOut, setLightsOut, afterWeekend, inWeekendGap, skipsWeekend, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
 import {
   GIVER_IDS, MISSIONS, missionById, nextObjective, questMark, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
@@ -1625,7 +1625,7 @@ export class CampusScene extends Phaser.Scene {
     const c = this.save.clock;
     const m = c.minutes;
     const boy = this.save.character.gender === 'boy';
-    this.cemilIn.setVisible(this.room === 'dorm' && boy && m >= 7 * 60 && m < LIGHTS_OUT);
+    this.cemilIn.setVisible(this.room === 'dorm' && boy && m >= 7 * 60 && m < lightsOut());
     const outDay = m >= 8 * 60 && m < 18 * 60;
     this.cemilOut.setVisible(outDay);
     (this.cemilOut.body as Phaser.Physics.Arcade.StaticBody).enable = outDay;
@@ -1653,7 +1653,7 @@ export class CampusScene extends Phaser.Scene {
     const px = this.player.x / TILE, py = this.player.y / TILE;
     for (const { sport, rect: r } of PLAY_COURTS) {
       if (px >= r.x - 0.5 && px <= r.x + r.w + 0.5 && py >= r.y - 0.5 && py <= r.y + r.h + 0.5) {
-        return { label: L(sport === 'basketball' ? { tr: 'Basketbol sahası', en: 'Basketball court' } : { tr: 'Futbol sahası', en: 'Football pitch' }), open: () => { this.courtAt = r; const g = ctx(); this.panel.open(() => courtPanel(g, sport)); } };
+        return { label: L(sport === 'basketball' ? { tr: 'Basketbol sahası', en: 'Basketball court' } : { tr: 'Futbol sahası', en: 'Football pitch' }), open: () => { this.courtAt = r; const g = ctx(); this.panel.open(() => courtPanel(g, sport, r === DORM_COURT)); } };
       }
     }
     return null;
@@ -3312,8 +3312,8 @@ export class CampusScene extends Phaser.Scene {
     }
     if (phase === 'night') {
       // lights out works like study time: you walk back yourself; 5+ minutes late costs discipline and goodwill
-      const lateNight = c.minutes >= LIGHTS_OUT ? c.minutes - LIGHTS_OUT : c.minutes + 24 * 60 - LIGHTS_OUT;
-      const nightKey = c.minutes >= LIGHTS_OUT ? day : day - 1; // after midnight it's still the same night
+      const lateNight = c.minutes >= lightsOut() ? c.minutes - lightsOut() : c.minutes + 24 * 60 - lightsOut();
+      const nightKey = c.minutes >= lightsOut() ? day : day - 1; // after midnight it's still the same night
       if (lateNight >= 5 && st.daily.lateBed !== nightKey) {
         st.daily.lateBed = nightKey;
         shape(st, { rules: 1 });
@@ -3357,7 +3357,7 @@ export class CampusScene extends Phaser.Scene {
     const phase = phaseOf(m, this.save.clock.day);
     if (phase === 'day') { const les = this.currentLesson(); return les ? m - les.p.start : 0; }
     if (phase === 'etut') return m - ETUT_START;
-    return m >= LIGHTS_OUT ? m - LIGHTS_OUT : m + 24 * 60 - LIGHTS_OUT;
+    return m >= lightsOut() ? m - lightsOut() : m + 24 * 60 - lightsOut();
   }
 
   /** where the belletmens head for you: you, or the door of the building you're hiding in */
@@ -3656,10 +3656,11 @@ export class CampusScene extends Phaser.Scene {
       this.hud.setCountdown(late < 5
         ? L({ tr: `🏃 Etüt başladı! ${5 - late} dk içinde yurdunda ol`, en: `🏃 Study time has started! Be in your dorm within ${5 - late} min` })
         : L({ tr: `⚠ Etüte ${late} dk geç kaldın · hemen yurduna git`, en: `⚠ You're ${late} min late for study time · get to your dorm` }), true);
-    } else if (phase === 'plaza' && m >= 21 * 60 + 30) {
-      this.hud.setCountdown(L({ tr: `🌙 Işıklar 22:00'de sönüyor · ${22 * 60 - m} dk kaldı`, en: `🌙 Lights out at 22:00 · ${22 * 60 - m} min left` }), m >= 21 * 60 + 50);
+    } else if (phase === 'plaza' && m >= lightsOut() - 30) {
+      const lo = lightsOut();
+      this.hud.setCountdown(L({ tr: `🌙 Işıklar ${fmtTime(lo)}'de sönüyor · ${lo - m} dk kaldı`, en: `🌙 Lights out at ${fmtTime(lo)} · ${lo - m} min left` }), m >= lo - 10);
     } else if (phase === 'night') {
-      const late = m >= 22 * 60 ? m - 22 * 60 : m + 120;
+      const late = m >= lightsOut() ? m - lightsOut() : m + 24 * 60 - lightsOut();
       this.hud.setCountdown(late < 5
         ? L({ tr: `🌙 Işıklar söndü! ${5 - late} dk içinde yurdunda ol`, en: `🌙 Lights are out! Be in your dorm within ${5 - late} min` })
         : L({ tr: `⚠ Işıklar söneli ${late} dk oldu · hemen yurduna dön`, en: `⚠ Lights went out ${late} min ago · get back to your dorm` }), true);
@@ -3729,9 +3730,6 @@ export class CampusScene extends Phaser.Scene {
     }
     if (carsiNow(c.day, m) && st.daily.wedvisit !== c.day) {
       return { text: L({ tr: `👪 Çarşı izni: ${g} kantinde (Spor Salonu) seni bekliyor · ${fmtTime(CARSI_END)}'e kadar · ${CARSI_END - m} dk`, en: `👪 Wednesday visit: ${g} is waiting at the canteen (Spor Salonu) · until ${fmtTime(CARSI_END)} · ${CARSI_END - m} min` }), urgent: CARSI_END - m <= 30, progress: bar(CARSI_END, CARSI_START) };
-    }
-    if (!evci && isSunday(c.day) && m >= VISIT_START && m < VISIT_END && st.daily.visit !== c.day) {
-      return { text: L({ tr: `👪 Ziyaret günü: ${g} Ana Kapı'da seni bekliyor · ${fmtTime(VISIT_END)}'ya kadar · ${VISIT_END - m} dk`, en: `👪 Visiting day: ${g} is waiting at the main gate · until ${fmtTime(VISIT_END)} · ${VISIT_END - m} min` }), urgent: VISIT_END - m <= 30, progress: bar(VISIT_END, VISIT_START) };
     }
     const cer = this.isRaining() ? null : ceremonyWindow(c.day);
     if (cer && m >= cer[0] - 15 && m < cer[1]) {
@@ -4184,7 +4182,7 @@ export class CampusScene extends Phaser.Scene {
     }
     if (this.panel.isOpen || this.touring) return; // time stands still while you're inside a menu or the first tour (single-player prototype)
     const c = this.save.clock;
-    const night = c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP;
+    const night = c.minutes >= lightsOut() || c.minutes < WAKE_UP;
     const phase = phaseOf(c.minutes, c.day);
     const speed = (this.fast ? 6 : 1) * (this.rushOn() && !night ? RUSH_SPEED : phase === 'etut' ? ETUT_SPEED : 1);
     const msPerMin = (night ? MS_PER_MIN_NIGHT : MS_PER_MIN_DAY) / speed;
@@ -4205,10 +4203,12 @@ export class CampusScene extends Phaser.Scene {
     const before = c.minutes;
     c.minutes += 1;
     if (c.minutes >= 24 * 60) { c.minutes = 0; c.day += 1; }
+    // Friday 18:00: the weekend goes by in one jump, to Sunday 15:00 (after the registration days)
+    if (!this.rushOn() && inWeekendGap(c.day, c.minutes)) { this.skipWeekend(); return; }
     // in class when a lesson begins (out on the pitch for PE): you can sit down any time in it without a late slip
     const lp = currentPeriod(c.day, c.minutes);
     if (lp?.kind === 'lesson' && c.minutes <= lp.start + 5 && (this.room === 'class' || (subjectFor(c.day, lp.id) === 'beden' && this.onPeGround()))) st.daily[presentKey(lp.id)] = c.day;
-    if (before < LIGHTS_OUT && c.minutes >= LIGHTS_OUT) this.hud.toast(t('lights_out'));
+    if (before < lightsOut() && c.minutes >= lightsOut()) this.hud.toast(L({ tr: `${fmtTime(lightsOut())} — Işıklar söndü. Belletmen herkesi yatağa gönderiyor.`, en: `${fmtTime(lightsOut())} — Lights out. The belletmen sends everyone to bed.` }));
     if (before < 7 * 60 && c.minutes >= 7 * 60) this.onMorning();
     const cer = this.isRaining() ? null : ceremonyWindow(c.day);
     if (cer && c.minutes === cer[0] - 5) this.hud.toast(L({ tr: '🇹🇷 Bayrak töreni birazdan Merkez Meydan\'da başlıyor.', en: '🇹🇷 The flag ceremony starts soon on the Merkez Meydan.' }));
@@ -4233,7 +4233,7 @@ export class CampusScene extends Phaser.Scene {
     }
 
     const asleep = this.sleepRun !== null && this.sleepRun.kind !== 'busy' && this.sleepRun.kind !== 'home';
-    const awakeLate = !asleep && (c.minutes >= LIGHTS_OUT || c.minutes < WAKE_UP);
+    const awakeLate = !asleep && (c.minutes >= lightsOut() || c.minutes < WAKE_UP);
     st.hunger = clamp(st.hunger - (asleep ? 0.03 : 0.1));
     st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035) * (hasSecret(st, 'keyif') ? 0.75 : 1)));
     // health (GDD §6.2.1)
@@ -4324,16 +4324,45 @@ export class CampusScene extends Phaser.Scene {
     const shield = myGroup(st) ? 0.5 : 1;
     // (an abi or abla who has your back keeps them off you for a week)
     if (foes.length && !hasSecret(st, 'kalkan') && !((st.daily.protectedUntil ?? 0) >= c.day) && Math.random() < 0.45 * shield) this.time.delayedCall(1200, () => this.badSurprise(foes[Math.floor(Math.random() * foes.length)]));
-    // every Sunday the family sends pocket money: how much depends on whether you're evci or daimi and who you lost
+    this.sendAllowance();
+  }
+
+  /** every Sunday the family sends pocket money (how much depends on whether you're evci or daimi and who you lost);
+   *  it arrives with the jump to Sunday afternoon, or on the first Sunday you see */
+  private sendAllowance() {
+    const c = this.save.clock;
+    const st = this.save.state;
     const week = weekOf(c.day);
-    if (weekdayOf(c.day) === 6 && st.lastAllowanceWeek < week) {
-      st.lastAllowanceWeek = week;
-      const ch = this.save.character;
-      const amount = weeklyAllowance(ch.boarding ?? 'daimi', ch.loss);
-      st.money += amount;
-      const from = GUARDIANS.find((g) => g.id === ch.guardian)?.your ?? { tr: 'Ailen', en: 'Your family' };
-      this.hud.toast(L({ tr: `💌 ${L(from)} harçlık gönderdi: +${amount} ₺`, en: `💌 ${L(from)} sent pocket money: +${amount} ₺` }), 'good');
+    if (weekdayOf(c.day) !== 6 || st.lastAllowanceWeek >= week) return;
+    st.lastAllowanceWeek = week;
+    const ch = this.save.character;
+    const amount = weeklyAllowance(ch.boarding ?? 'daimi', ch.loss);
+    st.money += amount;
+    const from = GUARDIANS.find((g) => g.id === ch.guardian)?.your ?? { tr: 'Ailen', en: 'Your family' };
+    this.hud.toast(L({ tr: `💌 ${L(from)} harçlık gönderdi: +${amount} ₺`, en: `💌 ${L(from)} sent pocket money: +${amount} ₺` }), 'good');
+  }
+
+  /** Friday 18:00 → Sunday 15:00 in one go (solo play; online the campus clock does the same): nothing happens in
+   *  between, hunger, energy and health stay as they were; whatever you were doing has had that much time */
+  private skipWeekend() {
+    const c = this.save.clock;
+    const to = afterWeekend(c.day);
+    const gap = (to.day - c.day) * 24 * 60 + to.minutes - c.minutes;
+    c.day = to.day; c.minutes = to.minutes;
+    const s = this.sleepRun;
+    if (s && !s.busy) {
+      s.left = Math.max(0, s.left - gap);
+      for (const e of s.events) if (s.total - s.left >= e.at) e.done = true;
     }
+    this.npcClock = -1;
+    this.weekendGone(s?.kind === 'home');
+  }
+
+  /** the weekend just went by: a word about it, and the week's pocket money */
+  private weekendGone(atHome: boolean) {
+    this.sendAllowance();
+    if (atHome) return; // (the weekend at home has its own card when you're back)
+    this.hud.toast(L({ tr: '🌙 Hafta sonu geçti: Pazar 15:00. Etüt 18:00\'de.', en: "🌙 The weekend went by: it's Sunday 15:00. Study time is at 18:00." }), 'good');
   }
 
   /** time passes because of an action. Offline the clock jumps ahead. Online there's one shared clock: you only wait it
@@ -4400,6 +4429,7 @@ export class CampusScene extends Phaser.Scene {
     this.fast = false;
     this.minuteAcc = 0;
     if (gap <= 0) { this.refreshClockAndNeeds(); return; }
+    const weekendSkipped = skipsWeekend(absMinutes(c), to);
     c.day = Math.floor(to / (24 * 60));
     c.minutes = to - c.day * 24 * 60;
     // whatever you were doing (sleep, a meal, the weekend at home…) has had that much time; night events you slept through are skipped
@@ -4413,7 +4443,9 @@ export class CampusScene extends Phaser.Scene {
     if (toDorm) this.placeInDorm();
     this.npcClock = -1;
     this.refreshClockAndNeeds();
-    if (gap >= 15) {
+    if (weekendSkipped) this.weekendGone(s?.kind === 'home');
+    else this.sendAllowance(); // (back on a Sunday after a long gap)
+    if (gap >= 15 && !weekendSkipped) {
       const day = t('days').split(',')[weekdayOf(c.day)];
       this.hud.toast(arriving
         ? L({ tr: `🕒 Kampüs saatindesin: ${day} ${fmtTime(c.minutes)}.`, en: `🕒 You're on campus time: ${day} ${fmtTime(c.minutes)}.` })
@@ -4556,6 +4588,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private refreshClockAndNeeds() {
+    setLightsOut(this.save.state.year + 3); // (your grade: the lise go to bed half an hour later)
     const c = this.save.clock;
     const p = currentPeriod(c.day, c.minutes);
     const lessonsLocked = !this.lessonsOn();

@@ -110,7 +110,7 @@ export function todaysKumanya(now = Date.now()): Text {
 /** what your guardian says on today's call; `who` is "Annen" / "Your mother" etc. */
 const CALLS: Array<(who: Text) => Text> = [
   (w) => ({ tr: `${w.tr} aradı: "Sesini duymak çok iyi geldi. Yemeklerini yiyor musun?"`, en: `${w.en} called: "It's so good to hear your voice. Are you eating properly?"` }),
-  (w) => ({ tr: `${w.tr} aradı: "Hafta sonu sana kurabiye yaptım, ziyarette getireceğim."`, en: `${w.en} called: "I baked you cookies this weekend. I'll bring them when I visit."` }),
+  (w) => ({ tr: `${w.tr} aradı: "Sana kurabiye yaptım, Çarşamba kantine getireceğim."`, en: `${w.en} called: "I baked you cookies. I'll bring them to the canteen on Wednesday."` }),
   (w) => ({ tr: `${w.tr} aradı: "Seninle gurur duyuyorum. Derslerin nasıl gidiyor?"`, en: `${w.en} called: "I'm proud of you. How are your lessons going?"` }),
   (w) => ({ tr: `${w.tr} aradı: "Mahallede herkes seni soruyor. Arkadaşlarına selam söyle."`, en: `${w.en} called: "Everyone in the neighbourhood asks about you. Say hi to your friends."` }),
   (w) => ({ tr: `${w.tr} aradı: "Hava soğuyormuş, hırkanı giy olur mu?"`, en: `${w.en} called: "They say it's getting cold. Wear your cardigan, okay?"` }),

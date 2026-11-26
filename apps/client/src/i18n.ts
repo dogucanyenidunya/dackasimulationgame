@@ -45,7 +45,6 @@ const STRINGS = {
   coming_soon: { tr: 'İçerisi 3. adımda gelecek.', en: 'Interiors come in step 3.' },
   close: { tr: 'Kapat', en: 'Close' },
   controls: { tr: 'WASD/oklar: yürü · E: etkileşim · J: görevler · R: ilişkiler · M: harita · C: profil · T: hızlı zaman', en: 'WASD/arrows: walk · E: interact · J: missions · R: people · M: map · C: profile · T: fast time' },
-  lights_out: { tr: '22:00 — Işıklar söndü. Belletmen herkesi yatağa gönderiyor.', en: '22:00 — Lights out. The belletmen sends everyone to bed.' },
   morning: { tr: 'Günaydın! Yeni bir gün başladı.', en: 'Good morning! A new day has begun.' },
   map_title: { tr: 'Kampüs haritası', en: 'Campus map' },
   fast_on: { tr: 'Zaman hızlı (×6)', en: 'Fast time (×6)' },

@@ -7,8 +7,6 @@ export { weekday };
 export const BUS_BOARDING = 15 * 60 + 20; // after the last lesson
 export const BUS_LEAVES = 17 * 60;
 export const BACK_ON_SUNDAY = 17 * 60 + 40;
-export const VISIT_START = 10 * 60;
-export const VISIT_END = 16 * 60;
 
 export const isFriday = (day: number) => weekday(day) === 4 && day >= FIRST_MONDAY;
 export const isSunday = (day: number) => weekday(day) === 6;

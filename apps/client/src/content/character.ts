@@ -214,7 +214,7 @@ export const CAUSES: Cause[] = [
 
 export const BOARDING_OPTIONS: Array<{ id: Boarding; name: Text; desc: Text }> = [
   { id: 'evci', name: { tr: 'Evci', en: 'Evci (home at weekends)' }, desc: { tr: 'Cuma dersten sonra (15:20–17:00) Ana Kapı\'dan servisle eve gidersin, Pazar 17:40\'ta dönersin.', en: 'You take the bus home from the main gate after Friday\'s lessons (15:20–17:00) and come back on Sunday at 17:40.' } },
-  { id: 'daimi', name: { tr: 'Daimi', en: 'Daimi (stays at school)' }, desc: { tr: 'Hafta sonları okulda kalırsın. Ders yok, Cemiyet kapalı; Pazar günleri ailen ziyarete gelir.', en: 'You stay at school at weekends. No lessons, the Cemiyet building is closed; your family visits on Sundays.' } },
+  { id: 'daimi', name: { tr: 'Daimi', en: 'Daimi (stays at school)' }, desc: { tr: 'Hafta sonları okulda kalırsın. Ders yok, Cemiyet kapalı.', en: 'You stay at school at weekends. No lessons, and the Cemiyet building is closed.' } },
 ];
 
 /**

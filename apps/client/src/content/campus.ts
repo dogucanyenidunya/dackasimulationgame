@@ -447,7 +447,7 @@ export const LOCATIONS: Location[] = [
   {
     id: 'ana_kapi', kind: 'zone',
     name: { tr: 'Ana Kapı', en: 'Ana Kapı' }, sub: { tr: 'Ana giriş', en: 'Main gate' },
-    info: { tr: 'Herkesin hikâyesi burada başlar. Pazar günleri ziyaret günüdür.', en: "Everyone's story starts here. Sundays are visiting day." },
+    info: { tr: 'Herkesin hikâyesi burada başlar. Evciler Cuma günü servisi buradan alır.', en: "Everyone's story starts here. On Fridays the evci students catch their bus here." },
     rect: { x: 35, y: 47, w: 11, h: 5 }, label: { x: 40.5, y: 49.4 }, minimapColor: '#8a2d2d',
   },
   {
