@@ -174,7 +174,8 @@ export class CampusScene extends Phaser.Scene {
   private particles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private weather = '';
   private lastTile = { x: -1, y: -1 };
-  private nearDoor: Location | null = null;
+  /** the door the prompt shows (null = none; undefined = the prompt shows something else, so the next door check redraws it) */
+  private nearDoor: Location | null | undefined = null;
   private fast = false;
   private minuteAcc = 0;
   private saveTimer = 0;
@@ -294,7 +295,7 @@ export class CampusScene extends Phaser.Scene {
   private roomMates: Phaser.Physics.Arcade.Sprite[] = [];
   private roomBelletmen!: Phaser.Physics.Arcade.Sprite;
   private roomLabels: Phaser.GameObjects.Text[] = [];
-  private nearRoomThing: string | null = null;
+  private nearRoomThing: string | null | undefined = null;
   private lastBell = -10_000;
 
   constructor() { super('campus'); }
@@ -2855,7 +2856,7 @@ export class CampusScene extends Phaser.Scene {
   private updatePrompt(force = false) {
     if (this.panel?.isOpen || this.sleepRun || this.escort || this.inTunnel) { this.hud.setPrompt(null); this.nearDoor = null; this.nearRoomThing = null; return; }
     const peer = this.peers.size ? this.nearPeer() : null;
-    if (peer) { this.nearDoor = null; this.hud.setPrompt(L({ tr: `E — ${peer.profile.name} (oyuncu)`, en: `E — ${peer.profile.name} (player)` })); return; }
+    if (peer) { this.nearDoor = undefined; this.nearRoomThing = undefined; this.hud.setPrompt(L({ tr: `E — ${peer.profile.name} (oyuncu)`, en: `E — ${peer.profile.name} (player)` })); return; }
     if (this.room === 'dining') {
       const th = this.diningThingNear();
       const key = th ? `${th.id}-${th.npc?.id ?? ''}-${this.tray ? 1 : 0}` : null;
@@ -2882,17 +2883,17 @@ export class CampusScene extends Phaser.Scene {
     }
     // in a PE lesson, the teacher and the pitch mean the lesson itself
     const peSpot = this.peNow() ? this.outdoorSpot() : null;
-    if (peSpot) { this.nearDoor = null; this.hud.setPrompt(`E — ${peSpot.label}`); return; }
+    if (peSpot) { this.nearDoor = undefined; this.hud.setPrompt(`E — ${peSpot.label}`); return; }
     // standing on a door's step, the door wins over anyone loitering beside it (step off it to talk to them)
     const npc = this.findNearDoor() ? null : this.findNearNpc();
     if (npc) {
-      this.nearDoor = null;
+      this.nearDoor = undefined;
       this.hud.setPrompt(L({ tr: `E — ${this.tagged(npc)} ile konuş`, en: `E — talk to ${this.tagged(npc)}` }));
       return;
     }
     const spot = this.outdoorSpot();
-    if (spot) { this.nearDoor = null; this.hud.setPrompt(`E — ${spot.label}`); return; }
-    if (this.nearGate()) { this.nearDoor = null; this.hud.setPrompt(L({ tr: 'E — Ana Kapı', en: 'E — Main gate' })); return; }
+    if (spot) { this.nearDoor = undefined; this.hud.setPrompt(`E — ${spot.label}`); return; }
+    if (this.nearGate()) { this.nearDoor = undefined; this.hud.setPrompt(L({ tr: 'E — Ana Kapı', en: 'E — Main gate' })); return; }
     const near = this.findNearDoor();
     if (!force && near === this.nearDoor) return;
     this.nearDoor = near;
