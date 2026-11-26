@@ -1,6 +1,7 @@
 // Player progress for the prototype (needs, money, school). Lives inside SaveData.
 import type { Text } from '../i18n';
 import { defaultCare, type CareState } from './care';
+import { newGrowth, type Growth } from './growth';
 
 export type SubjectId = 'turkce' | 'matematik' | 'fen' | 'sosyal' | 'ingilizce' | 'muzik' | 'beden' | 'din' | 'teknoloji';
 export type SportId = 'basketball' | 'volleyball' | 'football' | 'tennis' | 'swimming' | 'fencing' | 'athletics' | 'tabletennis' | 'chess';
@@ -30,6 +31,8 @@ export interface PlayerState {
   mood: number;
   money: number;
   xp: number;
+  /** levels and development points (see growth.ts) */
+  growth: Growth;
   school: {
     registered: boolean;
     kit: boolean;
@@ -137,7 +140,7 @@ export const PEE_LAST_YEAR = 2;
 
 export function defaultState(): PlayerState {
   return {
-    energy: 90, hunger: 70, mood: 60, money: 50, xp: 0,
+    energy: 90, hunger: 70, mood: 60, money: 50, xp: 0, growth: newGrowth(),
     school: {
       registered: false, kit: false, books: false, classLabel: '4-A', section: 1 + Math.floor(Math.random() * DORM_SECTIONS),
       attended: [], scores: emptyScores(), lessons: zeroLessons(), homework: [],
@@ -187,6 +190,8 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     focusDone: s.focusDone ?? [],
     wardrobe: { ...d.wardrobe, ...s.wardrobe },
     food: { bag: [...(s.food?.bag ?? [])], locker: [...(s.food?.locker ?? [])] },
+    // (older saves count the XP they already had: their levels and points are waiting for them)
+    growth: { earned: s.growth?.earned ?? s.xp ?? 0, attrSpent: s.growth?.attrSpent ?? 0, perks: [...(s.growth?.perks ?? [])] },
     journal: [...(s.journal ?? [])],
     // older saves start their care clock now, so nobody comes back to a drift they never knew about
     care: { ...d.care, ...s.care, today: { ...d.care.today, ...s.care?.today, acts: [...(s.care?.today?.acts ?? [])] } },

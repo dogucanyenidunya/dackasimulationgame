@@ -3,6 +3,7 @@ import { L, type Text } from '../i18n';
 import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, type Attributes, type CharacterData } from '../content/character';
 import { BOOKS, askFor } from '../content/quiz';
+import { hasPerk } from './growth';
 import { TEACHERS } from '../content/classroom';
 import { bioOf, personaOf } from '../content/bios';
 import { DEFAULT_LOOK } from '../art/character';
@@ -113,6 +114,16 @@ function familyTreat(ctx: GameCtx, id: string): Text {
 }
 
 const T = (tr: string, en: string): string => L({ tr, en });
+
+// ---- what your perks change (see growth.ts) ----
+/** a reading session: 45 minutes, 30 with Hızlı Okuma */
+const readMinutes = (ctx: GameCtx) => (hasPerk(ctx.st, 'hizliOkuma') ? 30 : 45);
+/** tries at the homework puzzle: 4, 5 with Ezberci */
+const homeworkTries = (ctx: GameCtx) => (hasPerk(ctx.st, 'ezberci') ? 5 : 4);
+/** a canteen price, 10% off (rounded) for a Pazarlıkçı */
+const price = (ctx: GameCtx, p: number) => (hasPerk(ctx.st, 'pazarlikci') ? Math.max(1, Math.round(p * 0.9)) : p);
+/** extra minutes before you count as late (Dakik) */
+export const lateGrace = (ctx: { st: PlayerState }) => (hasPerk(ctx.st, 'dakik') ? 5 : 0);
 const subjName = (id: string) => L(SUBJECTS.find((s) => s.id === id)!.name);
 
 export const SPORTS: Array<{ id: SportId; name: Text; where: Text; tryout: Text; zone: number; speed: number }> = [
@@ -272,7 +283,7 @@ export function lessonNow(ctx: GameCtx): { key: string; periodId: string; start:
   const subject = subjectFor(day, p.id);
   // you're only late if you weren't there when it began: in the classroom (or out on the pitch for PE)
   const present = ctx.st.daily[presentKey(p.id)] === day;
-  const late = !present && minutes - p.start > (subject === 'beden' ? LATE_AFTER_PE : LATE_AFTER);
+  const late = !present && minutes - p.start > (subject === 'beden' ? LATE_AFTER_PE : LATE_AFTER) + lateGrace(ctx);
   return { key, periodId: p.id, start: p.start, end: p.end, subject, attended: ctx.st.school.attended.includes(key), late, slip };
 }
 
@@ -354,11 +365,11 @@ function libraryActionsFor(ctx: GameCtx): ActionView[] {
   } else if (reading.sessions < 3) {
     libraryActions.push({
       id: 'read', label: T(`Oku: ${L(book.title)} (${reading.sessions}/3)`, `Read: ${L(book.title)} (${reading.sessions}/3)`),
-      hint: T('45 dk · −5 enerji · +15 XP', '45 min · −5 energy · +15 XP'),
+      hint: T(`${readMinutes(ctx)} dk · −5 enerji · +15 XP`, `${readMinutes(ctx)} min · −5 energy · +15 XP`),
       locked: ctx.st.energy < 8 ? T('Çok yorgunsun.', "You're too tired.") : undefined,
       run: () => {
         nudge(ctx, { loyalty: -1 }); // a book of your own, in the quiet
-        reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
+        reading.sessions++; ctx.advance(readMinutes(ctx)); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
         ctx.toast(reading.sessions >= 3 ? T('Kitabı bitirdin! Kütüphaneciyle konuş.', 'You finished the book! Talk to the librarian.') : T(`Okuma ${reading.sessions}/3`, `Reading ${reading.sessions}/3`), 'good');
       },
     });
@@ -861,10 +872,10 @@ function kantinRoom(ctx: GameCtx): RoomView {
       ...visitActions(ctx),
       ...(kantinOpen ? sakirActions(ctx) : []),
       ...KANTIN.map((k) => ({
-        id: k.id, label: `${L(k.name)} · ${k.price} ₺`, hint: T(`Sıcak, hemen yenir · +${k.hunger} tokluk · +${k.mood} moral`, `Hot, eaten on the spot · +${k.hunger} fullness · +${k.mood} mood`),
-        locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < k.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
+        id: k.id, label: `${L(k.name)} · ${price(ctx, k.price)} ₺`, hint: T(`Sıcak, hemen yenir · +${k.hunger} tokluk · +${k.mood} moral`, `Hot, eaten on the spot · +${k.hunger} fullness · +${k.mood} mood`),
+        locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < price(ctx, k.price) ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
         run: () => {
-          ctx.gain({ money: -k.price, hunger: k.hunger, mood: k.mood });
+          ctx.gain({ money: -price(ctx, k.price), hunger: k.hunger, mood: k.mood });
           ctx.befriend(SAKIR, 1);
           ctx.advance(10);
           ctx.toast(T(`${L(k.name)} · afiyet olsun!`, `${L(k.name)} · enjoy!`));
@@ -873,8 +884,8 @@ function kantinRoom(ctx: GameCtx): RoomView {
       ...KANTIN_SNACKS.map((k) => {
         const sn = snackById(k.id)!;
         return {
-          id: `snack-${k.id}`, label: `${L(sn.name)} · ${k.price} ₺`, hint: T(`Atıştırmalık: hemen ye ya da dolabına götür · +${sn.hunger} tokluk · +${sn.mood} moral`, `A snack: eat it now or take it to your locker · +${sn.hunger} fullness · +${sn.mood} mood`),
-          locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < k.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
+          id: `snack-${k.id}`, label: `${L(sn.name)} · ${price(ctx, k.price)} ₺`, hint: T(`Atıştırmalık: hemen ye ya da dolabına götür · +${sn.hunger} tokluk · +${sn.mood} moral`, `A snack: eat it now or take it to your locker · +${sn.hunger} fullness · +${sn.mood} mood`),
+          locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < price(ctx, k.price) ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
           run: async () => {
             const what = await ctx.panel.choose(T(`${L(sn.name)}: ne yapacaksın?`, `${L(sn.name)}: what will you do with it?`), [
               { id: 'eat', label: T('😋 Hemen ye', '😋 Eat it now'), hint: T(`+${sn.hunger} tokluk · +${sn.mood} moral`, `+${sn.hunger} fullness · +${sn.mood} mood`) },
@@ -882,7 +893,7 @@ function kantinRoom(ctx: GameCtx): RoomView {
             ]);
             if (!what) return;
             if (what === 'keep' && !pocket(ctx, k.id)) { ctx.toast(T('Ceplerin dolu. Önce dolabına bırak ya da ye.', 'Your pockets are full. Put some in your locker or eat them first.')); return; }
-            ctx.gain({ money: -k.price });
+            ctx.gain({ money: -price(ctx, k.price) });
             ctx.befriend(SAKIR, 1);
             if (what === 'eat') { ctx.gain({ hunger: sn.hunger, mood: sn.mood }); ctx.advance(5); ctx.toast(T(`${L(sn.name)} · afiyet olsun!`, `${L(sn.name)} · enjoy!`)); }
             else ctx.toast(T(`${L(sn.name)} cebinde. Dolabına koyabilirsin.`, `${L(sn.name)} is in your pocket. You can put it in your locker.`), 'good');
@@ -914,9 +925,9 @@ function kantinRoom(ctx: GameCtx): RoomView {
         },
       },
       {
-        id: 'phonecard', label: T(`☎️ Telefon kartı · ${PHONE_CARD.price} ₺`, `☎️ Phone card · ${PHONE_CARD.price} ₺`), hint: T(`${PHONE_CARD.units} kontör · yurttaki ankesörlü telefon için`, `${PHONE_CARD.units} units · for the payphone in your dorm`),
-        locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < PHONE_CARD.price ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
-        run: () => { ctx.gain({ money: -PHONE_CARD.price }); ctx.st.phoneUnits += PHONE_CARD.units; ctx.toast(T(`Telefon kartı aldın: ${ctx.st.phoneUnits} kontör.`, `Phone card bought: ${ctx.st.phoneUnits} units.`), 'good'); },
+        id: 'phonecard', label: T(`☎️ Telefon kartı · ${price(ctx, PHONE_CARD.price)} ₺`, `☎️ Phone card · ${price(ctx, PHONE_CARD.price)} ₺`), hint: T(`${PHONE_CARD.units} kontör · yurttaki ankesörlü telefon için`, `${PHONE_CARD.units} units · for the payphone in your dorm`),
+        locked: !kantinOpen ? T('Kapalı', 'Closed') : ctx.st.money < price(ctx, PHONE_CARD.price) ? T('Paran yetmiyor.', "You can't afford it.") : undefined,
+        run: () => { ctx.gain({ money: -price(ctx, PHONE_CARD.price) }); ctx.st.phoneUnits += PHONE_CARD.units; ctx.toast(T(`Telefon kartı aldın: ${ctx.st.phoneUnits} kontör.`, `Phone card bought: ${ctx.st.phoneUnits} units.`), 'good'); },
       },
     ],
   };
@@ -986,7 +997,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
           hint: T('Tahmin oyunu · 30 dk · −6 enerji · notun ve disiplinin için iyi', 'Guessing game · 30 min · −6 energy · good for grades and discipline'),
           locked: !hw ? T('Bekleyen ödevin yok. 🎉', 'No homework due. 🎉') : phase === 'night' ? T('Işıklar söndü.', 'Lights are out.') : sickLock(ctx),
           run: async () => { nudge(ctx, { rules: -1, ambition: 1 }); focusTick(ctx, 'study');
-            const r = await ctx.panel.guessScore(T(`Ödev: ${subjName(hw.s)}`, `Homework: ${subjName(hw.s)}`), T('Cevap 1 ile 20 arasında bir sayı. İpuçlarını takip et: 4 hakkın var.', 'The answer is a number from 1 to 20. Follow the hints: you have 4 tries.'), 20, 4);
+            const r = await ctx.panel.guessScore(T(`Ödev: ${subjName(hw.s)}`, `Homework: ${subjName(hw.s)}`), T(`Cevap 1 ile 20 arasında bir sayı. İpuçlarını takip et: ${homeworkTries(ctx)} hakkın var.`, `The answer is a number from 1 to 20. Follow the hints: you have ${homeworkTries(ctx)} tries.`), 20, homeworkTries(ctx));
             const score = Math.min(100, (r.ok ? [100, 85, 70, 55][r.used - 1] : 30) + Math.round(ctx.ch.attributes.knowledge / 4));
             st.school.homework.shift();
             st.school.scores[hw.s].push(score);
@@ -997,10 +1008,10 @@ export function deskPanel(ctx: GameCtx): PanelView {
         },
         {
           id: 'read', label: book ? T(`Kitap oku: ${L(book.title)} (${st.reading.sessions}/3)`, `Read: ${L(book.title)} (${st.reading.sessions}/3)`) : T('Kitap oku', 'Read a book'),
-          hint: T('45 dk · +1 Bilgi · −5 enerji', '45 min · +1 Knowledge · −5 energy'),
+          hint: T(`${readMinutes(ctx)} dk · +1 Bilgi · −5 enerji`, `${readMinutes(ctx)} min · +1 Knowledge · −5 energy`),
           locked: !book ? T('Okuyacak kitabın yok. Kütüphane\'den ödünç al.', 'You have no book. Borrow one from the library.') : st.reading.sessions >= 3 ? T('Kitabı bitirdin; kütüphaneciyle konuş.', 'You finished it; talk to the librarian.') : undefined,
           run: () => {
-            st.reading.sessions++; ctx.advance(45); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
+            st.reading.sessions++; ctx.advance(readMinutes(ctx)); ctx.gain({ xp: 15, energy: -5, attrs: { knowledge: hasSecret(ctx.st, 'odak') ? 2 : 1 } }); focusTick(ctx, 'study');
             ctx.toast(T(`Okuma ${st.reading.sessions}/3`, `Reading ${st.reading.sessions}/3`), 'good');
           },
         },
@@ -1014,7 +1025,7 @@ export function deskPanel(ctx: GameCtx): PanelView {
           hint: T('40 dk · +2 Yaratıcılık · +5 moral · günde bir', '40 min · +2 Creativity · +5 mood · once a day'),
           locked: doneToday(ctx, 'create') ? T('Bugünkü resmini çizdin, hikâyeni yazdın. Yarın yeni bir fikirle gel.', "You've done today's drawing and story. Come back tomorrow with a new idea.") : undefined,
           run: () => { markToday(ctx, 'create'); nudge(ctx, { presence: -1 }); focusTick(ctx, 'art');
-            ctx.advance(40); ctx.gain({ mood: 5, energy: -4, xp: 10, attrs: { creativity: 2 } });
+            ctx.advance(40); ctx.gain({ mood: 5, energy: -4, xp: 10, attrs: { creativity: hasPerk(ctx.st, 'ustaEller') ? 3 : 2 } });
             const ideas = [T('Okulun 1863\'teki hâlini çizdin.', 'You drew the school as it looked in 1863.'), T('Gece kaçan bir öğrenci hakkında bir hikâye yazdın.', 'You wrote a story about a student who sneaks out at night.'), T('Bölümün için bir bayrak tasarladın.', 'You designed a flag for your dorm section.')];
             ctx.toast(ideas[ctx.clock.day % ideas.length], 'good');
           },
@@ -2733,7 +2744,7 @@ export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]
   const st = ctx.st;
   focusTick(ctx, 'sport');
   const skill = st.skills[sport];
-  const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800;
+  const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800 + (hasPerk(ctx.st, 'takimOyuncusu') ? 0.04 : 0);
   const rounds = 5;
   const hits = await ctx.panel.timing(sport === 'basketball' ? T('Şut at!', 'Shoot!') : T('Gole vur!', 'Shoot at goal!'), rounds, zone, 1.3);
   const theirs = Math.floor(Math.random() * 4) + 1;

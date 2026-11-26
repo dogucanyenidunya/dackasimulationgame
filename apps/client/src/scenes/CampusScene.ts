@@ -23,6 +23,8 @@ import { yetimPanel } from '../game/yetimCat';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
+import { ATTR_STEP, PERKS, PERK_EVERY, attrPoints, hasPerk, levelOf, perkPoints } from '../game/growth';
+import { lateGrace } from '../game/buildings';
 import { CLASSIC, NPC_BEDS, NPC_CLASS_DESKS, settle, spotKey, storeSpots, storedSpots, readSpots, type Spots } from '../game/spots';
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
@@ -59,7 +61,7 @@ import {
 } from '../game/missions';
 import { announceManyCard, missionsCard, trackerHtml } from '../ui/missions';
 import { ATTRS, CAUSES } from '../content/character';
-import { CLASS_LETTERS, SUBJECTS, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
+import { CLASS_LETTERS, SUBJECTS, attrCap, average, FRIEND_AT, behaviorGrade, COURT_PLAYERS, PEE_LAST_YEAR, councilTitle, grade, type CourtSport, type SubjectId } from '../game/state';
 import { PERIODS, classBreak, currentPeriod, fmtTime, hasEtut, isSnackTime, isWeekend, periodLabel, subjectFor } from '../game/schedule';
 import { clamp, growAttr, growRespect } from '../game/state';
 import { GUARDIANS, mixBonus, mixLean, mixName, moodGuard, traitMix, weeklyAllowance, type AttrId } from '../content/character';
@@ -524,7 +526,7 @@ export class CampusScene extends Phaser.Scene {
     }) as typeof this.keys;
     kb.on('keydown-E', () => this.interact());
     kb.on('keydown-M', () => { if (!this.hud.modalOpen && !this.panel.isOpen) this.hud.toggleMap(); });
-    kb.on('keydown-C', () => { if (!this.menuBlocked()) this.hud.showProfile(this.save.character, this.save.state); });
+    kb.on('keydown-C', () => { if (!this.menuBlocked()) this.openProfile(); });
     kb.on('keydown-J', () => { if (!this.menuBlocked()) this.showMissions(); });
     kb.on('keydown-R', () => { if (!this.menuBlocked()) this.showRelationships(); });
     kb.on('keydown-F', () => { if (!this.menuBlocked()) this.showFriends(); });
@@ -534,7 +536,7 @@ export class CampusScene extends Phaser.Scene {
     // HUD
     this.hud = new Hud(this.map);
     this.hud.onReset = () => { this.persist(); backupSave(); clearSave(); window.location.reload(); };
-    this.hud.onProfile = () => { if (!this.menuBlocked()) this.hud.showProfile(this.save.character, this.save.state); };
+    this.hud.onProfile = () => { if (!this.menuBlocked()) this.openProfile(); };
     void ATTRS; void CAUSES;
     this.hud.onMissions = () => { if (!this.menuBlocked()) this.showMissions(); };
     this.hud.onRelationships = () => { if (!this.menuBlocked()) this.showRelationships(); };
@@ -3058,7 +3060,7 @@ export class CampusScene extends Phaser.Scene {
       if (loc.id !== ownDorm) { this.hud.toast(L({ tr: 'Kapı kilitli. Gece herkes uyuyor…', en: 'Locked. Everyone is asleep…' })); return; }
       const st = this.save.state;
       st.escaped = false;
-      st.xp += 30;
+      this.addXp(30);
       const r0 = this.save.character.respect;
       this.save.character.respect = growRespect(r0, 10, st.year);
       const won = this.save.character.respect - r0;
@@ -3285,7 +3287,7 @@ export class CampusScene extends Phaser.Scene {
     if (phase === 'etut') {
       // you walk to the dorm yourself; being 5+ minutes late costs discipline and your belletmen's goodwill
       // (leave from your belletmen: not late until 18:30)
-      if (c.minutes >= 18 * 60 + (st.daily.etutPass === day ? 30 : 5) && st.daily.lateEtut !== day) {
+      if (c.minutes >= 18 * 60 + (st.daily.etutPass === day ? 30 : 5 + lateGrace({ st })) && st.daily.lateEtut !== day) {
         st.daily.lateEtut = day;
         shape(st, { rules: 1 });
         this.penalize(5, L({ tr: `${belletmen}: "Etüte geç kaldın!"`, en: `${belletmen}: "You're late for study time!"` }));
@@ -3653,9 +3655,9 @@ export class CampusScene extends Phaser.Scene {
     } else if (phase === 'day' && m >= 17 * 60 + 30) {
       this.hud.setCountdown(L({ tr: `⏰ Etüt 18:00'de · ${18 * 60 - m} dk kaldı · yurduna git`, en: `⏰ Study time at 18:00 · ${18 * 60 - m} min left · go to your dorm` }), m >= 17 * 60 + 50);
     } else if (phase === 'etut') {
-      const late = m - 18 * 60;
-      this.hud.setCountdown(late < 5
-        ? L({ tr: `🏃 Etüt başladı! ${5 - late} dk içinde yurdunda ol`, en: `🏃 Study time has started! Be in your dorm within ${5 - late} min` })
+      const late = m - 18 * 60, grace = 5 + lateGrace({ st: this.save.state });
+      this.hud.setCountdown(late < grace
+        ? L({ tr: `🏃 Etüt başladı! ${grace - late} dk içinde yurdunda ol`, en: `🏃 Study time has started! Be in your dorm within ${grace - late} min` })
         : L({ tr: `⚠ Etüte ${late} dk geç kaldın · hemen yurduna git`, en: `⚠ You're ${late} min late for study time · get to your dorm` }), true);
     } else if (phase === 'plaza' && m >= lightsOut() - 30) {
       const lo = lightsOut();
@@ -3896,6 +3898,7 @@ export class CampusScene extends Phaser.Scene {
     let bonus = 1;
     if (amount > 0 && def?.group && def.group === myGroup(st)) bonus *= 1.25; // your group
     if (amount > 0 && hasSecret(st, 'devre')) bonus *= 1.15; // Devre Ruhu
+    if (amount > 0 && hasPerk(st, 'sohbetUstasi')) bonus *= 1.25; // Sohbet Ustası
     st.friends[id] = Math.max(-100, Math.min(100, Math.round(before + amount * bonus)));
     const g = myGroup(st);
     if (g !== this.groupId) {
@@ -3942,7 +3945,7 @@ export class CampusScene extends Phaser.Scene {
           if (statusOf(m, c) !== 'active' || !m.objectives.every((o) => o.done(c))) continue;
           st.missionsDone.push(m.id);
           this.log({ kind: 'mission', a: L(m.title) });
-          st.xp += m.reward.xp;
+          this.addXp(m.reward.xp);
           if (m.id === 'saglikli_yil') {
             this.save.character.attributes.fitness = growAttr(this.save.character.attributes.fitness, 10, st.year);
             this.save.character.respect = growRespect(this.save.character.respect, 50, st.year);
@@ -4129,12 +4132,59 @@ export class CampusScene extends Phaser.Scene {
     this.persist();
   }
 
+  /** your profile, where you also spend development points */
+  private openProfile() {
+    const st = this.save.state, ch = this.save.character;
+    this.hud.showProfile(ch, st, {
+      spendAttr: (id) => {
+        if (attrPoints(st.growth) <= 0) return L({ tr: 'Gelişim puanın yok. Bir sonraki seviyeyi bekle.', en: 'No development points. Wait for your next level.' });
+        const cap = attrCap(grade(st.year));
+        if (ch.attributes[id] >= cap) return L({ tr: `Bu yılın sınırındasın (${cap}). Gelecek yıl yükselir.`, en: `That's this year's ceiling (${cap}). It goes up next year.` });
+        ch.attributes[id] = Math.min(cap, Math.round((ch.attributes[id] + ATTR_STEP) * 10) / 10);
+        st.growth.attrSpent++;
+        sfx.success();
+        this.persist();
+        this.refreshClockAndNeeds(); // (the HUD's level tag)
+        return null;
+      },
+      pickPerk: (id) => {
+        const p = PERKS.find((x) => x.id === id);
+        if (!p || st.growth.perks.includes(id)) return null;
+        if (perkPoints(st.growth) <= 0) return L({ tr: `Yetenek her ${PERK_EVERY} seviyede bir açılır.`, en: `A perk comes every ${PERK_EVERY} levels.` });
+        if (ch.attributes[p.attr] < p.need) return L({ tr: `${L(p.name)} için ${L(ATTRS.find((a) => a.id === p.attr)!.name)} ${p.need} olmalı.`, en: `${L(p.name)} needs ${L(ATTRS.find((a) => a.id === p.attr)!.name)} ${p.need}.` });
+        st.growth.perks.push(id);
+        sfx.success();
+        this.persist();
+        this.refreshClockAndNeeds(); // (the HUD's level tag)
+        return null;
+      },
+    });
+  }
+
+  /** XP counts towards the year as before, and towards your levels: a new level brings a development point (and every
+   *  third one a perk) to spend in your profile (C) */
+  private addXp(n: number) {
+    const st = this.save.state;
+    st.xp += n;
+    if (n <= 0) return;
+    const before = levelOf(st.growth);
+    st.growth.earned += n;
+    const after = levelOf(st.growth);
+    if (after <= before) return;
+    sfx.success();
+    const perk = Math.floor(after / 3) > Math.floor(before / 3);
+    this.hud.toast(L({
+      tr: `⭐ Seviye ${after}! Gelişim puanın var${perk ? ' ve yeni bir yetenek seçebilirsin' : ''}: profilinden (C) harca.`,
+      en: `⭐ Level ${after}! You have a development point${perk ? ' and a new perk to pick' : ''}: spend it in your profile (C).`,
+    }), 'good');
+  }
+
   private gain(g: Gain) {
     const st = this.save.state;
     const ch = this.save.character;
-    if (g.xp) st.xp += g.xp;
+    if (g.xp) this.addXp(g.xp);
     if (g.money) st.money = Math.max(0, st.money + g.money);
-    if (g.energy) st.energy = clamp(st.energy + g.energy);
+    if (g.energy) st.energy = clamp(st.energy + (g.energy < 0 && hasPerk(st, 'dayanikli') ? g.energy * 0.8 : g.energy)); // (Dayanıklı: 20% less tiring)
     if (g.hunger) st.hunger = clamp(st.hunger + g.hunger);
     if (g.mood) this.changeMood(g.mood);
     const mix = traitMix(ch);
@@ -4236,7 +4286,7 @@ export class CampusScene extends Phaser.Scene {
     const asleep = this.sleepRun !== null && this.sleepRun.kind !== 'busy' && this.sleepRun.kind !== 'home';
     const awakeLate = !asleep && (c.minutes >= lightsOut() || c.minutes < WAKE_UP);
     st.hunger = clamp(st.hunger - (asleep ? 0.03 : 0.1));
-    st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035) * (hasSecret(st, 'keyif') ? 0.75 : 1)));
+    st.energy = clamp(st.energy + (asleep ? 110 / Math.max(60, this.sleepRun!.total) : -(awakeLate ? 0.06 : 0.035) * (hasSecret(st, 'keyif') ? 0.75 : 1) * (hasPerk(st, 'dayanikli') ? 0.8 : 1)));
     // health (GDD §6.2.1)
     let dh = 0;
     if (st.hunger < 20) dh -= 0.08;
@@ -4633,7 +4683,7 @@ export class CampusScene extends Phaser.Scene {
     this.touch?.setHidden(blocked);
     const len = Math.hypot(vx, vy) || 1;
     const running = (k.shift.isDown || !!this.touch?.running) && this.save.state.energy > 10 && (vx !== 0 || vy !== 0);
-    if (running) this.save.state.energy = clamp(this.save.state.energy - delta * 0.0008); // running tires you out
+    if (running) this.save.state.energy = clamp(this.save.state.energy - delta * 0.0008 * (hasPerk(this.save.state, 'dayanikli') ? 0.8 : 1)); // running tires you out
     const speed = this.escort ? ESCORT_SPEED : this.save.state.energy < 10 ? SPEED * 0.6 : running ? SPEED * 1.6 : SPEED;
     this.dust.setDepth(this.player.y + 15);
     this.dust.emitting = (vx !== 0 || vy !== 0) && !this.room && !this.inTunnel;

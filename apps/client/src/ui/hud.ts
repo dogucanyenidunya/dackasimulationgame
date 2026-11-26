@@ -5,9 +5,10 @@ import { sfx } from '../audio';
 import { askConfirm } from './confirm';
 import { isTouch, onTouchMode } from './touch';
 import {
-  ATTRS, mixLabel, traitMix, type CharacterData,
+  ATTRS, mixLabel, traitMix, type AttrId, type CharacterData,
 } from '../content/character';
-import { SUBJECTS, YEAR1_XP, average, behaviorGrade, type PlayerState } from '../game/state';
+import { ATTR_STEP, PERKS, XP_PER_LEVEL, attrPoints, levelOf, levelProgress, perkPoints, type PerkId } from '../game/growth';
+import { SUBJECTS, YEAR1_XP, attrCap, average, behaviorGrade, grade, type PlayerState } from '../game/state';
 import { SECRETS } from '../game/secrets';
 import { focusLine } from '../game/focus';
 import { weekday } from '../game/schedule';
@@ -580,6 +581,7 @@ export class Hud {
       bar('🙂', L({ tr: 'Moral', en: 'Mood' }), st.mood, 'mood') +
       bar('❤️', L({ tr: 'Sağlık', en: 'Health' }), st.health, 'health') +
       `<div class="money-xp"><span>💰 ${st.money} ₺</span><span title="XP">⭐ ${st.xp} / ${YEAR1_XP}</span></div>` +
+      `<div class="lvl-tag${attrPoints(st.growth) + perkPoints(st.growth) ? ' pts' : ''}" title="${L({ tr: 'Profilinde (C) harca', en: 'Spend in your profile (C)' })}">${L({ tr: 'Seviye', en: 'Level' })} ${levelOf(st.growth)}${attrPoints(st.growth) + perkPoints(st.growth) ? ` · ${L({ tr: 'puanın var', en: 'points to spend' })} ●` : ''}</div>` +
       `<div class="nbar xp"><i style="width:${xpPct}%"></i></div>`;
   }
 
@@ -671,28 +673,58 @@ export class Hud {
     this.openCustomModal(card, ['Enter', 'Escape', 'e', 'E', ' '], opts.onClose);
   }
 
-  showProfile(c: CharacterData, st: PlayerState) {
+  /** `grow`: spending development points (returns why it couldn't, or null); the card redraws itself after each one */
+  showProfile(c: CharacterData, st: PlayerState, grow?: { spendAttr: (id: AttrId) => string | null; pickPerk: (id: PerkId) => string | null }) {
     const body = document.createElement('div');
     body.className = 'card profile-card';
+    const esc = (v: string) => v.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
     const grades = SUBJECTS.map((s) => {
       const avg = average(st.school.scores[s.id]);
       return `<div class="sum-row"><span>${L(s.name)}</span><b>${avg === null ? '—' : avg}</b></div>`;
     }).join('');
-    body.innerHTML = `
-      <div class="profile-head"><canvas width="144" height="144"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
-      <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
-      <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
-      ${secretsHtml(st)}
-      ${ATTRS.map((a) => `<div class="attr"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, c.attributes[a.id] * 2)}%"></i></div><b>${Math.round(c.attributes[a.id])}</b></div>`).join('')}
-      <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
-      <div class="sum-row" style="margin-top:10px"><span>${L({ tr: 'Disiplin puanı (düşük iyidir)', en: 'Discipline points (lower is better)' })}</span><b>${st.discipline} · ${L(behaviorGrade(st.discipline))}</b></div>
-      <div class="field-label" style="margin-top:14px">${L({ tr: 'Ders ortalamaları', en: 'Subject averages' })}</div>
-      ${grades}
-      <div style="margin-top:14px;text-align:right"><button type="button" class="primary">${t('close')}</button></div>`;
-    body.querySelector('h2')!.textContent = `${c.first} ${c.last}`;
-    body.querySelector('.age')!.textContent = t('age_line', { home: c.hometown });
-    body.querySelector('.trait')!.textContent = mixLabel(traitMix(c));
-    paintCharacter(body.querySelector('canvas')!, c.look, 0, 0, { bust: true });
+    let note = '';
+    const render = () => {
+      const g = st.growth, pts = attrPoints(g), perkPts = perkPoints(g), cap = attrCap(grade(st.year));
+      const attrRow = (a: (typeof ATTRS)[number]) => {
+        const v = c.attributes[a.id];
+        const can = !!grow && pts > 0 && v < cap;
+        const btn = grow ? `<button type="button" class="grow-btn" data-attr="${a.id}" ${can ? '' : 'disabled'} title="${esc(v >= cap ? L({ tr: `Bu yılın sınırı: ${cap}`, en: `This year's ceiling: ${cap}` }) : `+${ATTR_STEP}`)}">+${ATTR_STEP}</button>` : '';
+        return `<div class="attr${grow ? ' has-btn' : ''}"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, v * 2)}%"></i></div><b>${Math.round(v)}</b>${btn}</div>`;
+      };
+      const perkRow = (p: (typeof PERKS)[number]) => {
+        const owned = g.perks.includes(p.id);
+        const attrName = L(ATTRS.find((a) => a.id === p.attr)!.name);
+        const meets = c.attributes[p.attr] >= p.need;
+        const state = owned ? `<b class="perk-owned">✓</b>`
+          : grow ? `<button type="button" class="grow-btn" data-perk="${p.id}" ${perkPts > 0 && meets ? '' : 'disabled'}>${L({ tr: 'Seç', en: 'Pick' })}</button>` : '';
+        return `<div class="perk-row${owned ? ' owned' : ''}"><div><b>${p.icon} ${esc(L(p.name))}</b><span>${esc(L(p.desc))} · ${esc(attrName)} ${p.need}${meets ? '' : ` (${Math.round(c.attributes[p.attr])})`}</span></div>${state}</div>`;
+      };
+      body.innerHTML = `
+        <div class="profile-head"><canvas width="144" height="144"></canvas><div><h2></h2><div class="modal-sub age"></div></div></div>
+        <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
+        <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
+        <div class="field-label" style="margin-top:12px">⭐ ${L({ tr: 'Gelişim', en: 'Development' })} · ${L({ tr: 'Seviye', en: 'Level' })} ${levelOf(g)}</div>
+        <div class="lvl-line"><div class="attr-bar lvl"><i style="width:${levelProgress(g)}%"></i></div><span>${levelProgress(g)}/${XP_PER_LEVEL} XP</span></div>
+        <div class="sum-row"><span>${L({ tr: 'Gelişim puanı', en: 'Development points' })}</span><b class="${pts ? 'pts-on' : ''}">${pts}</b></div>
+        <div class="grow-help">${L({ tr: `Her ${XP_PER_LEVEL} XP bir seviye: bir özelliğine +${ATTR_STEP} ver (bu yılın sınırı ${cap}). Her 3 seviyede bir yetenek seçersin. XP'n azalmaz.`, en: `Every ${XP_PER_LEVEL} XP is a level: give one attribute +${ATTR_STEP} (this year's ceiling is ${cap}). Every 3 levels you pick a perk. Your XP doesn't go down.` })}</div>
+        ${ATTRS.map(attrRow).join('')}
+        <div class="attr"><span>${L({ tr: 'Saygınlık', en: 'Respect' })}</span><div class="attr-bar respect"><i style="width:${c.respect / 10}%"></i></div><b>${c.respect}</b></div>
+        <div class="field-label" style="margin-top:12px">${L({ tr: 'Yetenekler', en: 'Perks' })} · ${g.perks.length}/${PERKS.length}${perkPts ? ` · <span class="pts-on">${L({ tr: `${perkPts} seçim hakkın var`, en: `${perkPts} to pick` })}</span>` : ''}</div>
+        ${PERKS.map(perkRow).join('')}
+        ${note ? `<div class="grow-note">${esc(note)}</div>` : ''}
+        ${secretsHtml(st)}
+        <div class="sum-row" style="margin-top:10px"><span>${L({ tr: 'Disiplin puanı (düşük iyidir)', en: 'Discipline points (lower is better)' })}</span><b>${st.discipline} · ${L(behaviorGrade(st.discipline))}</b></div>
+        <div class="field-label" style="margin-top:14px">${L({ tr: 'Ders ortalamaları', en: 'Subject averages' })}</div>
+        ${grades}
+        <div style="margin-top:14px;text-align:right"><button type="button" class="primary" data-close>${t('close')}</button></div>`;
+      body.querySelector('h2')!.textContent = `${c.first} ${c.last}`;
+      body.querySelector('.age')!.textContent = t('age_line', { home: c.hometown });
+      body.querySelector('.trait')!.textContent = mixLabel(traitMix(c));
+      paintCharacter(body.querySelector('canvas')!, c.look, 0, 0, { bust: true });
+      body.querySelectorAll<HTMLButtonElement>('[data-attr]').forEach((b) => b.addEventListener('click', () => { note = grow!.spendAttr(b.dataset.attr as AttrId) ?? ''; render(); }));
+      body.querySelectorAll<HTMLButtonElement>('[data-perk]').forEach((b) => b.addEventListener('click', () => { note = grow!.pickPerk(b.dataset.perk as PerkId) ?? ''; render(); }));
+    };
+    render();
     this.openCustomModal(body, ['Enter', 'Escape', 'c', 'C', ' ']);
   }
 
