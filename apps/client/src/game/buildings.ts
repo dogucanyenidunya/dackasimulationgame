@@ -2,13 +2,13 @@
 import { L, type Text } from '../i18n';
 import type { Panel, PanelView, ActionView, RoomView } from '../ui/panel';
 import { GUARDIANS, type Attributes, type CharacterData } from '../content/character';
-import { ANTHEM_LINES, BOOKS, askFor } from '../content/quiz';
+import { BOOKS, askFor } from '../content/quiz';
 import { TEACHERS } from '../content/classroom';
 import { bioOf, personaOf } from '../content/bios';
 import { DEFAULT_LOOK } from '../art/character';
 import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackById } from '../content/wardrobe';
 import { MATCH_TIP, matchOn, ceremonyNow, ETUT_START, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
-import { ANTHEM_STANZAS, CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
+import { CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { GIVER_IDS, MISSIONS, missionById, missionDone, oldersToMeet, questsFrom, reached, statusOf, type Mission, type MissionCtx } from './missions';
 import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, npcIsEvci } from './weekend';
 import { activityOf } from './routine';
@@ -950,69 +950,6 @@ const belletmenName = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? 'Ayşe Hoca'
 const dormTitle = (ctx: GameCtx) => (ctx.ch.gender === 'girl' ? T('Kız Yurdu', "Girls' Dorm") : T('Erkek Yurdu', "Boys' Dorm"));
 
 /** your desk in the study room: homework, reading, drawing */
-/** İstiklal Marşı: write it out and memorise it stanza by stanza at evening study, then recite it to the belletmen */
-function anthemActions(ctx: GameCtx): ActionView[] {
-  const st = ctx.st;
-  const a = st.anthem;
-  if (a.recited) return [];
-  const etut = phaseOf(ctx.clock.minutes, ctx.clock.day) === 'etut';
-  const belletmen = ctx.ch.gender === 'girl' ? 'Ayşe Hoca' : 'Ercan Hoca';
-  const notAtStudy = etut ? undefined : !hasEtut(ctx.clock.day)
-    ? T('Cuma ve Cumartesi etüt yok. Pazar akşamı etütte devam edersin (18:00–20:00).', 'No evening study on Fridays and Saturdays. Carry on at Sunday evening study (18:00–20:00).')
-    : T('Etüt saatinde çalışılır (18:00–20:00, Cuma ve Cumartesi hariç).', 'Done during evening study (18:00–20:00, not on Fridays or Saturdays).');
-  if (a.stanzas < ANTHEM_STANZAS) {
-    return [{
-      id: 'anthem', label: T(`🇹🇷 İstiklal Marşı'nı yaz ve ezberle (${a.stanzas}/${ANTHEM_STANZAS} kıta)`, `🇹🇷 Write out and memorise the İstiklal Marşı (${a.stanzas}/${ANTHEM_STANZAS} stanzas)`),
-      hint: T('40 dk · etütte, günde bir · her adımda bir dizenin dağınık kelimelerini doğru sıraya diz', '40 min · at study, once a day · each step, put the scattered words of one line back in order'),
-      locked: needRegistration(ctx) ?? notAtStudy ?? (doneToday(ctx, 'anthem') ? T('Bugünkü kıtalarını çalıştın.', "You've done today's stanzas.") : undefined),
-      run: async () => {
-        markToday(ctx, 'anthem');
-        focusTick(ctx, 'study');
-        // up to four stanzas an evening: one line of each, its words scattered
-        const steps = Math.min(4, ANTHEM_STANZAS - a.stanzas);
-        let learned = 0, clean = 0, quit = false;
-        for (let i = 0; i < steps; i++) {
-          const n = a.stanzas + 1;
-          const lines = ANTHEM_LINES[n - 1];
-          const line = lines[Math.floor(Math.random() * lines.length)];
-          const used: number = await ctx.panel.arrange(T(`${n}. kıta`, `Stanza ${n}`), T('Dizeyi deftere yaz: kelimelere sırayla tıkla.', 'Write the line in your notebook: click the words in order.'), line.split(' '), 3, T(`adım ${i + 1}/${steps}`, `step ${i + 1}/${steps}`));
-          if (used < 0) { quit = true; break; } // stopped without writing
-          if (!used) break;       // you'll go over this stanza again tomorrow
-          a.stanzas++; learned++;
-          if (used === 1) clean++;
-        }
-        // (stopping before writing a word costs nothing: you can sit down to it again this evening)
-        if (quit && !learned) { delete ctx.st.daily.anthem; return; }
-        ctx.advance(quit ? 10 + learned * 10 : 40);
-        ctx.gain({ xp: 6 + learned * 5 + clean * 3, energy: -4, attrs: { discipline: 1 } });
-        ctx.toast(a.stanzas >= ANTHEM_STANZAS
-          ? T(`On kıtanın hepsi defterinde ve aklında! Şimdi ${belletmen}'ya ezberden oku.`, `All ten stanzas are in your notebook and in your head! Now recite them to ${belletmen}.`)
-          : learned ? T(`Bu akşam ${learned} kıta daha ezberledin · ${a.stanzas}/${ANTHEM_STANZAS} kıta`, `${learned} more stanza(s) learnt tonight · ${a.stanzas}/${ANTHEM_STANZAS} stanzas`)
-            : T('Bu akşam aklında kalmadı. Yarın etütte tekrar dene.', "It wouldn't stick tonight. Try again at study tomorrow."), learned ? 'good' : 'info');
-      },
-    }];
-  }
-  return [{
-    id: 'recite', label: T(`🎤 ${belletmen}'ya İstiklal Marşı'nı ezberden oku`, `🎤 Recite the İstiklal Marşı to ${belletmen}`), hint: T('Ritmi kaçırma: 10 kıta, en az 7 doğru', "Keep the rhythm: 10 stanzas, at least 7 right"),
-    locked: notAtStudy,
-    run: async () => {
-      const hits = await ctx.panel.rhythm(T('İstiklal Marşı', 'İstiklal Marşı'), T('Her kıta çizgiye gelince BOŞLUK\'a bas.', 'Press SPACE as each stanza crosses the line.'), 10, 0.38);
-      ctx.advance(15);
-      if (hits >= 7) {
-        a.recited = true;
-        const r0 = ctx.ch.respect;
-        ctx.ch.respect = growRespect(r0, 10, ctx.st.year);
-        const won = ctx.ch.respect - r0;
-        ctx.gain({ xp: 80, mood: 10 });
-        await ctx.panel.message(T('Aferin!', 'Well done!'), T(`${belletmen} ayağa kalktı ve alkışladı: "Bir kelimesini bile kaçırmadın. Bayrak töreninde marşı sen başlatacaksın!"${won ? ` +${won} saygınlık` : ''}`, `${belletmen} stood up and applauded: "You didn't miss a single word. You'll lead it at the flag ceremony!" +10 respect`));
-      } else {
-        ctx.gain({ xp: 10 });
-        ctx.toast(T(`${hits}/10 · "Birkaç yerde takıldın. Yarın etütte tekrar dinlerim."`, `${hits}/10 · "You stumbled in a few places. I'll hear it again tomorrow at study."`));
-      }
-    },
-  }];
-}
-
 export function deskPanel(ctx: GameCtx): PanelView {
   const st = ctx.st;
   const phase = phaseOf(ctx.clock.minutes, ctx.clock.day);
@@ -1054,7 +991,6 @@ export function deskPanel(ctx: GameCtx): PanelView {
             ctx.toast(T(`Okuma ${st.reading.sessions}/3`, `Reading ${st.reading.sessions}/3`), 'good');
           },
         },
-        ...anthemActions(ctx),
         ...(phase === 'etut' ? [{
           id: 'idle', label: T('⏳ Vakit öldür', '⏳ Kill time'),
           hint: T(`Kalemini çevir, tavana bak: etüt bitene kadar zaman hızla geçer (${PLAZA_START - ctx.clock.minutes} dk) · hiçbir faydası yok`, `Twirl your pencil, stare at the ceiling: time flies until study ends (${PLAZA_START - ctx.clock.minutes} min) · no benefit at all`),

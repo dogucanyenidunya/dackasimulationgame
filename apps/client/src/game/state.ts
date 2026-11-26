@@ -96,8 +96,6 @@ export interface PlayerState {
   phoneUnits: number;
   /** Cemil Emmi's tasks (boys' dorm caretaker) */
   cemil: { pee: 'none' | 'assigned' | 'held' | 'rewarded'; peeYear: number; peeFails: number; wetDay: number };
-  /** İstiklal Marşı: written out and memorised stanza by stanza during evening study, then recited */
-  anthem: { stanzas: number; recited: boolean };
   /** student council: class rep → grade president → (11th grade only) school president */
   council: { year: number; stage: CouncilStage; day: number; support: number; titles: string[] };
   /** who you are becoming: six hidden axes, −100…100 (see game/dilemmas.ts) */
@@ -124,7 +122,6 @@ export type AxisId = 'rules' | 'ambition' | 'presence' | 'warmth' | 'loyalty' | 
 export interface Memory { id: string; choice: string; day: number; year: number; who?: string }
 
 export type CouncilStage = 'none' | 'candidate' | 'rep' | 'lost' | 'gradePresident' | 'gradeLost' | 'schoolPresident' | 'schoolLost';
-export const ANTHEM_STANZAS = 10;
 /** the school president is always an 11th grader */
 export const SCHOOL_PRESIDENT_GRADE = 11;
 export const CLASS_LETTERS = ['A', 'B', 'C', 'D', 'E'];
@@ -156,7 +153,6 @@ export function defaultState(): PlayerState {
     // your family gave you a phone card before you left home
     phoneUnits: 30,
     cemil: { pee: 'none', peeYear: 0, peeFails: 0, wetDay: -1 },
-    anthem: { stanzas: 0, recited: false },
     council: { year: 0, stage: 'none', day: 0, support: 0, titles: [] },
     temper: { rules: 0, ambition: 0, presence: 0, warmth: 0, loyalty: 0, heart: 0 },
     memories: [],
@@ -183,7 +179,6 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
     skills: { ...d.skills, ...s.skills },
     music: { ...d.music, ...s.music },
     cemil: { ...d.cemil, ...s.cemil },
-    anthem: { ...d.anthem, ...s.anthem },
     council: { ...d.council, ...s.council },
     temper: { ...d.temper, ...s.temper },
     memories: s.memories ?? [],

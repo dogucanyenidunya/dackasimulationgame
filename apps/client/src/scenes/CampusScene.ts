@@ -244,7 +244,7 @@ export class CampusScene extends Phaser.Scene {
   private diners: Phaser.Physics.Arcade.Sprite[] = [];
   private cooks: Phaser.GameObjects.Sprite[] = [];
   private dinerKey = '';
-  /** while you eat: everyone who has sat beside you or across from you so far (someone who finishes first still counts) */
+  /** while you eat: everyone who has sat beside you or across from you so far (they stay put until you've finished) */
   private mealMates: { near: (d: Phaser.GameObjects.Sprite) => boolean; met: Map<string, NpcDef> } | null = null;
   private tray: { meal: import('../game/state').MealId; name: string } | null = null;
   /** your tray on the table while you eat */
@@ -522,7 +522,7 @@ export class CampusScene extends Phaser.Scene {
       tc.onAct = () => this.interact();
       tc.onMap = () => { if (!this.hud.modalOpen && !this.panel.isOpen) this.hud.toggleMap(); };
       tc.onFast = () => { if (!this.blocked()) this.toggleFast(); };
-      tc.onChat = () => { if (this.mp && !this.blocked()) { this.player.setVelocity(0, 0); this.hud.openChat(); } };
+      tc.onChat = () => { if (this.mp && !this.chatBlocked()) { this.player.setVelocity(0, 0); this.hud.openChat(); } };
       tc.onPinch = (f) => this.zoomBy(f);
       if (this.mp) tc.enableChat();
       this.touch = tc;
@@ -746,7 +746,7 @@ export class CampusScene extends Phaser.Scene {
     });
     this.peerPlay.emote = (e) => { this.mp?.emote(e); this.bubbleAbove(this.player, e); };
     this.input.keyboard!.on('keydown-ENTER', (e: KeyboardEvent) => {
-      if (this.blocked()) return;
+      if (this.chatBlocked()) return;
       // the chat box takes focus during this key press: without this the same Enter would "send" the empty box and close it again
       e.preventDefault();
       this.player.setVelocity(0, 0);
@@ -1055,10 +1055,11 @@ export class CampusScene extends Phaser.Scene {
     this.dinerKey = key;
     const ids = new Set(here.map((n) => n.id));
     this.noteMealMates(); // (before anyone gets up from your table)
-    // those who have finished get up
+    const meal = this.mealMates;
+    // those who have finished get up, except whoever is beside you or across from you: they wait until you've finished too
     for (const d of this.diners) {
       const def = d.getData('def') as NpcDef | null;
-      if (d.visible && !(def && ids.has(def.id))) { d.setVisible(false); d.body!.enable = false; d.setData('def', null).setData('seat', null); }
+      if (d.visible && !(def && ids.has(def.id)) && !(meal && def && meal.met.has(def.id) && meal.near(d))) { d.setVisible(false); d.body!.enable = false; d.setData('def', null).setData('seat', null); }
     }
     const seated = new Set(this.diners.filter((d) => d.visible).map((d) => (d.getData('def') as NpcDef).id));
     const taken = new Set(this.diners.filter((d) => d.visible).map((d) => d.getData('seat')));
@@ -1103,6 +1104,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   private updateDining(time: number) {
+    if (this.mealMates && this.sleepRun?.kind !== 'eat') this.endMealHold(); // (you got up before finishing)
     this.seatDiners();
     const serving = !!currentMeal(this.gameCtx());
     for (const d of this.diners) {
@@ -1149,7 +1151,7 @@ export class CampusScene extends Phaser.Scene {
     // (at the end your meal is already over, so the last look round is done here)
     const tablemates = () => {
       for (const d of seated()) if (meal.near(d)) meal.met.set((d.getData('def') as NpcDef).id, d.getData('def') as NpcDef);
-      if (this.mealMates === meal) this.mealMates = null;
+      if (this.mealMates === meal) this.endMealHold();
       return [...meal.met.values()].slice(0, 4);
     };
     // friends of yours eating somewhere else in the hall (and who never sat with you)
@@ -1170,11 +1172,17 @@ export class CampusScene extends Phaser.Scene {
   private noteMealMates() {
     const m = this.mealMates;
     if (!m) return;
-    if (this.sleepRun?.kind !== 'eat') { this.mealMates = null; return; } // (you got up before finishing)
+    if (this.sleepRun?.kind !== 'eat') { this.endMealHold(); return; } // (you got up before finishing)
     for (const d of this.diners) {
       const def = d.getData('def') as NpcDef | null;
       if (d.visible && def && m.near(d)) m.met.set(def.id, def);
     }
+  }
+
+  /** your meal is over (or you got up): whoever waited for you at your table can go now */
+  private endMealHold() {
+    this.mealMates = null;
+    this.dinerKey = '#'; // (no real list looks like this, an empty hall included: the hall is seated afresh, without them if they're done)
   }
 
   private freeSeatNear(): { x: number; y: number; faces: 0 | 3 } | null {
@@ -2868,6 +2876,10 @@ export class CampusScene extends Phaser.Scene {
   private blocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
   /** the menu pages (profile, missions, relationships, friends) only look things up, so they open while you sleep or
    *  wait something out too; just not over another window, the chat, or while you're being marched back to the dorm */
+  /** the chat box opens whenever nothing else on screen wants your keys: while time goes by too (asleep, killing time,
+   *  eating, busy, the weekend at home), but not over a panel, a card, the big map, a match or a game with someone */
+  private chatBlocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.escort !== null; }
+
   private menuBlocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.escort !== null; }
 
   // ---------- the backs of the dorms: the lise's turf ----------
@@ -4170,25 +4182,13 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  /** the İstiklal Marşı at the flag: being in line counts, and whoever has learnt it by heart leads it */
+  /** the İstiklal Marşı at the flag: being in line counts */
   private flagCeremony() {
     const z = CENTER_ZONES[0], tx = this.player.x / TILE, ty = this.player.y / TILE;
     if (this.room || tx < z.x || tx >= z.x + z.w || ty < z.y || ty >= z.y + z.h) return;
     sfx.success();
-    if (this.save.state.anthem.recited && !this.panel.isOpen) {
-      const r0 = this.save.character.respect;
-      this.save.character.respect = growRespect(r0, 5, this.save.state.year);
-      const won = this.save.character.respect - r0;
-      this.gain({ xp: 30, mood: 10 });
-      this.hud.showModal({
-        title: L({ tr: '🇹🇷 Bayrak töreni', en: '🇹🇷 Flag ceremony' }), sub: 'Merkez Meydan',
-        body: L({ tr: `Müdür yardımcısı seni öne çağırdı. İlk kıtayı sen başlattın, bütün okul arkandan okudu.${won ? ` +${won} saygınlık` : ''}`, en: `The deputy head called you to the front. You started the first stanza and the whole school joined in.${won ? ` +${won} respect` : ''}` }),
-        button: t('close'),
-      });
-    } else {
-      this.gain({ xp: 10, mood: 3 });
-      this.hud.toast(L({ tr: '🇹🇷 İstiklal Marşı okundu; sen de sıradaydın.', en: '🇹🇷 The İstiklal Marşı was sung, and you were in line.' }), 'good');
-    }
+    this.gain({ xp: 10, mood: 3 });
+    this.hud.toast(L({ tr: '🇹🇷 İstiklal Marşı okundu; sen de sıradaydın.', en: '🇹🇷 The İstiklal Marşı was sung, and you were in line.' }), 'good');
   }
 
   private onMorning() {

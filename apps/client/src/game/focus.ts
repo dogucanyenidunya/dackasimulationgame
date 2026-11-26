@@ -26,7 +26,7 @@ export const FOCUS_DRAG = 0.9;
 
 export const FOCUSES: Focus[] = [
   { id: 'study', icon: '📚', name: { tr: 'Dersler', en: 'Lessons' }, attr: 'knowledge', goal: 10,
-    goalText: { tr: '10 kez ders çalış: derse gir, ödev yap, kitap oku, marşı çalış', en: 'Study 10 times: lessons, homework, reading, the anthem' } },
+    goalText: { tr: '10 kez ders çalış: derse gir, ödev yap, kitap oku', en: 'Study 10 times: lessons, homework, reading' } },
   { id: 'sport', icon: '⚽', name: { tr: 'Spor', en: 'Sport' }, attr: 'fitness', goal: 4,
     goalText: { tr: '4 antrenman ya da maç', en: '4 trainings or games' } },
   { id: 'friends', icon: '🤝', name: { tr: 'Arkadaşlar', en: 'Friends' }, attr: 'social', goal: 10,

@@ -473,63 +473,6 @@ export class Panel {
     });
   }
 
-  /**
-   * Put the scattered words of a sentence back in order: click a word to add it to the line, click it on the
-   * line to take it back. Resolves with how many checks it took (0 = you ran out of tries and were shown it).
-   */
-  /** (resolves with -1 if you stop without writing) */
-  arrange(title: string, prompt: string, words: string[], tries = 3, note = ''): Promise<number> {
-    const stage = this.stage();
-    const key = (w: string) => w.toLocaleLowerCase('tr-TR');
-    // (never hand the sentence over already in order)
-    let order = words.map((_, i) => i);
-    for (let n = 0; n < 8; n++) {
-      order = order.sort(() => Math.random() - 0.5);
-      if (words.length < 2 || order.some((w, i) => key(words[w]) !== key(words[i]))) break;
-    }
-    const placed: number[] = [];
-    let used = 0;
-    return new Promise((resolve) => {
-      const finish = async (ok: boolean) => {
-        stage.querySelectorAll<HTMLButtonElement>('button').forEach((b) => { b.disabled = true; });
-        const fb = stage.querySelector('.feedback') as HTMLElement;
-        fb.textContent = ok ? L(UI.correct) : L({ tr: 'Doğrusu yukarıda. Bir dahaki sefere!', en: 'The right order is above. Next time!' });
-        fb.className = `feedback ${ok ? 'good' : 'bad'}`;
-        if (!ok) (stage.querySelector('.arr-line') as HTMLElement).innerHTML = words.map((w) => `<span class="chip shown">${esc(w)}</span>`).join('');
-        (ok ? sfx.success : sfx.warn)();
-        await wait(ok ? 1000 : 2600);
-        stage.remove();
-        resolve(ok ? used : 0);
-      };
-      const render = (wrongAt = -1) => {
-        const pool = order.filter((i) => !placed.includes(i));
-        stage.innerHTML = `
-          <div class="stage-card arrange">
-            <div class="stage-top"><b>${esc(title)}</b><span>${note ? `${esc(note)} · ` : ''}${fill(L(UI.triesLeft), { n: tries - used })}</span></div>
-            <p class="stage-help">${esc(prompt)}</p>
-            <div class="arr-line">${placed.length ? placed.map((i, k) => `<button type="button" class="chip ${wrongAt >= 0 && k >= wrongAt ? 'bad' : ''}" data-back="${k}">${esc(words[i])}</button>`).join('') : `<span class="arr-empty">${esc(L({ tr: 'Kelimeleri sırayla buraya diz…', en: 'Line the words up here in order…' }))}</span>`}</div>
-            <div class="arr-pool">${pool.map((i) => `<button type="button" class="chip" data-word="${i}">${esc(words[i])}</button>`).join('')}</div>
-            <div class="arr-foot"><span><button type="button" class="secondary" data-quit>${esc(L({ tr: 'Yazmadan çık', en: 'Stop writing' }))}</button> <button type="button" class="secondary" data-clear>${esc(L({ tr: 'Temizle', en: 'Clear' }))}</button></span><button type="button" class="primary" data-check ${pool.length ? 'disabled' : ''}>${esc(L({ tr: 'Kontrol et', en: 'Check' }))}</button></div>
-            <div class="feedback">${wrongAt >= 0 ? esc(L({ tr: 'Tam olmadı: kırmızı kelimelerin yeri yanlış.', en: 'Not quite: the red words are out of place.' })) : ''}</div>
-          </div>`;
-        if (wrongAt >= 0) (stage.querySelector('.feedback') as HTMLElement).className = 'feedback bad';
-        stage.querySelectorAll<HTMLButtonElement>('[data-word]').forEach((b) => b.addEventListener('click', () => { sfx.click(); placed.push(Number(b.dataset.word)); render(); }));
-        stage.querySelectorAll<HTMLButtonElement>('[data-back]').forEach((b) => b.addEventListener('click', () => { placed.splice(Number(b.dataset.back), 1); render(); }));
-        stage.querySelector('[data-clear]')!.addEventListener('click', () => { placed.length = 0; render(); });
-        stage.querySelector('[data-quit]')!.addEventListener('click', () => { stage.remove(); resolve(-1); });
-        stage.querySelector('[data-check]')!.addEventListener('click', () => {
-          used++;
-          const firstWrong = placed.findIndex((i, k) => key(words[i]) !== key(words[k]));
-          if (firstWrong < 0) { void finish(true); return; }
-          if (used >= tries) { void finish(false); return; }
-          sfx.warn();
-          render(firstWrong);
-        });
-      };
-      render();
-    });
-  }
-
   /** a dilemma moment, on a card of its own over everything: the situation and all the choices at once */
   dilemma(v: DilemmaView): Promise<string | null> {
     const wrap = document.createElement('div');

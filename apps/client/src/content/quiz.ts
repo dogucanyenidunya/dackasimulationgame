@@ -1,4 +1,4 @@
-// Library books (titles and blurbs), the teachers' multiple-choice questions and the lines of the anthem.
+// Library books (titles and blurbs) and the teachers' multiple-choice questions.
 import type { Text } from '../i18n';
 import type { BookId, SubjectId } from '../game/state';
 
@@ -121,18 +121,3 @@ export function askFor(subject: SubjectId, seed: number): { q: Text; options: Te
   const order = base.options.map((_, i) => i).sort(() => Math.random() - 0.5);
   return { q: base.q, options: order.map((i) => base.options[i]), answer: order.indexOf(base.answer) };
 }
-
-// ---- İstiklal Marşı (Mehmet Akif Ersoy, 1921): the opening lines of its ten stanzas, copied out word by word at evening study ----
-
-export const ANTHEM_LINES: string[][] = [
-  ['Korkma, sönmez bu şafaklarda yüzen al sancak;', 'Sönmeden yurdumun üstünde tüten en son ocak.'],
-  ['Çatma, kurban olayım, çehreni ey nazlı hilâl!', 'Kahraman ırkıma bir gül! Ne bu şiddet, bu celâl?'],
-  ['Ben ezelden beridir hür yaşadım, hür yaşarım.', 'Hangi çılgın bana zincir vuracakmış? Şaşarım!'],
-  ['Garbın âfâkını sarmışsa çelik zırhlı duvar,', 'Benim iman dolu göğsüm gibi serhaddim var.'],
-  ['Arkadaş! Yurduma alçakları uğratma, sakın.', 'Siper et gövdeni, dursun bu hayâsızca akın.'],
-  ['Bastığın yerleri "toprak!" diyerek geçme, tanı:', 'Düşün altındaki binlerce kefensiz yatanı.'],
-  ['Kim bu cennet vatanın uğruna olmaz ki fedâ?', 'Şühedâ fışkıracak toprağı sıksan, şühedâ!'],
-  ['Ruhumun senden, İlâhi, şudur ancak emeli:', 'Değmesin mabedimin göğsüne nâmahrem eli.'],
-  ['O zaman vecd ile bin secde eder -varsa- taşım,', 'Her cerîhamdan, İlâhi, boşanıp kanlı yaşım,'],
-  ['Dalgalan sen de şafaklar gibi ey şanlı hilâl!', 'Olsun artık dökülen kanlarımın hepsi helâl.'],
-];

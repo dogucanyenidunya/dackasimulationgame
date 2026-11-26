@@ -66,7 +66,6 @@ const ACTS: Record<string, Pair> = {
   train: ['Antrenmana gittim; yoruldum ama kendimi güçlü hissettim.', 'I went to training. I was tired but I felt strong.'],
   read: ['Kitabımı okudum; kendimi başka bir yerde gibi hissettim.', 'I read my book and felt like I was somewhere else.'],
   homework: ['Ödevimi bitirdim, içim rahatladı.', 'I finished my homework, what a relief.'],
-  anthem: ['İstiklal Marşı\'ndan birkaç kıta daha ezberledim.', 'I learnt a few more stanzas of the İstiklal Marşı.'],
   borrow: ['Arkadaşımın kıyafetini ödünç giydim. Bence bana çok yakıştı!', "I borrowed my friend's clothes. I think they really suited me!"],
   treat: ['Bir arkadaşıma simit ısmarladım; çok sevindi.', 'I shared a simit with a friend; they were so pleased.'],
   joke: ['Bir şaka yaptım. Güldüler… sanırım.', 'I told a joke. They laughed… I think.'],

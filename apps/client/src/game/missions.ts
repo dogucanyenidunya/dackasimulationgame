@@ -138,17 +138,6 @@ export const MISSIONS: Mission[] = [
     reward: { xp: 80 },
   },
   {
-    id: 'istiklal', kind: 'main',
-    title: { tr: 'İstiklal Marşı', en: 'The National Anthem' },
-    desc: { tr: 'Etüt saatlerinde İstiklal Marşı\'nın on kıtasını deftere yaz ve ezberle, sonra belletmenine ezberden oku.', en: 'During evening study, write out all ten stanzas of the İstiklal Marşı and learn them by heart, then recite it to your belletmen.' },
-    requires: ['uc_ogun'],
-    objectives: [
-      { id: 'write', text: { tr: 'On kıtayı yaz ve ezberle (etütte, masanda)', en: 'Write out and memorise the ten stanzas (at study, at your desk)' }, done: (c) => c.st.anthem.stanzas >= 10, progress: (c) => `${c.st.anthem.stanzas}/10`, targets: ownDorm },
-      { id: 'recite', text: { tr: 'Belletmenine ezberden oku', en: 'Recite it to your belletmen' }, done: (c) => c.st.anthem.recited, targets: ownDorm },
-    ],
-    reward: { xp: 60, text: { tr: 'Bayrak töreninde marşı sen başlatırsın (Pazartesi sabahı, Cuma öğleden sonra) · +10 saygınlık', en: 'You lead the anthem at the flag ceremony (Monday morning, Friday afternoon) · +10 respect' } },
-  },
-  {
     id: 'spora_basla', kind: 'main',
     title: { tr: 'Spora Başla', en: 'Join a Sport' },
     desc: { tr: 'Spor Salonu\'ndaki antrenörle konuş, seçmelere gir ve bir takıma katıl.', en: 'Talk to the coach at the sports hall, try out and join a team.' },
@@ -183,7 +172,7 @@ export const MISSIONS: Mission[] = [
     id: 'karne', kind: 'main',
     title: { tr: 'Karne Günü', en: 'Report Card Day' },
     desc: { tr: 'Yılı tamamla: yeterli deneyimi topla ve konferans salonundaki karne törenine katıl.', en: 'Finish the year: gather enough experience and attend the report card ceremony in the auditorium.' },
-    requires: ['bes_arkadas', 'ilk_kitap', 'spora_basla', 'abi_sandvic', 'sinavlar', 'istiklal'],
+    requires: ['bes_arkadas', 'ilk_kitap', 'spora_basla', 'abi_sandvic', 'sinavlar'],
     unlocks: { tr: '2. yıl (5. sınıf)', en: 'Year 2 (Grade 5)' },
     objectives: [
       { id: 'xp', text: { tr: `${YEAR1_XP} XP topla`, en: `Earn ${YEAR1_XP} XP` }, done: (c) => c.st.xp >= YEAR1_XP, progress: (c) => `${Math.min(c.st.xp, YEAR1_XP)}/${YEAR1_XP}` },

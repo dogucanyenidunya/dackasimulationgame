@@ -392,19 +392,6 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 .quiz-opts button.wrong { background: #f7e1dc; border-color: #c0392b; }
 @media (max-width: 560px) { .quiz-opts { grid-template-columns: 1fr; } }
 
-/* putting the anthem's words back in order */
-.arr-line { min-height: 54px; padding: 10px; border-radius: 10px; border: 2px dashed #cdbfa8; background: #fffdf8; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-family: Georgia, "Times New Roman", serif; }
-.arr-empty { color: #9a9488; font-family: system-ui, sans-serif; font-size: 13px; }
-.arr-pool { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font: inherit; font-family: Georgia, "Times New Roman", serif; font-size: 16px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; box-shadow: 0 2px 0 rgba(0,0,0,0.08); }
-.arr-pool .chip { transform: rotate(var(--tilt, 0deg)); }
-.arr-pool .chip:nth-child(3n) { --tilt: -2deg; } .arr-pool .chip:nth-child(3n+1) { --tilt: 1.5deg; }
-.chip:hover:not(:disabled) { border-color: var(--accent-dark); background: #fbf5ec; }
-.arr-line .chip { background: #f4ecdc; }
-.arr-line .chip.bad { background: #f7e1dc; border-color: #c0392b; }
-.arr-line .chip.shown { background: #e3f1dc; border-color: var(--good); cursor: default; }
-.arr-foot { display: flex; justify-content: space-between; }
-
 /* dilemma moments: a card of its own, the situation on top and every choice underneath */
 .dilemma-wrap { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(20, 14, 40, 0.55), rgba(8, 6, 18, 0.88)); animation: dl-fade 0.3s ease-out; }
 .dilemma-card { width: min(640px, 100%); max-height: 100%; overflow: auto; padding: 22px 24px 20px; border-radius: 16px; background: linear-gradient(180deg, #2b2346 0%, #1f1a33 100%); color: #f4eefc; border: 1px solid rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.12), 0 18px 48px rgba(0,0,0,0.5); animation: dl-pop 0.35s cubic-bezier(.2,1.4,.4,1); }
