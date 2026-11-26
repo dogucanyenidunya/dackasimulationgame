@@ -765,6 +765,14 @@ export function generateTextures(scene: Phaser.Scene) {
     c.fillStyle = '#c7cfd4'; c.fillRect(1, 3, 14, 8);
     c.fillStyle = '#e0b04a'; c.fillRect(3, 5, 4, 3); c.fillStyle = '#c0392b'; c.fillRect(9, 5, 4, 3);
   });
+  // a canteen spoon, drawn twice as fine as the world (shown at half size): the bowl at the top, a little food in it
+  canvas('spoon', 6, 18, (c) => {
+    c.fillStyle = '#9aa3a8'; c.fillRect(2.4, 5.5, 1.4, 12);
+    c.fillStyle = '#d7dde0'; c.fillRect(2.6, 5.5, 0.6, 11.5);
+    c.fillStyle = '#b8c0c4'; c.beginPath(); c.ellipse(3, 3.2, 2.6, 3.1, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#e8edef'; c.beginPath(); c.ellipse(2.6, 2.7, 1.4, 1.9, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#e0b04a'; c.beginPath(); c.ellipse(3.1, 2.6, 1.6, 1.2, 0, 0, Math.PI * 2); c.fill();
+  });
   canvas('suitcase', 14, 14, (c) => {
     c.fillStyle = '#3a2a1a'; c.fillRect(5, 0, 4, 1); c.fillRect(4, 1, 1, 3); c.fillRect(9, 1, 1, 3);
     c.fillStyle = '#8a4b2a'; c.fillRect(1, 3, 12, 10);

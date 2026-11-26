@@ -1009,8 +1009,9 @@ export function deskPanel(ctx: GameCtx): PanelView {
         } as ActionView] : []),
         {
           id: 'create', label: T('Yaratıcı ol: resim çiz, hikâye yaz', 'Get creative: draw, write a story'),
-          hint: T('40 dk · +2 Yaratıcılık · +5 moral', '40 min · +2 Creativity · +5 mood'),
-          run: () => { nudge(ctx, { presence: -1 }); focusTick(ctx, 'art');
+          hint: T('40 dk · +2 Yaratıcılık · +5 moral · günde bir', '40 min · +2 Creativity · +5 mood · once a day'),
+          locked: doneToday(ctx, 'create') ? T('Bugünkü resmini çizdin, hikâyeni yazdın. Yarın yeni bir fikirle gel.', "You've done today's drawing and story. Come back tomorrow with a new idea.") : undefined,
+          run: () => { markToday(ctx, 'create'); nudge(ctx, { presence: -1 }); focusTick(ctx, 'art');
             ctx.advance(40); ctx.gain({ mood: 5, energy: -4, xp: 10, attrs: { creativity: 2 } });
             const ideas = [T('Okulun 1863\'teki hâlini çizdin.', 'You drew the school as it looked in 1863.'), T('Gece kaçan bir öğrenci hakkında bir hikâye yazdın.', 'You wrote a story about a student who sneaks out at night.'), T('Bölümün için bir bayrak tasarladın.', 'You designed a flag for your dorm section.')];
             ctx.toast(ideas[ctx.clock.day % ideas.length], 'good');
@@ -1276,9 +1277,14 @@ function revir(ctx: GameCtx): PanelView {
         ...(ctx.st.sick ? [{
           id: 'treat', label: T('Tedavi ol', 'Get treated'), hint: T('3 saat yatak istirahati', '3 hours of bed rest'),
           run: async () => {
-            ctx.st.sick = false; ctx.st.health = Math.max(ctx.st.health, 75);
-            ctx.advance(180); ctx.gain({ energy: 20, mood: 5 });
-            await ctx.panel.message('Kasım Abi', T('"Ateşin düştü. Bol sıvı iç, ellerini yıka ve geceleri dışarıda kalma!"', '"Your fever is down. Drink plenty, wash your hands and don\'t stay out at night!"'));
+            // a bowl of soup with the rest: hunger is what made most of them ill, and without it you'd fall ill again
+            // straight away (or during the three hours in bed)
+            const cure = () => { ctx.st.sick = false; ctx.st.health = Math.max(ctx.st.health, 75); ctx.st.hunger = Math.max(ctx.st.hunger, 70); };
+            cure();
+            ctx.advance(180);
+            cure(); // (well again at the end of the rest, whatever the hours in bed did)
+            ctx.gain({ energy: 20, mood: 5 });
+            await ctx.panel.message('Kasım Abi', T('"Ateşin düştü. Sana bir kâse çorba içirdim; bol sıvı iç, öğünlerini atlama, ellerini yıka ve geceleri dışarıda kalma!"', '"Your fever is down. I gave you a bowl of soup; drink plenty, don\'t skip meals, wash your hands and don\'t stay out at night!"'));
           },
         } as ActionView] : []),
         ...(!ctx.st.once.healthCheck ? [{

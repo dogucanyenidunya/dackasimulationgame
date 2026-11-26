@@ -104,6 +104,20 @@ function getUp(sp: Phaser.GameObjects.Sprite) {
 }
 /** how long a meal takes at the table (game minutes), and how fast it goes by */
 const MEAL_MINUTES = 25;
+
+type DiningSeat = { x: number; y: number; faces: 0 | 3 };
+/** where someone sits on a dining seat (tile rows): facing you, right up behind the table (only head and shoulders
+ *  show above it, like the far side of the study tables); with their back to you, on the chair below the table */
+const seatedY = (s: DiningSeat) => s.y + (s.faces === 0 ? 0.8 : 0.35);
+/** their tray on the table in front of them (world px) */
+const trayOn = (s: DiningSeat) => ({ x: (DINING_OX + s.x + 0.5) * TILE, y: (s.y + (s.faces === 0 ? 1 : -1)) * TILE + (s.faces === 0 ? 10 : 19) });
+/** behind the table the legs don't show (and away from it, the whole of them again) */
+function sitAtTable(sp: Phaser.GameObjects.Sprite, behind: boolean) {
+  if (behind) sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP);
+  else if (sp.isCropped) sp.setCrop();
+}
+/** one spoonful: up to the mouth, a chew, back down for more (ms) */
+const EAT_MS = 2200;
 const MEAL_MS_PER_MIN = 320;
 /** a lesson you haven't gone to: after this many minutes the deputy head comes looking for you */
 const TRUANT_AFTER = 8;
@@ -268,6 +282,8 @@ export class CampusScene extends Phaser.Scene {
   /** your tray on the table while you eat */
   private trayAt: { x: number; y: number } | null = null;
   private trayImg!: Phaser.GameObjects.Image;
+  /** your spoon while you eat */
+  private spoonImg!: Phaser.GameObjects.Image;
   private get inside() { return this.room !== null; }
   private classMates: Phaser.Physics.Arcade.Sprite[] = [];
   private teacher!: Phaser.Physics.Arcade.Sprite;
@@ -1030,12 +1046,40 @@ export class CampusScene extends Phaser.Scene {
       sp.setData('label', this.add.text(0, 0, '', {
         fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffffff', stroke: '#1d2326', strokeThickness: 3,
       }).setOrigin(0.5, 1).setDepth(95_000).setVisible(false));
+      // their tray on the table in front of them, and the spoon going between it and their mouth
+      sp.setData('tray', this.add.image(0, 0, 'tray').setVisible(false));
+      sp.setData('spoon', this.add.image(0, 0, 'spoon').setOrigin(0.5, 0.18).setScale(0.5).setVisible(false));
       this.diners.push(sp);
     }
     const cookLook = { skin: '#d9a77d', hair: '#f4f4f0', hairStyle: 1 as const, top: '#f4f4f0', bottom: '#8b9196', skirt: false };
     makeCharacterTexture(this, 'cook', { ...DEFAULT_LOOK, ...cookLook });
     for (const [x, y] of COOKS) this.cooks.push(fitCharacter(this.add.sprite((DINING_OX + x + 0.5) * TILE, y * TILE, 'cook', 0)).setDepth(y * TILE + 16));
     this.trayImg = this.add.image(0, 0, 'tray').setVisible(false);
+    this.spoonImg = this.add.image(0, 0, 'spoon').setOrigin(0.5, 0.18).setScale(0.5).setVisible(false);
+  }
+
+  /** the meal is over (or you got up): out of your chair and back on your feet beside the table */
+  private standUpFromTable() {
+    const chair = this.player.getData('chair') as { x: number; y: number } | null;
+    this.player.setData('chair', null);
+    sitAtTable(this.player, false);
+    if (this.room === 'dining' && chair) this.player.setPosition(chair.x, chair.y);
+    this.player.body!.enable = true;
+  }
+
+  /** a spoonful every couple of seconds: up from the tray to the mouth, a moment there while they chew, back down for
+   *  more. faces 0 = facing you (the table is below them, the spoon in front of their face); 3 = their back to you
+   *  (the table is above them: the spoon mostly disappears behind their head). `at` = where their tray sits. */
+  private spoonful(sp: Phaser.GameObjects.Sprite, spoon: Phaser.GameObjects.Image, at: { x: number; y: number }, front: boolean, time: number, offset: number) {
+    const p = ((time + offset) % EAT_MS) / EAT_MS;
+    const ease = (t: number) => t * t * (3 - 2 * t);
+    // up 0–0.3, at the mouth 0.3–0.55, down 0.55–0.8, scooping 0.8–1
+    const k = p < 0.3 ? ease(p / 0.3) : p < 0.55 ? 1 : p < 0.8 ? 1 - ease((p - 0.55) / 0.25) : 0;
+    const scoop = p >= 0.8 ? Math.sin(((p - 0.8) / 0.2) * Math.PI) : 0; // (a little dip into the plate)
+    const fx = at.x + 3, fy = at.y + (front ? -2 : 1) + scoop;
+    const tx = sp.x + (front ? 1 : 3), ty = sp.y + (front ? -5 : -9);
+    spoon.setPosition(fx + (tx - fx) * k, fy + (ty - fy) * k).setAngle(front ? 55 * (1 - k) : -40 * (1 - k))
+      .setDepth(front ? Math.max(sp.depth, at.y + 20) + 1 : sp.depth - 0.5).setVisible(true); // (over the tray, then in front of the face)
   }
 
   /** devrecilik at meals: you sit with your own year. Next to someone from your devre if there's room at their table,
@@ -1093,8 +1137,9 @@ export class CampusScene extends Phaser.Scene {
       const sp = this.diners.find((d) => !d.visible), seat = this.devreSeat(def, free);
       if (!sp || !seat) break;
       free.splice(free.indexOf(seat), 1);
-      sp.setTexture(`npc-${def.id}`, seat.faces * 3).setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE)
+      sp.setTexture(`npc-${def.id}`, seat.faces * 3).setPosition((DINING_OX + seat.x + 0.5) * TILE, seatedY(seat) * TILE)
         .setDepth((seat.y + 0.4) * TILE + 16).setVisible(true);
+      sitAtTable(sp, seat.faces === 0);
       sp.body!.enable = true;
       sp.setData('def', def).setData('seat', seat);
     }
@@ -1129,9 +1174,18 @@ export class CampusScene extends Phaser.Scene {
       const label = d.getData('label') as Phaser.GameObjects.Text;
       const def = d.getData('def') as NpcDef | null;
       label.setVisible(this.room === 'dining' && d.visible && !!def);
-      if (!d.visible || !def) continue;
-      const seat = d.getData('seat') as { x: number; faces: number };
-      d.setFrame(seat.faces * 3 + (Math.floor(time / 500 + d.x) % 7 === 0 ? 1 : 0)); // munching
+      if (!d.visible || !def) {
+        (d.getData('tray') as Phaser.GameObjects.Image).setVisible(false);
+        (d.getData('spoon') as Phaser.GameObjects.Image).setVisible(false);
+        continue;
+      }
+      const seat = d.getData('seat') as { x: number; y: number; faces: 0 | 3 };
+      d.setFrame(seat.faces * 3);
+      // eating: their tray on the table, a spoonful now and then (each at their own pace)
+      const front = seat.faces === 0;
+      const at = trayOn(seat);
+      (d.getData('tray') as Phaser.GameObjects.Image).setPosition(at.x, at.y).setDepth(at.y + 20).setVisible(this.room === 'dining');
+      this.spoonful(d, d.getData('spoon') as Phaser.GameObjects.Image, at, front, time, (d.x * 37 + d.y * 11) % EAT_MS);
       // friends in gold with a heart, classmates with a star; neighbours' tags sit at two heights so they don't overlap
       const friend = this.isFriend(def);
       const text = `${friend ? '💛 ' : ''}${def.kind === 'classmate' && this.save.state.once.classDrawn ? '★ ' : ''}${def.name}`;
@@ -1144,6 +1198,10 @@ export class CampusScene extends Phaser.Scene {
     this.trayImg.setVisible(this.room === 'dining' && (!!this.tray || !!this.trayAt));
     if (this.tray) this.trayImg.setPosition(this.player.x, this.player.y + 4).setDepth(this.player.y + 18);
     else if (this.trayAt) this.trayImg.setPosition(this.trayAt.x, this.trayAt.y).setDepth(this.trayAt.y + 20);
+    // and eat from it, like everyone else
+    const eating = this.room === 'dining' && !!this.trayAt && this.sleepRun?.kind === 'eat';
+    if (eating) this.spoonful(this.player, this.spoonImg, this.trayAt!, this.dir === 0, time, 0);
+    else this.spoonImg.setVisible(false);
     if (this.tray && !serving) { this.tray = null; this.hud.toast(L({ tr: 'Servis bitti; tepsini geri bıraktın.', en: 'Serving is over; you put your tray back.' })); }
     // the hall shuts between meals: whoever is still inside is shown out (once they've finished eating)
     if (this.room === 'dining' && !diningOpen(this.save.clock.minutes) && !this.blocked() && !this.sleeping) {
@@ -1157,9 +1215,15 @@ export class CampusScene extends Phaser.Scene {
     const ctx = this.gameCtx();
     const tray = this.tray!;
     this.tray = null;
-    this.player.setPosition((DINING_OX + seat.x + 0.5) * TILE, (seat.y + 0.35) * TILE).setVelocity(0, 0);
+    // sit down at the table (your feet off the floor grid for the meal: you get up from your chair afterwards)
+    this.player.setVelocity(0, 0);
+    this.player.body!.enable = false;
+    this.player.setPosition((DINING_OX + seat.x + 0.5) * TILE, seatedY(seat) * TILE);
     this.player.anims.stop();
     this.dir = seat.faces;
+    this.player.setFrame(seat.faces * 3);
+    sitAtTable(this.player, seat.faces === 0);
+    this.player.setData('chair', { x: (DINING_OX + seat.x + 0.5) * TILE, y: (seat.y + 0.35) * TILE });
     // whoever sits beside you or across from you at the same table when you finish is who you ate with
     type Seat = { x: number; y: number; faces: 0 | 3 };
     const tableOf = (s: Seat) => s.y + (s.faces === 0 ? 1 : -1);
@@ -1174,7 +1238,7 @@ export class CampusScene extends Phaser.Scene {
     };
     // friends of yours eating somewhere else in the hall (and who never sat with you)
     const elsewhere = () => seated().filter((d) => !meal.met.has((d.getData('def') as NpcDef).id) && this.isFriend(d.getData('def') as NpcDef)).map((d) => d.getData('def') as NpcDef);
-    this.trayAt = { x: this.player.x, y: this.player.y + (seat.faces === 0 ? 14 : -14) };
+    this.trayAt = trayOn(seat);
     this.sleeping = true;
     this.sleepRun = {
       kind: 'eat', msPerMin: MEAL_MS_PER_MIN, acc: 0, left: MEAL_MINUTES, total: MEAL_MINUTES, busy: false, events: [],
@@ -4580,6 +4644,7 @@ export class CampusScene extends Phaser.Scene {
     this.updatePrompt();
     this.guardDormBacks(time);
     if (this.sleepRun) this.updateSleep(delta); else this.tickClock(delta);
+    if (this.player.getData('chair') && this.sleepRun?.kind !== 'eat') this.standUpFromTable(); // (however the meal ended)
     this.updateMatch(time);
     this.updateCharacters();
 
