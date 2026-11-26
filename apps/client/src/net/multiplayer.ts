@@ -7,7 +7,8 @@ import type { Spots } from '../game/spots';
 
 /** spots/since: the bed and desks you hold, and when you came online (older versions of the game send neither) */
 export interface PeerProfile { id: string; name: string; look: CharacterLook; grade: number; gender: 'girl' | 'boy'; spots?: Spots; since?: number }
-export interface PeerPos { id: string; x: number; y: number; dir: number; moving: boolean; room: string }
+/** lying: asleep in bed (older versions of the game don't send it) */
+export interface PeerPos { id: string; x: number; y: number; dir: number; moving: boolean; room: string; lying?: boolean }
 
 type Handlers = {
   onJoin?: (p: PeerProfile) => void;
@@ -107,7 +108,7 @@ export class Multiplayer {
   /** sends your position at most ~5 times a second, and only when something changed */
   sendPos(p: Omit<PeerPos, 'id'>, now: number) {
     if (!this.channel) return;
-    const key = `${Math.round(p.x * 4)}|${Math.round(p.y * 4)}|${p.dir}|${p.moving}|${p.room}`;
+    const key = `${Math.round(p.x * 4)}|${Math.round(p.y * 4)}|${p.dir}|${p.moving}|${p.room}|${!!p.lying}`;
     if (key === this.lastKey && now - this.lastSent < 3000) return; // heartbeat every 3 s while idle
     if (now - this.lastSent < 200) return;
     this.lastKey = key;

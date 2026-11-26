@@ -238,7 +238,7 @@ export class CampusScene extends Phaser.Scene {
   private friendsUi: { render: () => void } | null = null;
   private friendsTimer: number | null = null;
   /** `lastPos`: when their last position came (performance.now) · `away`: paused or gone quiet · `leaving`: walking off after they left */
-  private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; room: string; seen: boolean; lastPos: number; away: boolean; leaving: Leaving | null }>();
+  private peers = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; profile: PeerProfile; tx: number; ty: number; dir: number; moving: boolean; lying: boolean; room: string; seen: boolean; lastPos: number; away: boolean; leaving: Leaving | null }>();
   /** which walkable interior you're in, if any */
   private room: 'dorm' | 'class' | 'dining' | null = null;
   private diners: Phaser.Physics.Arcade.Sprite[] = [];
@@ -685,7 +685,7 @@ export class CampusScene extends Phaser.Scene {
     const label = this.add.text(0, 0, `● ${p.name}`, {
       fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(95_000).setVisible(false);
-    this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, room: '', seen: false, lastPos: performance.now(), away: false, leaving: null });
+    this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, lying: false, room: '', seen: false, lastPos: performance.now(), away: false, leaving: null });
     this.labelPeer(p.id);
     const friend = this.friends.get(p.id)?.status === 'accepted';
     if (!quiet) this.hud.toast(friend ? L({ tr: `⭐ Arkadaşın ${p.name} oyuna katıldı`, en: `⭐ Your friend ${p.name} joined` }) : L({ tr: `🟢 ${p.name} oyuna katıldı`, en: `🟢 ${p.name} joined` }), friend ? 'good' : 'info');
@@ -717,7 +717,7 @@ export class CampusScene extends Phaser.Scene {
         peer.lastPos = performance.now();
         if (peer.away) showAway(peer, false, () => this.labelPeer(p.id));
         const moved = peer.room !== p.room; // (into or out of somewhere: no gliding across the map)
-        peer.tx = p.x * TILE; peer.ty = p.y * TILE; peer.dir = p.dir; peer.moving = p.moving; peer.room = p.room;
+        peer.tx = p.x * TILE; peer.ty = p.y * TILE; peer.dir = p.dir; peer.moving = p.moving; peer.lying = p.lying === true; peer.room = p.room;
         if (!peer.seen || moved) { peer.sprite.setPosition(peer.tx, peer.ty); peer.seen = true; }
       },
       onChat: (id, name, text) => { this.hud.addChatLine(name, text); this.bubbleAbove(this.peers.get(id)?.sprite, text); },
@@ -865,7 +865,7 @@ export class CampusScene extends Phaser.Scene {
   private updatePeers(time: number) {
     if (!this.mp) return;
     const moving = (this.player.body?.velocity.length() ?? 0) > 1;
-    this.mp.sendPos({ x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, moving, room: this.roomKey() }, time);
+    this.mp.sendPos({ x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, moving, room: this.roomKey(), lying: this.player.angle !== 0 }, time);
     const here = this.roomKey();
     const now = performance.now();
     for (const [id, peer] of this.peers) {
@@ -882,6 +882,14 @@ export class CampusScene extends Phaser.Scene {
       // smooth towards the last reported position
       peer.sprite.x += (peer.tx - peer.sprite.x) * 0.2;
       peer.sprite.y += (peer.ty - peer.sprite.y) * 0.2;
+      // asleep: on their back in bed, like you and your roommates (drawn over the bed, as they are)
+      if (peer.lying) {
+        if (peer.sprite.angle !== -90) peer.sprite.setAngle(-90);
+        peer.sprite.setFrame(0).setDepth(peer.sprite.y + 0.55 * TILE + 4);
+        peer.label.setPosition(peer.sprite.x, peer.sprite.y - 16);
+        continue;
+      }
+      if (peer.sprite.angle !== 0) peer.sprite.setAngle(0);
       const step = peer.moving ? [1, 0, 2, 0][Math.floor(time / 130) % 4] : 0;
       peer.sprite.setFrame(peer.dir * 3 + step).setDepth(peer.sprite.y + 16);
       peer.label.setPosition(peer.sprite.x, peer.sprite.y - 24);

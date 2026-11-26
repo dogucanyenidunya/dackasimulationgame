@@ -68,7 +68,7 @@ export function startLeaving(p: PeerOnScreen, now: number, byBye: boolean) {
   p.leaving = { x: to.x, y: to.y, started: now, byBye, fading: null };
   p.away = false;
   p.label.setText(p.profile.name).setColor('#c9cdd0');
-  p.sprite.setAlpha(1);
+  p.sprite.setAlpha(1).setAngle(0); // (out of bed first, if they were asleep)
 }
 
 /** they came back before they were gone: they're themselves again */
