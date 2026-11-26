@@ -41,7 +41,7 @@ import {
   BELLETMEN_ROUTE, CEMIL_IN, SEATS as DORM_SEATS, EXIT, PHONE_SPOT, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
 import { CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
-import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
+import { araOgun, currentMeal, eatMeal, egitim, gatePanel, timEventNow, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
 import { MatchView } from '../ui/match';
@@ -2976,6 +2976,23 @@ export class CampusScene extends Phaser.Scene {
 
   /** until you're in lise yourself, the high schoolers out on their yards won't let you in: the nearest one comes over,
    *  tells you so and you're back where you came from. With no lise student outside (at night, in lessons) nobody stops you. */
+  /** Ana Kapı is only for the bus (and the Wednesday town leave): you can't walk out of it onto the street, unless
+   *  there's a ceremony at the TIM Gösteri Merkezi, which you reach along the street through its own gate */
+  private guardGate() {
+    if (this.room || this.inTunnel) return;
+    if (this.player.y / TILE < GATE.y + 0.6) return; // (still inside the fence)
+    const event = timEventNow(this.gameCtx());
+    if (event) {
+      if (this.save.state.daily.timOut !== this.save.clock.day) { this.save.state.daily.timOut = this.save.clock.day; this.hud.toast(L({ tr: `🎓 ${L(event)}: görevli seni TIM Gösteri Merkezi'ne gönderiyor (sokaktan, batıdaki kapısından).`, en: `🎓 ${L(event)}: the guard lets you out to the TIM Gösteri Merkezi (along the street, in by its own gate to the west).` }), 'good'); }
+      return;
+    }
+    this.player.setPosition((GATE_IN[0] + 0.5) * TILE, (GATE_IN[1] + 0.3) * TILE).setVelocity(0, 0);
+    if (this.time.now - this.lastCurfewToast > 2500) {
+      this.lastCurfewToast = this.time.now;
+      this.hud.toast(L({ tr: 'Kapı görevlisi: "Ana Kapı\'dan çıkış yok evlat. Servis Cuma 15:20\'de burada; TIM\'e de ancak tören varken gidilir."', en: 'Gate guard: "Nobody walks out of Ana Kapı, son. The bus is here on Fridays at 15:20, and TIM is only open for ceremonies."' }));
+    }
+  }
+
   private guardDormBacks(time: number) {
     if (this.room || this.escort || this.sleepRun || this.watching) return;
     const px = this.player.x / TILE, py = this.player.y / TILE + 0.3;
@@ -4727,6 +4744,7 @@ export class CampusScene extends Phaser.Scene {
     this.revealAround();
     this.updatePrompt();
     this.guardDormBacks(time);
+    this.guardGate();
     if (this.sleepRun) this.updateSleep(delta); else this.tickClock(delta);
     if (this.player.getData('chair') && this.sleepRun?.kind !== 'eat') this.standUpFromTable(); // (however the meal ended)
     this.updateMatch(time);

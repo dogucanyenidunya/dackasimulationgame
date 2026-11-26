@@ -1,4 +1,4 @@
-// Yetim, the campus cat: a grey tabby (tekir) with a white chest and white socks, drawn in the same shaded
+// Yetim, the campus cat: a yellow tabby (sarı tekir) with a white chest and white socks, drawn in the same shaded
 // style as the characters. Frames face right (flip the sprite for left):
 // 0 sitting (looking at you), 1 sitting with eyes shut (purring), 2–4 walking, 5 asleep, curled up.
 import Phaser from 'phaser';
@@ -9,7 +9,7 @@ export const CAT_KEY = 'cat';
 export const CAT_W = 24, CAT_H = 18;
 export const CAT_FRAMES = { sit: 0, purr: 1, walk: [2, 3, 4], sleep: 5 } as const;
 
-const FUR = '#9a8f84', STRIPE = '#4b423b', WHITE = '#f4f0e8', PINK = '#e3999a', EYE = '#c3cb4f';
+const FUR = '#e2b33f', STRIPE = '#a96f1c', WHITE = '#f4f0e8', PINK = '#e3999a', EYE = '#7fb24a';
 const dk = (c: string, t: number) => mix(c, '#140c12', t);
 const lt = (c: string, t: number) => mix(c, '#fff8ec', t);
 

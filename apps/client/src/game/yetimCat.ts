@@ -113,7 +113,7 @@ export function yetimPanel(ctx: GameCtx, cat: CatReactions): PanelView {
   }
 
   const note = bond < 12
-    ? T('Gri tekir bir kedi, göğsü ve patileri bembeyaz. Herkes ona Yetim diyor; onu ilk kimin bulduğunu kimse hatırlamıyor ama Eğitim Binası\'nın önü onun evi. Seni biraz uzaktan süzüyor.', 'A grey tabby with a snow-white chest and white socks. Everyone calls it Yetim; nobody remembers who found it first, but the front of the Eğitim Binası is its home. It watches you from a little way off.')
+    ? T('Sarı tekir bir kedi, göğsü ve patileri bembeyaz. Herkes ona Yetim diyor; onu ilk kimin bulduğunu kimse hatırlamıyor ama Eğitim Binası\'nın önü onun evi. Seni biraz uzaktan süzüyor.', 'A yellow tabby with a snow-white chest and white socks. Everyone calls it Yetim; nobody remembers who found it first, but the front of the Eğitim Binası is its home. It watches you from a little way off.')
     : bond < 30 ? T('Yetim seni tanımaya başladı. Yaklaşınca kaçmıyor, kuyruğunu dik tutuyor.', 'Yetim is getting to know you. It doesn\'t run off when you come close, and its tail is up.')
       : bond < 60 ? T('Yetim seni görünce miyavlayarak yanına geliyor, sonra bir süre peşinden dolaşıyor.', 'Yetim trots over with a mew when it sees you, then follows you about for a while.')
         : T('Yetim\'in en sevdiği insan sensin. Bacaklarına sürtünüp mırlıyor.', 'You\'re Yetim\'s favourite person. It winds round your legs, purring.');

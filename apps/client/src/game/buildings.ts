@@ -769,6 +769,18 @@ export function eatMeal(ctx: GameCtx, meal: MealId, mealName: string, tablemates
   }
 }
 
+/** a ceremony at the TIM Gösteri Merkezi you can go to right now (the report card ceremony, an election), or null.
+ *  Only then does the guard let you out of Ana Kapı and along the street to TIM's own gate. */
+export function timEventNow(ctx: GameCtx): Text | null {
+  const st = ctx.st;
+  if (!needMission(ctx, 'karne') && !st.yearDone && st.xp >= YEAR1_XP) return { tr: 'Karne töreni', en: 'The report card ceremony' };
+  const c = councilNow(ctx);
+  const today = ctx.clock.day;
+  if (c.stage === 'rep' && today >= c.day) return { tr: 'Sınıflar başkanlık seçimi', en: 'The grade president election' };
+  if (c.stage === 'gradePresident' && grade(st.year) === SCHOOL_PRESIDENT_GRADE && c.day > 0 && today >= c.day) return { tr: 'Okul başkanlığı seçimi', en: 'The school president election' };
+  return null;
+}
+
 /** the TIM Gösteri Merkezi's auditorium: ceremonies and elections */
 function konferansRoom(ctx: GameCtx): RoomView {
   return {
