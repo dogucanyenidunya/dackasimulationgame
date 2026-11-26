@@ -122,6 +122,8 @@ const readMinutes = (ctx: GameCtx) => (hasPerk(ctx.st, 'hizliOkuma') ? 30 : 45);
 const homeworkTries = (ctx: GameCtx) => (hasPerk(ctx.st, 'ezberci') ? 5 : 4);
 /** a canteen price, 10% off (rounded) for a Pazarlıkçı */
 const price = (ctx: GameCtx, p: number) => (hasPerk(ctx.st, 'pazarlikci') ? Math.max(1, Math.round(p * 0.9)) : p);
+/** a music game's speed: the more creative you are, the slower the notes come (up to a third slower at 100) */
+const musicSpeed = (ctx: GameCtx, speed: number) => speed * (1 - ctx.ch.attributes.creativity / 300);
 /** extra minutes before you count as late (Dakik) */
 export const lateGrace = (ctx: { st: PlayerState }) => (hasPerk(ctx.st, 'dakik') ? 5 : 0);
 const subjName = (id: string) => L(SUBJECTS.find((s) => s.id === id)!.name);
@@ -526,7 +528,7 @@ export function egitim(ctx: GameCtx, mode: 'desk' | 'corridor' = 'corridor'): Pa
         return mates.find((n) => n.id === (id ?? sorted[0].id))!;
       };
       if (choice === 'mandolin') {
-        const hits = await ctx.panel.rhythm(T(`${teacher} · mandolin`, `${teacher} · mandolin`), T('Bütün sınıf birlikte çalıyor: notalar çizgiye gelince BOŞLUK\'a bas.', 'The whole class plays together: press SPACE as each note crosses the line.'), 8, 0.4);
+        const hits = await ctx.panel.rhythm(T(`${teacher} · mandolin`, `${teacher} · mandolin`), T('Bütün sınıf birlikte çalıyor: notalar çizgiye gelince BOŞLUK\'a bas.', 'The whole class plays together: press SPACE as each note crosses the line.'), 8, musicSpeed(ctx, 0.4));
         score = Math.min(100, 30 + hits * 9); xp = 5 + hits * 3;
         ctx.gain({ mood: hits >= 6 ? 5 : 1, attrs: { creativity: hits >= 6 ? 2 : 1 } });
         title = T(`Mandolin · ${hits}/8 nota`, `Mandolin · ${hits}/8 notes`);
@@ -1034,10 +1036,10 @@ export function deskPanel(ctx: GameCtx): PanelView {
         } as ActionView] : []),
         {
           id: 'create', label: T('Yaratıcı ol: resim çiz, hikâye yaz', 'Get creative: draw, write a story'),
-          hint: T('40 dk · +2 Yaratıcılık · +5 moral · günde bir', '40 min · +2 Creativity · +5 mood · once a day'),
+          hint: T(`40 dk · +2 Yaratıcılık · +${5 + Math.round(ctx.ch.attributes.creativity / 10)} moral · günde bir`, `40 min · +2 Creativity · +${5 + Math.round(ctx.ch.attributes.creativity / 10)} mood · once a day`),
           locked: doneToday(ctx, 'create') ? T('Bugünkü resmini çizdin, hikâyeni yazdın. Yarın yeni bir fikirle gel.', "You've done today's drawing and story. Come back tomorrow with a new idea.") : undefined,
           run: () => { markToday(ctx, 'create'); nudge(ctx, { presence: -1 }); focusTick(ctx, 'art');
-            ctx.advance(40); ctx.gain({ mood: 5, energy: -4, xp: 10, attrs: { creativity: hasPerk(ctx.st, 'ustaEller') ? 3 : 2 } });
+            ctx.advance(40); ctx.gain({ mood: 5 + Math.round(ctx.ch.attributes.creativity / 10), energy: -4, xp: 10, attrs: { creativity: hasPerk(ctx.st, 'ustaEller') ? 3 : 2 } });
             const ideas = [T('Okulun 1863\'teki hâlini çizdin.', 'You drew the school as it looked in 1863.'), T('Gece kaçan bir öğrenci hakkında bir hikâye yazdın.', 'You wrote a story about a student who sneaks out at night.'), T('Bölümün için bir bayrak tasarladın.', 'You designed a flag for your dorm section.')];
             ctx.toast(ideas[ctx.clock.day % ideas.length], 'good');
           },
@@ -2399,7 +2401,7 @@ function musicRoom(ctx: GameCtx): RoomView {
       locked: lessonNow ? T('Ders saatinde müzik odası boş değil.', 'The music room is busy during lessons.') : doneToday(ctx, 'practice') ? T('Bugün yeterince çalıştın.', "You've practised enough today.") : undefined,
       run: async () => { nudge(ctx, { ambition: 1 }); focusTick(ctx, 'art');
         markToday(ctx, 'practice');
-        const hits = await ctx.panel.rhythm(L(inst!.name), T('Ritmi yakala!', 'Catch the beat!'), 10, 0.42 + m.skill / 300);
+        const hits = await ctx.panel.rhythm(L(inst!.name), T('Ritmi yakala!', 'Catch the beat!'), 10, musicSpeed(ctx, 0.42 + m.skill / 300));
         ctx.advance(45);
         m.skill = Math.min(100, m.skill + 2 + Math.round(hits / 2));
         ctx.gain({ xp: 12 + hits, attrs: { creativity: 1 } });
@@ -2426,7 +2428,7 @@ function musicRoom(ctx: GameCtx): RoomView {
         locked: m.shows.includes(st.year) ? T('Bu yılki sahneni yaptın.', "You've had your stage moment this year.")
           : m.skill < SHOW_SKILL ? T(`Önce seviye ${SHOW_SKILL}\'a ulaş (${m.skill}).`, `Reach level ${SHOW_SKILL} first (${m.skill}).`) : undefined,
         run: async () => { nudge(ctx, { presence: 3, ambition: 2 }); focusTick(ctx, 'art');
-          const hits = await ctx.panel.rhythm(band ? T('Final şarkısı', 'Final song') : T('Resital', 'Recital'), T('Sahnedesin, herkes seni izliyor!', "You're on stage, everyone is watching!"), 14, 0.5 + m.skill / 250);
+          const hits = await ctx.panel.rhythm(band ? T('Final şarkısı', 'Final song') : T('Resital', 'Recital'), T('Sahnedesin, herkes seni izliyor!', "You're on stage, everyone is watching!"), 14, musicSpeed(ctx, 0.5 + m.skill / 250));
           m.shows.push(st.year);
           ctx.advance(120);
           const great = hits >= 11;
@@ -2484,7 +2486,7 @@ async function runElection(ctx: GameCtx, level: 'class' | 'grade' | 'school'): P
   if (!promise) return false;
   const a = ch.attributes;
   const promiseBonus = { kantin: 8, spor: 4 + a.fitness / 8, muzik: 4 + a.creativity / 8, ders: 4 + a.knowledge / 8 }[promise as 'kantin'] ?? 4;
-  const hits = await ctx.panel.rhythm(T('Seçim konuşması', 'Election speech'), T('Kalabalığın alkış ritmini yakala!', "Catch the crowd's clapping rhythm!"), 8, 0.42);
+  const hits = await ctx.panel.rhythm(T('Seçim konuşması', 'Election speech'), T('Kalabalığın alkış ritmini yakala!', "Catch the crowd's clapping rhythm!"), 8, 0.42 * (1 - ctx.ch.attributes.social / 300)); // (a sociable speaker keeps the crowd with them)
   const classmates = NPCS.filter((n) => n.kind === 'classmate');
   const friendsInClass = classmates.filter((n) => (st.friends[n.id] ?? 0) >= FRIEND_AT).length;
   const friendsAll = NPCS.filter((n) => (st.friends[n.id] ?? 0) >= FRIEND_AT).length;

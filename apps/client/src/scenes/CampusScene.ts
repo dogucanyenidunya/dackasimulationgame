@@ -3239,6 +3239,8 @@ export class CampusScene extends Phaser.Scene {
 
   private penalize(points: number, why: string) {
     const st = this.save.state;
+    // (Disiplin: a well-behaved record gets the benefit of the doubt, up to a third off at 100; never below 1)
+    points = Math.max(1, Math.round(points * (1 - this.save.character.attributes.discipline / 300)));
     st.discipline = Math.min(100, st.discipline + points);
     st.lastPenaltyDay = this.save.clock.day;
     sfx.warn();
@@ -3916,6 +3918,7 @@ export class CampusScene extends Phaser.Scene {
     if (amount > 0 && def?.group && def.group === myGroup(st)) bonus *= 1.25; // your group
     if (amount > 0 && hasSecret(st, 'devre')) bonus *= 1.15; // Devre Ruhu
     if (amount > 0 && hasPerk(st, 'sohbetUstasi')) bonus *= 1.25; // Sohbet Ustası
+    if (amount > 0) bonus *= 1 + this.save.character.attributes.social / 200; // Sosyallik: up to +50% at 100
     st.friends[id] = Math.max(-100, Math.min(100, Math.round(before + amount * bonus)));
     const g = myGroup(st);
     if (g !== this.groupId) {
@@ -4021,7 +4024,8 @@ export class CampusScene extends Phaser.Scene {
 
   /** how close a searching belletmen has to be to see you (Sessiz Adım shortens it) */
   private spotRange(): number {
-    return SPOT_RANGE - (hasSecret(this.save.state, 'sessizAdim') ? 2 : 0);
+    // (Disiplin: belletmens trust you more and look your way less, up to 2 tiles less at 100)
+    return SPOT_RANGE - (hasSecret(this.save.state, 'sessizAdim') ? 2 : 0) - this.save.character.attributes.discipline / 50;
   }
 
   /** who you are becoming opens secret skills: one at a time, when nothing else is on screen */

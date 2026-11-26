@@ -710,3 +710,4 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 .grow-note { margin-top: 8px; font-size: 13px; color: #a3412c; }
 .lvl-tag { font-size: 11.5px; opacity: 0.85; margin-top: 2px; }
 .lvl-tag.pts { color: var(--gold); font-weight: 800; opacity: 1; }
+.attr-eff { font-size: 11.5px; color: #7a7f82; margin: -3px 0 6px; line-height: 1.3; }

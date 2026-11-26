@@ -203,6 +203,15 @@ class MapCanvas {
 }
 
 /** your secret skills in the profile: the ones you've opened, and how many are still hidden */
+/** what each attribute does, under it in the profile */
+const ATTR_EFFECT: Record<AttrId, { tr: string; en: string }> = {
+  knowledge: { tr: 'Ödev ve sınav notların yükselir', en: 'Better homework and exam marks' },
+  fitness: { tr: 'Maçlarda ve yarışlarda daha başarılısın', en: 'You do better in games and races' },
+  social: { tr: 'Arkadaşlıkların daha hızlı gelişir, seçim konuşması kolaylaşır', en: 'Friendships grow faster, election speeches get easier' },
+  discipline: { tr: 'Cezaların hafifler, belletmenler seni daha geç fark eder', en: 'Lighter penalties; belletmens notice you later' },
+  creativity: { tr: 'Müzikte notalar yavaşlar, "Yaratıcı ol" daha çok moral verir', en: 'Music games slow down; "Get creative" lifts your mood more' },
+};
+
 function secretsHtml(st: PlayerState): string {
   const esc = (v: string) => v.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
   const mine = SECRETS.filter((s) => st.secrets.includes(s.id));
@@ -689,7 +698,7 @@ export class Hud {
         const v = c.attributes[a.id];
         const can = !!grow && pts > 0 && v < cap;
         const btn = grow ? `<button type="button" class="grow-btn" data-attr="${a.id}" ${can ? '' : 'disabled'} title="${esc(v >= cap ? L({ tr: `Bu yılın sınırı: ${cap}`, en: `This year's ceiling: ${cap}` }) : `+${ATTR_STEP}`)}">+${ATTR_STEP}</button>` : '';
-        return `<div class="attr${grow ? ' has-btn' : ''}"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, v * 2)}%"></i></div><b>${Math.round(v)}</b>${btn}</div>`;
+        return `<div class="attr${grow ? ' has-btn' : ''}"><span>${L(a.name)}</span><div class="attr-bar"><i style="width:${Math.min(100, v * 2)}%"></i></div><b>${Math.round(v)}</b>${btn}</div><div class="attr-eff">${esc(L(ATTR_EFFECT[a.id]))}</div>`;
       };
       const perkRow = (p: (typeof PERKS)[number]) => {
         const owned = g.perks.includes(p.id);
