@@ -3,12 +3,16 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { CharacterLook } from '../art/textures';
 import { sb } from './supabase';
+import type { Spots } from '../game/spots';
 
-export interface PeerProfile { id: string; name: string; look: CharacterLook; grade: number; gender: 'girl' | 'boy' }
+/** spots/since: the bed and desks you hold, and when you came online (older versions of the game send neither) */
+export interface PeerProfile { id: string; name: string; look: CharacterLook; grade: number; gender: 'girl' | 'boy'; spots?: Spots; since?: number }
 export interface PeerPos { id: string; x: number; y: number; dir: number; moving: boolean; room: string }
 
 type Handlers = {
   onJoin?: (p: PeerProfile) => void;
+  /** presence changed (someone came, went, or took another bed or desk) */
+  onSync?: () => void;
   onLeave?: (id: string) => void;
   onPos?: (p: PeerPos) => void;
   onChat?: (from: string, name: string, text: string) => void;
@@ -56,9 +60,13 @@ export class Multiplayer {
       for (const [id, metas] of Object.entries(state)) {
         if (id === this.me.id || !metas[0]) continue;
         now.add(id);
-        if (!this.peers.has(id)) { const p = metas[0] as unknown as PeerProfile; this.peers.set(id, p); this.h.onJoin?.(p); }
+        const p = metas[0] as unknown as PeerProfile;
+        const isNew = !this.peers.has(id);
+        this.peers.set(id, p);
+        if (isNew) this.h.onJoin?.(p);
       }
       for (const id of [...this.peers.keys()]) if (!now.has(id)) { this.peers.delete(id); this.h.onLeave?.(id); }
+      this.h.onSync?.();
     });
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => this.h.onPos?.(payload as PeerPos));
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -88,6 +96,12 @@ export class Multiplayer {
     // say goodbye first, so the others see you walk off at once rather than when the server notices
     window.addEventListener('pagehide', () => { this.bye(); void this.disconnect(); });
     return true;
+  }
+
+  /** you took another bed or desk: everyone sees it in your presence */
+  setSpots(spots: Spots) {
+    this.me = { ...this.me, spots };
+    void this.channel?.track(this.me);
   }
 
   /** sends your position at most ~5 times a second, and only when something changed */

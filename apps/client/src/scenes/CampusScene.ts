@@ -23,6 +23,7 @@ import { yetimPanel } from '../game/yetimCat';
 import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
+import { CLASSIC, NPC_BEDS, NPC_CLASS_DESKS, settle, spotKey, storeSpots, storedSpots, readSpots, type Spots } from '../game/spots';
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
@@ -35,9 +36,9 @@ import type { NetUser } from '../main';
 import { Panel, type ActionView } from '../ui/panel';
 import { attendLesson, lessonNow, pePanel, bedPanel, buildingPanel, cemilPanel, courtPanel, deskPanel, dormBestFriend, exitPanel, lockerPanel, mateLockerPanel, matePanel, npcPanel, phonePanel, playMatch, tvPanel, type GameCtx, type Gain } from '../game/buildings';
 import {
-  BELLETMEN_ROUTE, BEDS, CEMIL_IN, SEATS as DORM_SEATS, EXIT, PHONE_SPOT, MY_BED, MY_DESK, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
+  BELLETMEN_ROUTE, CEMIL_IN, SEATS as DORM_SEATS, EXIT, PHONE_SPOT, MY_LOCKER, ROOM_H, ROOM_OX, ROOM_SOLID, ROOM_SPAWN, ROOM_W, TV_SPOT, buildRoom,
 } from '../content/dormroom';
-import { CLASS_DESKS, CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, MY_CLASS_DESK, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
+import { CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
 import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, VISIT_END, VISIT_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
@@ -209,6 +210,16 @@ export class CampusScene extends Phaser.Scene {
    *  interrupt it), killing time at your desk, or eating at the table */
   private sleepRun: { kind: 'sleep' | 'idle' | 'eat' | 'busy' | 'home'; label?: string; msPerMin: number; acc: number; left: number; total: number; busy: boolean; events: Array<{ at: number; done: boolean; run: () => Promise<void> }>; onDone?: () => void } | null = null;
   private zzz: Phaser.GameObjects.Text[] = [];
+  /** your bed, study chair and classroom desk (online they're whichever were free when you came on) */
+  private spots: Spots = CLASSIC;
+  /** online: the beds, study chairs (as table tiles) and desks other players in your dorm / class hold */
+  private held = { bed: new Set<string>(), desk: new Set<string>(), seat: new Set<string>() };
+  /** when you came online this session (whoever came first keeps a spot two players picked) */
+  private onlineSince = 0;
+  /** the name tags on your bed, study chair and desk */
+  private spotTags: { bed?: Phaser.GameObjects.Text; desk?: Phaser.GameObjects.Text; seat?: Phaser.GameObjects.Text } = {};
+  /** which classroom desk each classmate sits at */
+  private classDeskOf = new Map<string, string>();
   /** online play (null = offline) */
   private net: NetUser | null = null;
   /** online: campus day number minus your own (null until this session has lined your clock up with the campus) */
@@ -618,6 +629,34 @@ export class CampusScene extends Phaser.Scene {
 
   // ---------- online: other real players ----------
 
+  /** someone came, went or moved: keep your bed and desks, or move to free ones if someone who came first holds them */
+  private settleSpots() {
+    if (!this.mp || !this.net) return;
+    const ch = this.save.character;
+    const others = [...this.mp.peers.values()].map((p) => ({ id: String(p.id), since: typeof p.since === 'number' ? p.since : 0, gender: String(p.gender), spots: readSpots(p.spots) }));
+    const next = settle({ id: this.net.id, since: this.onlineSince, gender: ch.gender, spots: this.spots }, others, { roommates: this.roomMates.length, classmates: this.classDeskOf.size });
+    // (yours count too: a roommate never ends up in the bed you're in)
+    const dorm = [...others.filter((o) => o.gender === ch.gender).map((o) => o.spots), next];
+    this.held = {
+      bed: new Set(dorm.map((x) => spotKey(x.bed))),
+      desk: new Set(dorm.map((x) => spotKey(x.desk))),
+      seat: new Set([...others.map((o) => o.spots), next].map((x) => spotKey(x.seat))),
+    };
+    if (spotKey(next.bed) !== spotKey(this.spots.bed) || spotKey(next.desk) !== spotKey(this.spots.desk) || spotKey(next.seat) !== spotKey(this.spots.seat)) {
+      this.setSpots(next);
+      this.mp.setSpots(next);
+    }
+  }
+
+  /** your bed and desks are these now: the name tags move with them (you stay where you are until you next go to bed or sit down) */
+  private setSpots(s: Spots) {
+    this.spots = s;
+    if (this.net) storeSpots(this.net.id, s);
+    this.spotTags.bed?.setPosition((ROOM_OX + s.bed[0] + 0.5) * TILE, (s.bed[1] + 0.1) * TILE);
+    this.spotTags.desk?.setPosition((ROOM_OX + s.desk[0] + 0.5) * TILE, (s.desk[1] + 0.1) * TILE);
+    this.spotTags.seat?.setPosition((CLASS_OX + s.seat[0] + 0.5) * TILE, (s.seat[1] + 0.1) * TILE);
+  }
+
   private roomKey(): string {
     if (this.sleepRun?.kind === 'home') return 'away';
     if (this.inTunnel && !this.room) return 'tunnel';
@@ -657,9 +696,12 @@ export class CampusScene extends Phaser.Scene {
 
   private async goOnline() {
     const ch = this.save.character;
-    const me: PeerProfile = { id: this.net!.id, name: ch.first, look: ch.look, grade: this.save.state.year + 3, gender: ch.gender };
+    this.onlineSince = Date.now();
+    this.setSpots(storedSpots(this.net!.id));
+    const me: PeerProfile = { id: this.net!.id, name: ch.first, look: ch.look, grade: this.save.state.year + 3, gender: ch.gender, spots: this.spots, since: this.onlineSince };
     this.mp = new Multiplayer(me, {
       onJoin: (p) => this.addPeer(p),
+      onSync: () => this.settleSpots(),
       onLeave: (id) => this.peerGone(id, false),
       onBye: (id) => this.peerGone(id, true),
       onStatus: (id, away) => { const peer = this.peers.get(id); if (peer) showAway(peer, away, () => this.labelPeer(id)); },
@@ -880,11 +922,11 @@ export class CampusScene extends Phaser.Scene {
     this.physics.add.collider(this.player, layer);
     void tileset;
     // your desk and bed get a little name tag
-    const tag = (x: number, y: number, text: string) => this.roomLabels.push(this.add.text((ROOM_OX + x + 0.5) * TILE, (y + 0.1) * TILE, text, {
+    const tag = (x: number, y: number, text: string) => { const t = this.add.text((ROOM_OX + x + 0.5) * TILE, (y + 0.1) * TILE, text, {
       fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(95_000));
-    tag(MY_DESK[0], MY_DESK[1], L({ tr: 'Senin masan', en: 'Your desk' }));
-    tag(MY_BED[0], MY_BED[1], L({ tr: 'Yatağın', en: 'Your bed' }));
+    }).setOrigin(0.5).setDepth(95_000); this.roomLabels.push(t); return t; };
+    this.spotTags.desk = tag(this.spots.desk[0], this.spots.desk[1], L({ tr: 'Senin masan', en: 'Your desk' }));
+    this.spotTags.bed = tag(this.spots.bed[0], this.spots.bed[1], L({ tr: 'Yatağın', en: 'Your bed' }));
     tag(MY_LOCKER[0], MY_LOCKER[1], L({ tr: 'Dolabın', en: 'Your locker' }));
     // your room is your year's: the classmates from your dorm sit at the other desks
     const sameDorm = NPCS.filter((n) => n.kind === 'classmate' && n.gender === this.save.character.gender);
@@ -898,7 +940,7 @@ export class CampusScene extends Phaser.Scene {
       if (seat.face === 'down') sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP); // (legs behind the table)
       footBody(sp);
       sp.setImmovable(true);
-      sp.setData('def', def).setData('slot', this.roomMates.length);
+      sp.setData('def', def).setData('slot', this.roomMates.length).setData('chair', spotKey([seat.x, seat.y - 1]));
       // (they sleep in pyjamas, and change at their lockers when they get up)
       makeCharacterTexture(this, `npc-${def.id}-pj`, { ...DEFAULT_LOOK, ...def.look, ...PYJAMAS, skirt: false });
       this.physics.add.collider(this.player, sp);
@@ -1178,13 +1220,15 @@ export class CampusScene extends Phaser.Scene {
     layer.setVisible(false);
     this.add.image(CLASS_OX * TILE, 0, bakeRoom(this, 'room-class', classData)).setOrigin(0).setScale(1 / ART_RES).setDepth(0.01);
     this.physics.add.collider(this.player, layer);
-    this.classLabels.push(this.add.text((CLASS_OX + MY_CLASS_DESK[0] + 0.5) * TILE, (MY_CLASS_DESK[1] + 0.1) * TILE, L({ tr: 'Senin sıran', en: 'Your desk' }), {
+    this.spotTags.seat = this.add.text((CLASS_OX + this.spots.seat[0] + 0.5) * TILE, (this.spots.seat[1] + 0.1) * TILE, L({ tr: 'Senin sıran', en: 'Your desk' }), {
       fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(95_000));
+    }).setOrigin(0.5).setDepth(95_000);
+    this.classLabels.push(this.spotTags.seat);
     const mates = NPCS.filter((n) => n.kind === 'classmate');
-    const seats = CLASS_DESKS.filter(([x, y]) => !(x === MY_CLASS_DESK[0] && y === MY_CLASS_DESK[1]));
+    const seats = NPC_CLASS_DESKS;
     mates.forEach((def, i) => {
       const [x, y] = seats[i % seats.length];
+      this.classDeskOf.set(def.id, spotKey([x, y]));
       const sp = fitCharacter(this.physics.add.sprite((CLASS_OX + x + 0.5) * TILE, (y + 1.35) * TILE, `npc-${def.id}`, 9)).setDepth((y + 1) * TILE + 16);
       footBody(sp);
       sp.setImmovable(true);
@@ -1273,7 +1317,8 @@ export class CampusScene extends Phaser.Scene {
       inRoom: this.room === 'class',
       breakKey: brk?.key ?? null,
       teacher: tch && !tch.lesson ? { name: tch.name, look: TEACHERS[tch.subject].look } : null,
-      present: (def) => this.whereIs(def) === 'egitim',
+      // (a classmate whose desk another player took today isn't in class)
+      present: (def) => this.whereIs(def) === 'egitim' && !this.held.seat.has(this.classDeskOf.get(def.id) ?? ''),
     });
     this.classLabels.forEach((l) => l.setVisible(this.room === 'class'));
     const t = this.teacher;
@@ -1314,7 +1359,7 @@ export class CampusScene extends Phaser.Scene {
         return { id: 'mate', label: this.tagged(def), npc: def };
       }
     }
-    if (near(MY_CLASS_DESK[0], MY_CLASS_DESK[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Sırana otur', en: 'Sit at your desk' }) };
+    if (near(this.spots.seat[0], this.spots.seat[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Sırana otur', en: 'Sit at your desk' }) };
     if (CLASS_EXIT.some(([x, y]) => near(x, y - 0.6, 1.3))) return { id: 'exit', label: L({ tr: 'Koridora çık', en: 'Go to the corridor' }) };
     return null;
   }
@@ -1570,7 +1615,7 @@ export class CampusScene extends Phaser.Scene {
     const study = phase === 'etut';
     const night = phase === 'night' || this.sleepRun?.kind === 'sleep';
     const early = c.minutes < 9 * 60; // still in the dorm in the morning = not up yet
-    const beds = BEDS.filter(([x, y]) => !(x === MY_BED[0] && y === MY_BED[1]));
+    const beds = NPC_BEDS;
     const step = (Math.min(delta, 100) / 1000) * 75 * (this.fast ? 3 : 1);
     this.roomMates.forEach((sp, i) => {
       const def = sp.getData('def') as NpcDef;
@@ -1604,7 +1649,8 @@ export class CampusScene extends Phaser.Scene {
       if ((night || early) && home) {
         // asleep in the bunks next to yours (there are more of them than beds in this corner: the rest sleep next door)
         const b = beds[i];
-        if (!b) { sp.setVisible(false); sp.body!.enable = false; return; }
+        // (a roommate whose bed another player took sleeps next door tonight)
+        if (!b || this.held.bed.has(spotKey(b))) { sp.setVisible(false); sp.body!.enable = false; return; }
         tex(true);
         if (sp.isCropped) sp.setCrop();
         sp.setPosition((ROOM_OX + b[0] + 0.5) * TILE, (b[1] + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((b[1] + 1) * TILE + 4);
@@ -1616,8 +1662,10 @@ export class CampusScene extends Phaser.Scene {
       // on the far side of a table only head and shoulders show above it
       if (sp.getData('face') === 'down' && !sp.isCropped) sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP);
       if (sp.angle !== 0 || sp.x !== dx || sp.y !== dy) sp.setAngle(0).setPosition(dx, dy).setDepth(sp.getData('face') === 'down' ? dy - 2 : dy + 16);
-      sp.setVisible(home);
-      sp.body!.enable = home;
+      // (nor does one whose chair another player took study here)
+      const here = home && !this.held.desk.has(sp.getData('chair') as string);
+      sp.setVisible(here);
+      sp.body!.enable = here;
       // heads down, writing: a tiny bob now and then
       sp.setFrame((sp.getData('face') === 'down' ? 0 : 9) + (study && Math.floor(time / 700 + sp.x) % 5 === 0 ? 1 : 0));
     });
@@ -1659,8 +1707,8 @@ export class CampusScene extends Phaser.Scene {
     }
     if (this.cemilIn.visible && Phaser.Math.Distance.Between(this.cemilIn.x, this.cemilIn.y, this.player.x, this.player.y) < TALK_RANGE) return { id: 'cemil', label: 'Cemil Emmi' };
     if (near(PHONE_SPOT[0], 2.2, 1.2)) return { id: 'phone', label: L({ tr: 'Telefon', en: 'Phone' }) };
-    if (near(MY_DESK[0], MY_DESK[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Masana otur', en: 'Sit at your desk' }) };
-    if (near(MY_BED[0], MY_BED[1], 1.6)) return { id: 'bed', label: L({ tr: 'Yatağın', en: 'Your bed' }) };
+    if (near(this.spots.desk[0], this.spots.desk[1] + 0.8)) return { id: 'desk', label: L({ tr: 'Masana otur', en: 'Sit at your desk' }) };
+    if (near(this.spots.bed[0], this.spots.bed[1], 1.6)) return { id: 'bed', label: L({ tr: 'Yatağın', en: 'Your bed' }) };
     if (near(MY_LOCKER[0], MY_LOCKER[1] - 0.6, 1.3)) return { id: 'locker', label: this.save.state.once.luggage ? L({ tr: 'Dolabın', en: 'Your locker' }) : L({ tr: 'Dolabın: bavulunu yerleştir', en: 'Your locker: unpack your suitcase' }) };
     // the lockers next to yours belong to your classmates
     if ([22, 23, 24].some((x) => near(x, MY_LOCKER[1] - 0.6, 1.1))) {
@@ -2991,7 +3039,7 @@ export class CampusScene extends Phaser.Scene {
     this.log({ kind: 'act', a: 'idle' });
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
-    if (this.room === 'dorm') { this.player.setPosition((ROOM_OX + MY_DESK[0] + 0.5) * TILE, (MY_DESK[1] + 1.35) * TILE); this.dir = 3; }
+    if (this.room === 'dorm') { this.player.setPosition((ROOM_OX + this.spots.desk[0] + 0.5) * TILE, (this.spots.desk[1] + 1.35) * TILE); this.dir = 3; }
     this.sleepRun = { kind: 'idle', msPerMin: Math.min(90, 8000 / left), acc: 0, left, total: left, busy: false, events: [] };
   }
 
@@ -3422,7 +3470,7 @@ export class CampusScene extends Phaser.Scene {
     }
     this.lastDoor = doorStandTile(LOCATIONS.find((l) => l.id === 'egitim')!.doors![0]);
     this.enterClass();
-    this.player.setPosition((CLASS_OX + MY_CLASS_DESK[0] + 0.5) * TILE, (MY_CLASS_DESK[1] + 1.35) * TILE);
+    this.player.setPosition((CLASS_OX + this.spots.seat[0] + 0.5) * TILE, (this.spots.seat[1] + 1.35) * TILE);
     this.dir = 3;
     if (!les) return; // the bell went on the way: nothing left to sit through
     const ctx = this.gameCtx();
@@ -3613,7 +3661,7 @@ export class CampusScene extends Phaser.Scene {
         this.npcClock = -1;
         this.lastDoor = this.nearestStand(this.ownDormLoc());
         this.room = null; this.enterDorm();
-        this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
+        this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 1.4) * TILE);
         this.refreshClockAndNeeds();
         this.hud.showModal({
           title: L({ tr: `🌙 Kayıt dönemi · ${was} bitti`, en: `🌙 Registration · ${was} is over` }), sub: `${next} 08:00`,
@@ -4266,7 +4314,7 @@ export class CampusScene extends Phaser.Scene {
     this.tray = null; this.trayAt = null;
     this.lastDoor = this.nearestStand(this.ownDormLoc());
     this.room = 'dorm';
-    this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE).setVelocity(0, 0);
+    this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 1.4) * TILE).setVelocity(0, 0);
     this.dir = 3;
     this.setCameraArea();
   }
@@ -4286,7 +4334,7 @@ export class CampusScene extends Phaser.Scene {
     this.player.anims.stop();
     this.player.setFrame(0);
     this.player.body!.enable = false;
-    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 0.45) * TILE).setAngle(-90);
+    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 0.45) * TILE).setAngle(-90);
     // into your pyjamas, if you have them
     if (this.save.state.school.kit && this.save.state.wardrobe.wearing !== 'pijama' && this.save.state.wardrobe.wearing !== BORROWED) { this.save.state.wardrobe.wearing = 'pijama'; this.dress(); }
     this.sleepRun = { kind: 'sleep', msPerMin: Math.min(25 / 3, SLEEP_MS / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
@@ -4383,7 +4431,7 @@ export class CampusScene extends Phaser.Scene {
     this.sleeping = false;
     this.player.setAngle(0);
     this.player.body!.enable = true;
-    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + MY_BED[0] + 0.5) * TILE, (MY_BED[1] + 1.4) * TILE);
+    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 1.4) * TILE);
     if (!early) {
       st.health = clamp(st.health + 6);
       st.energy = 100;
