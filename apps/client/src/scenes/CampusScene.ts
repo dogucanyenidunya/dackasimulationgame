@@ -587,22 +587,30 @@ export class CampusScene extends Phaser.Scene {
     // online: straight to the campus time, like coming back to the game, with nothing played through
     if (this.synced() && this.worldOffset !== null) this.jumpToWorld(false, afk);
     this.minuteAcc = 0;
-    if (afk) this.toMainGate();
+    if (afk) this.restartAfterAfk();
   }
 
-  /** online, after being AFK: whatever you had open closes and you're standing just inside the main gate */
-  private toMainGate() {
+  /** online, after being AFK: whatever you had open closes and you start again just inside the main gate, or,
+   *  if it's sleep time (lights out to wake-up), in your dorm room by your bed */
+  private restartAfterAfk() {
     if (this.panel.isOpen && !this.panel.working) this.panel.close();
     if (this.hud.bigOpen) this.hud.toggleMap(false);
     if (this.hud.chatOpen) this.hud.closeChat();
+    this.setTunnel(false);
+    this.lastTile = { x: -1, y: -1 };
+    if (phaseOf(this.save.clock.minutes, this.save.clock.day) === 'night') {
+      this.placeInDorm();
+      this.cameras.main.fadeIn(400, 8, 14, 24);
+      this.persist();
+      this.hud.toast(L({ tr: '💤 Bir süredir yoktun; uyku saati, yatakhanendesin.', en: "💤 You were away for a while. It's bedtime, so you're in your dorm room." }));
+      return;
+    }
     this.room = null;
     this.tray = null; this.trayAt = null;
-    this.setTunnel(false);
     this.player.setPosition(SPAWN.x * TILE, SPAWN.y * TILE).setVelocity(0, 0);
     this.dir = 3;
     this.setCameraArea();
     this.cameras.main.fadeIn(400, 8, 14, 24);
-    this.lastTile = { x: -1, y: -1 };
     this.revealAround(true);
     this.persist();
     this.hud.toast(L({ tr: '💤 Bir süredir yoktun; Ana Kapı\'dan devam ediyorsun.', en: "💤 You were away for a while, so you're back at the main gate." }));
