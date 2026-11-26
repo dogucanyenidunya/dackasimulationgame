@@ -578,7 +578,7 @@ export class Hud {
       bar('⚡', L({ tr: 'Enerji', en: 'Energy' }), st.energy, 'energy') +
       bar('🍽', L({ tr: 'Tokluk', en: 'Fullness' }), st.hunger, 'hunger') +
       bar('🙂', L({ tr: 'Moral', en: 'Mood' }), st.mood, 'mood') +
-      bar(st.sick ? '🤒' : '❤️', L({ tr: 'Sağlık', en: 'Health' }), st.health, 'health') +
+      bar('❤️', L({ tr: 'Sağlık', en: 'Health' }), st.health, 'health') +
       `<div class="money-xp"><span>💰 ${st.money} ₺</span><span title="XP">⭐ ${st.xp} / ${YEAR1_XP}</span></div>` +
       `<div class="nbar xp"><i style="width:${xpPct}%"></i></div>`;
   }

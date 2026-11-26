@@ -101,6 +101,17 @@ function pocket(ctx: GameCtx, id: string): boolean {
   return true;
 }
 
+/** something from your family (homemade cookies): it goes straight onto the food shelf in your locker, or into your
+ *  pocket if the shelf is full; with no room anywhere you eat it there and then. Says where it went. */
+function familyTreat(ctx: GameCtx, id: string): Text {
+  const { locker, bag } = ctx.st.food;
+  if (locker.length < LOCKER_MAX) { locker.push(id); return { tr: ' Kurabiyeler dolabında, yiyecek rafında.', en: ' The cookies are on the food shelf in your locker.' }; }
+  if (bag.length < BAG_MAX) { bag.push(id); return { tr: ' Dolabın dolu olduğu için kurabiyeler cebinde.', en: ' Your locker is full, so the cookies are in your pocket.' }; }
+  const sn = snackById(id);
+  if (sn) ctx.gain({ hunger: sn.hunger, mood: sn.mood });
+  return { tr: ' Dolabında da cebinde de yer yoktu; kurabiyeleri orada yedin.', en: ' There was no room in your locker or your pockets, so you ate the cookies there and then.' };
+}
+
 const T = (tr: string, en: string): string => L({ tr, en });
 const subjName = (id: string) => L(SUBJECTS.find((s) => s.id === id)!.name);
 
@@ -2222,8 +2233,8 @@ export function gatePanel(ctx: GameCtx): PanelView {
         markToday(ctx, 'visit');
         ctx.advance(60, { wait: true, label: T('👪 Ziyaretçinle birliktesin', '👪 With your visitor') }); // (online you spend this hour, counted down)
         ctx.gain({ mood: 15, money: 15 });
-        const kept = pocket(ctx, 'kurabiye');
-        await ctx.panel.message(T('Ziyaret günü', 'Visiting day'), T(`${guardian} kapıda seni bekliyordu! Bahçede oturup sohbet ettiniz; sana ev yapımı kurabiye ve 15 ₺ harçlık getirdi.${kept ? ' Kurabiyeler cebinde: dolabına koyabilirsin.' : ''}`, `${guardian} was waiting at the gate! You sat in the garden and talked; they brought homemade cookies and 15 ₺ pocket money.${kept ? ' The cookies are in your pocket: you can put them in your locker.' : ''}`));
+        const where = familyTreat(ctx, 'kurabiye');
+        await ctx.panel.message(T('Ziyaret günü', 'Visiting day'), T(`${guardian} kapıda seni bekliyordu! Bahçede oturup sohbet ettiniz; sana ev yapımı kurabiye ve 15 ₺ harçlık getirdi.${where.tr}`, `${guardian} was waiting at the gate! You sat in the garden and talked; they brought homemade cookies and 15 ₺ pocket money.${where.en}`));
       },
     });
   }
@@ -2257,10 +2268,10 @@ function visitActions(ctx: GameCtx): ActionView[] {
       markToday(ctx, 'wedvisit');
       ctx.advance(60, { wait: true, label: T(`👪 ${g} ile kantindesin`, `👪 At the canteen with ${g}`) }); // (online you spend this hour, counted down)
       ctx.gain({ mood: 18, money: 20, hunger: 30 });
-      const kept = pocket(ctx, 'kurabiye');
+      const where = familyTreat(ctx, 'kurabiye');
       await ctx.panel.message(T('Çarşı izni', 'Wednesday visit'), T(
-        `${g} kantinde seni bekliyordu. Şakir Abi'den iki sosisli aldınız, haftanı anlattın. Giderken eline 20 ₺ ve ev yapımı kurabiye tutuşturdu.${kept ? ' Kurabiyeler cebinde: dolabına koyabilirsin.' : ''}`,
-        `${g} was waiting at the canteen. You got two of Şakir's hot dogs and told them all about your week. On the way out they slipped you 20 ₺ and homemade cookies.${kept ? ' The cookies are in your pocket: you can put them in your locker.' : ''}`,
+        `${g} kantinde seni bekliyordu. Şakir Abi'den iki sosisli aldınız, haftanı anlattın. Giderken eline 20 ₺ ve ev yapımı kurabiye tutuşturdu.${where.tr}`,
+        `${g} was waiting at the canteen. You got two of Şakir's hot dogs and told them all about your week. On the way out they slipped you 20 ₺ and homemade cookies.${where.en}`,
       ));
     },
   }];

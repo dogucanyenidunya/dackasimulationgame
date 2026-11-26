@@ -84,6 +84,24 @@ const DEVRE_SIZE = new Map<number, number>();
 for (const n of NPCS) DEVRE_SIZE.set(n.grade ?? 4, (DEVRE_SIZE.get(n.grade ?? 4) ?? 0) + 1);
 /** how much of a classmate shows above a study table when they sit on its far side */
 const DESK_CROP = 0.72;
+/** in bed only the head and the top of the shoulders show above the blanket */
+const BED_CROP = 0.42;
+/** where a sleeper stands in a bed tile (tile rows): seen from above, head on the pillow at the top */
+const BED_Y = 0.53;
+
+/** into bed: upright as seen from above, head on the pillow, the blanket over the rest */
+function tuckIn(sp: Phaser.GameObjects.Sprite, x: number, y: number) {
+  sp.setAngle(0).setFrame(0).setPosition(x, y);
+  sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * BED_CROP);
+  sp.setData('inBed', true);
+}
+
+/** out of bed: the whole of them shows again */
+function getUp(sp: Phaser.GameObjects.Sprite) {
+  if (!sp.getData('inBed')) return;
+  sp.setData('inBed', false);
+  sp.setCrop();
+}
 /** how long a meal takes at the table (game minutes), and how fast it goes by */
 const MEAL_MINUTES = 25;
 const MEAL_MS_PER_MIN = 320;
@@ -867,7 +885,7 @@ export class CampusScene extends Phaser.Scene {
   private updatePeers(time: number) {
     if (!this.mp) return;
     const moving = (this.player.body?.velocity.length() ?? 0) > 1;
-    this.mp.sendPos({ x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, moving, room: this.roomKey(), lying: this.player.angle !== 0 }, time);
+    this.mp.sendPos({ x: this.player.x / TILE, y: this.player.y / TILE, dir: this.dir, moving, room: this.roomKey(), lying: this.player.getData('inBed') === true }, time);
     const here = this.roomKey();
     const now = performance.now();
     for (const [id, peer] of this.peers) {
@@ -884,14 +902,14 @@ export class CampusScene extends Phaser.Scene {
       // smooth towards the last reported position
       peer.sprite.x += (peer.tx - peer.sprite.x) * 0.2;
       peer.sprite.y += (peer.ty - peer.sprite.y) * 0.2;
-      // asleep: on their back in bed, like you and your roommates (drawn over the bed, as they are)
+      // asleep: in bed like you and your roommates, head on the pillow (drawn over the bed, as they are)
       if (peer.lying) {
-        if (peer.sprite.angle !== -90) peer.sprite.setAngle(-90);
-        peer.sprite.setFrame(0).setDepth(peer.sprite.y + 0.55 * TILE + 4);
-        peer.label.setPosition(peer.sprite.x, peer.sprite.y - 16);
+        if (!peer.sprite.getData('inBed')) tuckIn(peer.sprite, peer.sprite.x, peer.sprite.y);
+        peer.sprite.setDepth(peer.sprite.y + 16);
+        peer.label.setPosition(peer.sprite.x, peer.sprite.y - 20);
         continue;
       }
-      if (peer.sprite.angle !== 0) peer.sprite.setAngle(0);
+      getUp(peer.sprite);
       const step = peer.moving ? [1, 0, 2, 0][Math.floor(time / 130) % 4] : 0;
       peer.sprite.setFrame(peer.dir * 3 + step).setDepth(peer.sprite.y + 16);
       peer.label.setPosition(peer.sprite.x, peer.sprite.y - 24);
@@ -1502,7 +1520,7 @@ export class CampusScene extends Phaser.Scene {
 
   /** little z's float up from everyone asleep in the room */
   private updateZzz(on: boolean, time: number) {
-    const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.angle !== 0), ...(this.sleepRun?.kind === 'sleep' ? [this.player] : [])] : [];
+    const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.getData('inBed')), ...(this.sleepRun?.kind === 'sleep' ? [this.player] : [])] : [];
     while (this.zzz.length < sleepers.length) {
       this.zzz.push(this.add.text(0, 0, 'z', { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#dfe8ff', stroke: '#1d2326', strokeThickness: 3 }).setOrigin(0.5).setDepth(95_500));
     }
@@ -1665,7 +1683,7 @@ export class CampusScene extends Phaser.Scene {
       // just up: over to the lockers in pyjamas, a few minutes changing, then off to breakfast in uniform
       if (home && early && !night && c.minutes >= wake && c.minutes < wake + DRESS_MINUTES && !this.rushOn()) {
         const lx = (ROOM_OX + 21 + (i % 4) + 0.5) * TILE, ly = 11.35 * TILE;
-        if (sp.angle !== 0) sp.setAngle(0);
+        getUp(sp);
         if (sp.isCropped) sp.setCrop();
         sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
         const dx = lx - sp.x, dy = ly - sp.y, d = Math.hypot(dx, dy);
@@ -1691,12 +1709,13 @@ export class CampusScene extends Phaser.Scene {
         // (a roommate whose bed another player took sleeps next door tonight)
         if (!b || this.held.bed.has(spotKey(b))) { sp.setVisible(false); sp.body!.enable = false; return; }
         tex(true);
-        if (sp.isCropped) sp.setCrop();
-        sp.setPosition((ROOM_OX + b[0] + 0.5) * TILE, (b[1] + 0.45) * TILE).setAngle(i % 2 ? 90 : -90).setFrame(0).setDepth((b[1] + 1) * TILE + 4);
+        if (!sp.getData('inBed')) tuckIn(sp, (ROOM_OX + b[0] + 0.5) * TILE, (b[1] + BED_Y) * TILE);
+        sp.setDepth((b[1] + 1) * TILE + 4);
         sp.setVisible(this.room === 'dorm'); sp.body!.enable = false;
         return;
       }
       const [dx, dy] = sp.getData('desk') as [number, number];
+      getUp(sp);
       tex(false);
       // on the far side of a table only head and shoulders show above it
       if (sp.getData('face') === 'down' && !sp.isCropped) sp.setCrop(0, 0, sp.frame.realWidth, sp.frame.realHeight * DESK_CROP);
@@ -4365,9 +4384,9 @@ export class CampusScene extends Phaser.Scene {
     this.player.anims.stop();
     this.player.setFrame(0);
     this.player.body!.enable = false;
-    if (this.room === 'dorm') this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 0.45) * TILE).setAngle(-90);
-    // into your pyjamas, if you have them
+    // into your pyjamas, if you have them (first: changing clothes picks a fresh frame)
     if (this.save.state.school.kit && this.save.state.wardrobe.wearing !== 'pijama' && this.save.state.wardrobe.wearing !== BORROWED) { this.save.state.wardrobe.wearing = 'pijama'; this.dress(); }
+    if (this.room === 'dorm') { this.dir = 0; tuckIn(this.player, (ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + BED_Y) * TILE); } // (face up out of the pillow)
     this.sleepRun = { kind: 'sleep', msPerMin: Math.min(25 / 3, SLEEP_MS / toMorning), acc: 0, left: toMorning, total: toMorning, busy: false, events: this.nightEvents(toMorning) };
     this.hud.toast(L({ tr: '😴 İyi geceler…', en: '😴 Good night…' }));
   }
@@ -4460,7 +4479,7 @@ export class CampusScene extends Phaser.Scene {
       return;
     }
     this.sleeping = false;
-    this.player.setAngle(0);
+    getUp(this.player);
     this.player.body!.enable = true;
     if (this.room === 'dorm') this.player.setPosition((ROOM_OX + this.spots.bed[0] + 0.5) * TILE, (this.spots.bed[1] + 1.4) * TILE);
     if (!early) {
