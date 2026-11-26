@@ -183,6 +183,9 @@ export function dressGround(scene: Phaser.Scene, map: number[][]): GroundInfo {
     const t = tile(x, y);
     // (the TIM yard's low wall stands on the lawn: it's drawn as a sprite on top)
     if (isGround(t) || (t === T.FENCE && timWallAt(x, y))) groundArea.rect(x * TILE, y * TILE, TILE, TILE);
+    // a garden wall's tile shows a strip of ground west of its coping: let that strip be whatever lies beside it
+    // (lawn, or the TIM yard's paving) instead of the tile's own grass
+    else if (t === T.CAMPUS_WALL && isGround(tile(x - 1, y))) groundArea.rect(x * TILE, y * TILE, 10, TILE);
     else if (isPath(t)) pathArea.rect(x * TILE, y * TILE, TILE, TILE);
     else if (t === T.FOREST) forestArea.rect(x * TILE, y * TILE, TILE, TILE);
   }

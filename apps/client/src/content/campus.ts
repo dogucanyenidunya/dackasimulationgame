@@ -209,6 +209,9 @@ export const BUILDINGS: Building[] = [
 export const PLAZAS: Pt[][] = [
   [[8.5, 22.6], [27.6, 18.7], [26.5, 22.8], [20, 29.5], [8.5, 24.8]], // Yurt Meydanı, between the dorms
   rectPts({ x: 41, y: 24, w: 13, h: 14 }),                            // Merkez Meydan (the terrace)
+  // the TIM Gösteri Merkezi's walled yard, paved right up to its walls, the Eğitim wing and the perimeter wall
+  // (the outline runs under them, so no kerb shows along their feet)
+  [[20, 33], [36.5, 33], [36.5, 43], [35.5, 43], [35.5, 52.6], [30, 52.6], [20, 47.6]],
 ];
 
 export const PATHS: Rect[] = [
@@ -568,7 +571,7 @@ export function buildMap(): number[][] {
   fillPoly(m, HOUSES, outside(T.HOUSES));
   for (const r of ROADS) fillPoly(m, r, outside(T.ROAD));
 
-  for (const p of PLAZAS) fillPoly(m, p, T.PLAZA);
+  for (const p of PLAZAS) fillPoly(m, p, (x, y) => (m[y][x] === T.GROUND ? T.PLAZA : null)); // (never over the fence)
   for (const p of PATHS) fillPoly(m, rectPts(p), T.PATH);
   fillPoly(m, rectPts(COURTS.basketball), T.COURT_RED);
   for (const c of EXTRA_COURTS) fillPoly(m, rectPts(c), T.COURT_RED);
