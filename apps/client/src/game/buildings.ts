@@ -890,14 +890,27 @@ function kantinRoom(ctx: GameCtx): RoomView {
         };
       }),
       {
-        id: 'hangout', label: T('Masada takıl', 'Hang out at a table'), hint: T('30 dk · +4 moral', '30 min · +4 mood'),
-        locked: !kantinOpen ? T('Kapalı', 'Closed') : undefined,
-        run: () => { nudge(ctx, { loyalty: 1 }); focusTick(ctx, 'friends');
-          ctx.advance(30); ctx.gain({ mood: 4, attrs: { social: Math.random() < 0.3 ? 1 : 0 } });
-          const pals = NPCS.filter((n) => (ctx.st.friends[n.id] ?? 0) > 0);
-          const pal = pals[Math.floor(Math.random() * pals.length)];
-          if (pal) { ctx.befriend(pal.id, 3); ctx.toast(T(`${pal.name} de geldi; biraz sohbet ettiniz.`, `${pal.name} turned up and you chatted for a bit.`), 'good'); }
-          else ctx.toast(T('Kantin kalabalığını izledin.', 'You people-watched the busy canteen.'));
+        id: 'hangout', label: T('☕ Masada takıl', '☕ Hang out at a table'), hint: T('30 dk · +6 moral · arkadaşlık · günde bir', '30 min · +6 mood · friendship · once a day'),
+        locked: !kantinOpen ? T('Kapalı', 'Closed') : doneToday(ctx, 'hangout') ? T('Bugün kantinde yeterince takıldın.', "You've hung out at the canteen enough today.") : undefined,
+        run: async () => { nudge(ctx, { loyalty: 1 }); focusTick(ctx, 'friends');
+          markToday(ctx, 'hangout');
+          // (online you really spend the half hour there, counted down)
+          ctx.advance(30, { wait: true, label: T('☕ Kantinde takılıyorsun', '☕ Hanging out at the canteen') });
+          const social = Math.random() < 0.4 ? 1 : 0;
+          ctx.gain({ mood: 6, attrs: { social } });
+          // whoever likes you most of those who might drop by sits down with you (now and then someone new)
+          const pals = NPCS.filter((n) => n.kind === 'classmate' || n.kind === 'student' || n.kind === 'abi').sort(() => Math.random() - 0.5);
+          const known = pals.filter((n) => (ctx.st.friends[n.id] ?? 0) > 0).sort((x, y) => (ctx.st.friends[y.id] ?? 0) - (ctx.st.friends[x.id] ?? 0));
+          const pal = known.length && Math.random() < 0.8 ? known[Math.floor(Math.random() * Math.min(3, known.length))] : pals[0];
+          const before = pal ? ctx.st.friends[pal.id] ?? 0 : 0;
+          if (pal) ctx.befriend(pal.id, 5);
+          const won = pal ? (ctx.st.friends[pal.id] ?? 0) - before : 0;
+          const topics = [T('dünkü maçı', "yesterday's match"), T('yaklaşan sınavları', 'the coming exams'), T('yatakhanedeki son dedikoduyu', 'the latest dorm gossip'), T('Şakir Abi\'nin yeni tostunu', "Şakir's new toastie"), T('hafta sonu planlarını', 'weekend plans')];
+          const topic = topics[Math.floor(Math.random() * topics.length)];
+          const gains = [T('+6 moral', '+6 mood'), ...(social ? [T('+1 Sosyallik', '+1 Social')] : []), ...(pal && won ? [T(`${pal.name} ile +${won} arkadaşlık`, `+${won} friendship with ${pal.name}`)] : [])].join(' · ');
+          await ctx.panel.message(T('☕ Kantinde', '☕ At the canteen'), pal
+            ? T(`Bir çay alıp köşedeki masaya oturdun. Az sonra ${pal.name} de geldi; ${topic} konuştunuz, Şakir Abi de araya girip birkaç espri yaptı. ✨ ${gains}`, `You got a tea and sat at the corner table. Soon ${pal.name} came over; you talked about ${topic}, and Şakir chipped in with a few jokes. ✨ ${gains}`)
+            : T(`Bir çay alıp köşedeki masaya oturdun ve kantinin kalabalığını izledin. ✨ ${gains}`, `You got a tea, sat at the corner table and watched the busy canteen. ✨ ${gains}`));
         },
       },
       {
