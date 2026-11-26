@@ -1,10 +1,10 @@
-// Levels and development points, the Mount & Blade way: every 100 XP you earn is a level. Each level gives you a point
+// Levels and development points, the Mount & Blade way: every 200 XP you earn is a level. Each level gives you a point
 // to put into one of your attributes (+2, never past this grade's ceiling), and every third level a perk. Spending
 // never takes XP away: XP still counts towards the end of the year as before.
 import type { Text } from '../i18n';
 import type { AttrId } from '../content/character';
 
-export const XP_PER_LEVEL = 100;
+export const XP_PER_LEVEL = 200;
 /** what one development point adds to an attribute */
 export const ATTR_STEP = 2;
 /** a perk every this many levels */
@@ -35,7 +35,7 @@ export interface Growth {
 
 export const newGrowth = (): Growth => ({ earned: 0, attrSpent: 0, perks: [] });
 export const levelOf = (g: Growth) => Math.floor(g.earned / XP_PER_LEVEL);
-/** XP into the current level (0–99) */
+/** XP into the current level (0 to XP_PER_LEVEL − 1) */
 export const levelProgress = (g: Growth) => g.earned - levelOf(g) * XP_PER_LEVEL;
 export const attrPoints = (g: Growth) => Math.max(0, levelOf(g) - g.attrSpent);
 export const perkPoints = (g: Growth) => Math.max(0, Math.floor(levelOf(g) / PERK_EVERY) - g.perks.length);

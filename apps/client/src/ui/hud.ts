@@ -704,7 +704,7 @@ export class Hud {
         <div class="sum-row"><span>${L({ tr: 'Kişilik', en: 'Personality' })}</span><b class="trait"></b></div>
         <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
         <div class="field-label" style="margin-top:12px">⭐ ${L({ tr: 'Gelişim', en: 'Development' })} · ${L({ tr: 'Seviye', en: 'Level' })} ${levelOf(g)}</div>
-        <div class="lvl-line"><div class="attr-bar lvl"><i style="width:${levelProgress(g)}%"></i></div><span>${levelProgress(g)}/${XP_PER_LEVEL} XP</span></div>
+        <div class="lvl-line"><div class="attr-bar lvl"><i style="width:${(levelProgress(g) / XP_PER_LEVEL) * 100}%"></i></div><span>${levelProgress(g)}/${XP_PER_LEVEL} XP</span></div>
         <div class="sum-row"><span>${L({ tr: 'Gelişim puanı', en: 'Development points' })}</span><b class="${pts ? 'pts-on' : ''}">${pts}</b></div>
         <div class="grow-help">${L({ tr: `Her ${XP_PER_LEVEL} XP bir seviye: bir özelliğine +${ATTR_STEP} ver (bu yılın sınırı ${cap}). Her 3 seviyede bir yetenek seçersin. XP'n azalmaz.`, en: `Every ${XP_PER_LEVEL} XP is a level: give one attribute +${ATTR_STEP} (this year's ceiling is ${cap}). Every 3 levels you pick a perk. Your XP doesn't go down.` })}</div>
         ${ATTRS.map(attrRow).join('')}
