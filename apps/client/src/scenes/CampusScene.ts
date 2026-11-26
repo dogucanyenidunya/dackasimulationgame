@@ -67,6 +67,8 @@ import { backupSave, clearSave, decodeFog, encodeFog, writeSave, type SaveData }
 const REVEAL_RADIUS = 7;
 const SEEN_RADIUS = 9;
 const SPEED = 150;
+/** this long without a key, click or touch and you're inactive: the game stops (online you're AFK, and come back at the main gate) */
+const AFK_MS = 2 * 60 * 1000;
 /** a gap in the campus clock longer than this (game minutes) is jumped over instead of played through */
 const CATCH_UP_MAX = 360;
 /** the registration weekend runs fast (it's a rush); evening study drags, so it runs at double speed too */
@@ -211,8 +213,10 @@ export class CampusScene extends Phaser.Scene {
   private net: NetUser | null = null;
   /** online: campus day number minus your own (null until this session has lined your clock up with the campus) */
   private worldOffset: number | null = null;
-  /** the "paused" screen while the tab was in the background (null = playing) */
-  private pauseScreen: HTMLElement | null = null;
+  /** paused: the tab is in the background, or you've been AFK */
+  private away = false;
+  /** when you last pressed, clicked, touched or moved the mouse (performance.now) */
+  private lastActive = performance.now();
   private mp: Multiplayer | null = null;
   /** things to do with other players: treats, jokes, Yetimball and other two-player games */
   private peerPlay: PeerPlay | null = null;
@@ -521,12 +525,20 @@ export class CampusScene extends Phaser.Scene {
     this.updateMaps();
     if (this.net) void this.goOnline();
     try { localStorage.removeItem('dacka.view'); } catch { /* private mode */ }
-    // switching to another tab or app pauses the game; you pick it up again with Continue
+    // switching to another tab or app pauses the game quietly; it picks up again when you're back
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') this.pauseAway();
-      // back on the tab: say how much campus time went by, and where you'll be
-      else this.pauseScreen?.querySelector('.modal-body')?.replaceChildren(this.awayText());
+      if (document.visibilityState === 'hidden') this.goAway();
+      else this.comeBack();
     });
+    // any key, click, touch or mouse move counts as being here; the key that wakes the game up goes no further
+    const active = (e: Event) => {
+      this.lastActive = performance.now();
+      if (!this.away || document.visibilityState === 'hidden') return;
+      if (e.type === 'keydown') { e.preventDefault(); e.stopImmediatePropagation(); }
+      this.comeBack();
+    };
+    for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) window.addEventListener(ev, active, { capture: true, passive: ev !== 'keydown' });
+    this.events.once('shutdown', () => { for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) window.removeEventListener(ev, active, { capture: true }); });
   }
 
   /** zooms the campus view (mouse wheel, or pinch on a touch screen); rooms stay at 100% */
@@ -544,62 +556,56 @@ export class CampusScene extends Phaser.Scene {
     this.hud.toast(this.fast ? t('fast_on') : t('fast_off'));
   }
 
-  // ---------- paused while you're away ----------
+  // ---------- away (another tab, or AFK) ----------
 
-  /** the tab went to the background: everything stops, and a Continue screen waits for you */
-  private pauseAway() {
-    if (this.pauseScreen) return;
+  /** sleeping, the weekend at home, a match or being marched to the dorm: you're meant to sit back, so it isn't AFK */
+  private afkExempt() { return this.sleepRun !== null || this.watching || this.escort !== null; }
+
+  /** the tab went to the background, or you did nothing for AFK_MS: everything stops, the clock too (online, others see you as away) */
+  private goAway() {
+    if (this.away) return;
+    this.away = true;
     this.player.setVelocity(0, 0);
     this.persist();
     flushCloudSave(); // the tab may be closing: don't leave the last save waiting on a timer
     this.mp?.status(true);
     this.scene.pause();
     sfx.pauseMusic();
-    const wrap = document.createElement('div');
-    wrap.className = 'overlay pause-overlay';
-    wrap.innerHTML = `<div class="card modal-card pause-card"><h2></h2><p class="modal-body"></p><button type="button" class="primary"></button></div>`;
-    wrap.querySelector('h2')!.textContent = L({ tr: '⏸ Oyun duraklatıldı', en: '⏸ Game paused' });
-    wrap.querySelector('.modal-body')!.textContent = this.awayText();
-    wrap.querySelector('button')!.textContent = L({ tr: 'Devam et', en: 'Continue' });
-    const onKey = (e: KeyboardEvent) => {
-      e.stopPropagation(); // nothing reaches the game behind it
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.resumeFromAway(); }
-    };
-    wrap.querySelector('button')!.addEventListener('click', () => this.resumeFromAway());
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('keyup', onKey, true);
-    (wrap as HTMLElement & { cleanup?: () => void }).cleanup = () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true); };
-    document.body.appendChild(wrap);
-    this.pauseScreen = wrap;
   }
 
-  /** what the pause screen says: offline nothing moves; online the shared campus clock ran on, and this is where you'll pick up */
-  private awayText(): string {
-    if (!this.synced() || this.worldOffset === null) return L({ tr: 'Başka bir sekmeye geçtiğin için oyun durdu. Hazır olduğunda kaldığın yerden devam et.', en: 'The game stopped because you switched to another tab. Pick up where you left off when you are ready.' });
-    const head = L({ tr: 'Başka bir sekmeye geçtiğin için oyun durdu. Ama çevrimiçi oyunda kampüs saati herkes için ortak ve sen yokken de işledi.', en: 'The game stopped because you switched to another tab. But online the campus clock is shared by everyone, and it kept going while you were away.' });
-    const to = this.worldTarget(), gap = to - absMinutes(this.save.clock);
-    if (gap < 1) return `${head} ${L({ tr: 'Neredeyse hiç zaman geçmedi; kaldığın yerden devam edeceksin.', en: 'Hardly any time went by; you carry on where you were.' })}`;
-    const day = Math.floor(to / (24 * 60)), min = to - day * 24 * 60;
-    const when = `${t('days').split(',')[weekdayOf(day)]} ${fmtTime(min)}`;
-    const span = gap >= 60 ? L({ tr: `${Math.floor(gap / 60)} sa ${gap % 60} dk`, en: `${Math.floor(gap / 60)} h ${gap % 60} min` }) : L({ tr: `${gap} dk`, en: `${gap} min` });
-    const toDorm = !this.sleepRun && phaseOf(min, day) !== 'day' && this.room !== 'dorm' && !this.escort;
-    return `${head} ${L({ tr: `Devam edince saatin kampüs saatine atlar: şimdi ${when} (${span} geçti). Aradaki zaman için ceza yok, açlığın da değişmez.`, en: `When you continue your clock jumps to campus time: it's now ${when} (${span} went by). No penalties for the time in between, and you don't get hungrier.` })}${toDorm ? ` ${L({ tr: 'Dersler bittiği ve yurt saati başladığı için seni yatakhanende, yatağının yanında başlatacağız.', en: "Lessons are over and it's dorm time, so you'll start in your dorm room, by your bed." })}` : ''}`;
-  }
-
-  private resumeFromAway() {
-    const wrap = this.pauseScreen as (HTMLElement & { cleanup?: () => void }) | null;
-    if (!wrap || document.visibilityState === 'hidden') return;
-    wrap.cleanup?.();
-    wrap.remove();
-    this.pauseScreen = null;
+  /** back on the tab, or moving again: carry on where you were; online, after AFK_MS without you, you start again at the main gate */
+  private comeBack() {
+    if (!this.away || document.visibilityState === 'hidden') return;
+    this.away = false;
+    const afk = this.net !== null && performance.now() - this.lastActive >= AFK_MS && !this.afkExempt();
+    this.lastActive = performance.now();
     // keys held when you left would otherwise still count as held
     this.input.keyboard?.resetKeys();
     this.scene.resume();
     sfx.music();
     this.mp?.status(false);
     // online: straight to the campus time, like coming back to the game, with nothing played through
-    if (this.synced() && this.worldOffset !== null) this.jumpToWorld(false);
+    if (this.synced() && this.worldOffset !== null) this.jumpToWorld(false, afk);
     this.minuteAcc = 0;
+    if (afk) this.toMainGate();
+  }
+
+  /** online, after being AFK: whatever you had open closes and you're standing just inside the main gate */
+  private toMainGate() {
+    if (this.panel.isOpen && !this.panel.working) this.panel.close();
+    if (this.hud.bigOpen) this.hud.toggleMap(false);
+    if (this.hud.chatOpen) this.hud.closeChat();
+    this.room = null;
+    this.tray = null; this.trayAt = null;
+    this.setTunnel(false);
+    this.player.setPosition(SPAWN.x * TILE, SPAWN.y * TILE).setVelocity(0, 0);
+    this.dir = 3;
+    this.setCameraArea();
+    this.cameras.main.fadeIn(400, 8, 14, 24);
+    this.lastTile = { x: -1, y: -1 };
+    this.revealAround(true);
+    this.persist();
+    this.hud.toast(L({ tr: '💤 Bir süredir yoktun; Ana Kapı\'dan devam ediyorsun.', en: "💤 You were away for a while, so you're back at the main gate." }));
   }
 
   // ---------- online: other real players ----------
@@ -4217,7 +4223,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   /** straight to the campus time: nothing happens in between (no penalties, no hunger), it just went by */
-  private jumpToWorld(arriving: boolean) {
+  private jumpToWorld(arriving: boolean, toGate = false) {
     const c = this.save.clock;
     const to = this.worldTarget();
     const gap = to - absMinutes(c);
@@ -4233,7 +4239,7 @@ export class CampusScene extends Phaser.Scene {
       for (const e of s.events) if (s.total - s.left >= e.at) e.done = true;
     }
     // after lessons it's dorm time: you're back in your dorm
-    const toDorm = !s && phaseOf(c.minutes, c.day) !== 'day' && this.room !== 'dorm' && !this.escort;
+    const toDorm = !toGate && !s && phaseOf(c.minutes, c.day) !== 'day' && this.room !== 'dorm' && !this.escort;
     if (toDorm) this.placeInDorm();
     this.npcClock = -1;
     this.refreshClockAndNeeds();
@@ -4406,6 +4412,9 @@ export class CampusScene extends Phaser.Scene {
   // ---------- loop ----------
 
   update(time: number, delta: number) {
+    // inactive: nothing pressed, clicked or touched for AFK_MS (the game stops until you're back)
+    if (this.afkExempt()) this.lastActive = performance.now();
+    else if (performance.now() - this.lastActive >= AFK_MS) { this.goAway(); return; }
     const k = this.keys;
     const blocked = this.blocked();
     let vx = 0, vy = 0;

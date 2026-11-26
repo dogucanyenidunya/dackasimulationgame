@@ -527,9 +527,6 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 560px) { .announce-card .announce-list { grid-template-columns: 1fr; } .announce-card .announce-foot { flex-direction: column; align-items: stretch; } }
 /* cards sit above the countdown strip */
 .overlay.modal { z-index: 6; }
-.pause-overlay { position: fixed; z-index: 50; }
-.pause-card { text-align: center; }
-.pause-card button.primary { margin-top: 14px; min-width: 160px; }
 .announce-card:not(.many) { overflow: auto; }
 .modal-card { max-height: 100%; overflow: auto; }
 
@@ -636,12 +633,12 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 .overlay > *, .title-screen > *, .dilemma-wrap > *, .match-overlay > * { margin: auto; flex-shrink: 0; }
 .overlay > .card, .title-screen > .card, .dilemma-wrap > .card, .dilemma-wrap > .dilemma-card { flex-shrink: 1; }
 /* full-screen layers on the page itself keep clear of notches and the home bar */
-.title-screen, .confirm-overlay, .pause-overlay {
+.title-screen, .confirm-overlay {
   padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
 }
 @media (max-width: 480px), (max-height: 560px) {
   .overlay, .title-screen, .dilemma-wrap { padding: 8px; }
-  .title-screen, .confirm-overlay, .pause-overlay {
+  .title-screen, .confirm-overlay {
     padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
   }
   .title-card { padding: 22px 18px; }

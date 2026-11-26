@@ -100,6 +100,9 @@ export class Panel {
     this.onBlock(false);
   }
 
+  /** an action or minigame is still running (closing now would cut it off) */
+  get working() { return this.busy; }
+
   refresh() { if (this.view && !this.busy) this.render(); }
 
   private listenKeys(fn: ((e: KeyboardEvent) => void) | null) {
