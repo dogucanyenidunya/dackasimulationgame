@@ -1669,9 +1669,14 @@ export class CampusScene extends Phaser.Scene {
     const st = this.save.state;
     const court = this.courtAt ?? COURTS[sport];
     const cx = court.x + court.w / 2, cy = court.y + court.h / 2;
+    // friends out on the campus, and those in a building nearby (the Spor Salonu, the library…) who come out to play;
+    // not anyone gone home or away, nor in the infirmary
     const pals = this.npcs.filter((n) => {
       const def = n.getData('def') as NpcDef;
-      return n.visible && n.body!.enable && def.kind !== 'belletmen' && (st.friends[def.id] ?? 0) >= FRIEND_AT / 2;
+      if (def.kind === 'belletmen' || def.kind === 'teacher' || (st.friends[def.id] ?? 0) < FRIEND_AT / 2) return false;
+      const inside = n.getData('in') as string | undefined;
+      if (inside !== undefined) return inside !== 'away' && inside !== 'revir';
+      return n.visible && n.body!.enable;
     }).sort((a, b) => (st.friends[(b.getData('def') as NpcDef).id] ?? 0) - (st.friends[(a.getData('def') as NpcDef).id] ?? 0)).slice(0, need);
     if (pals.length < need) {
       return L({ tr: `Çağıracak kadar yakın arkadaşın yok (${pals.length}/${need}). Önce biraz daha arkadaş edin!`, en: `Not enough good friends around to call (${pals.length}/${need}). Make some more friends first!` });
@@ -1700,8 +1705,12 @@ export class CampusScene extends Phaser.Scene {
     for (const n of m.mates) {
       const [tx, ty] = n.getData('summon') as [number, number];
       const d = Phaser.Math.Distance.Between(n.x, n.y, tx * TILE, ty * TILE);
-      // friends who are far away (or stuck behind a building) come round along the path
-      if (d > 7 * TILE && time > (n.getData('arriveAt') as number)) n.setPosition((tx + (Math.random() - 0.5) * 4) * TILE, (court.y - 1.2) * TILE);
+      // friends still far off (or stuck behind a building) when they should be here get there on their own, once:
+      // they turn up on the court's near edge, level with their spot, and walk the rest
+      if (n.visible && !n.getData('rescued') && d > 7 * TILE && time > (n.getData('arriveAt') as number)) {
+        n.setData('rescued', true).setData('path', undefined);
+        n.setPosition(...this.npcSpot(...this.walkable(tx, ty < cy / TILE ? court.y + 0.5 : court.y + court.h - 1.5)));
+      }
       if (d < 1.2 * TILE) arrived++;
     }
     const need = m.mates.length;
@@ -1728,7 +1737,7 @@ export class CampusScene extends Phaser.Scene {
 
   private endMatch() {
     if (!this.match) return;
-    for (const n of this.match.mates) { n.setData('summon', undefined); n.setData('arriveAt', undefined); }
+    for (const n of this.match.mates) { n.setData('summon', undefined); n.setData('arriveAt', undefined); n.setData('rescued', undefined); }
     this.match = null;
     this.hud.setBanner(null);
   }
@@ -2511,7 +2520,9 @@ export class CampusScene extends Phaser.Scene {
     if (!body?.enable) return;
     const R = 7, half = 6;
     const cx = body.center.x, cy = body.center.y, vx = body.velocity.x;
-    const prev = (sp.getData('terracePrev') as [number, number] | undefined) ?? [cx, cy];
+    // (a jump of more than a step, out of a door or placed somewhere, isn't a walk across a wall: start afresh from here)
+    const last = sp.getData('terracePrev') as [number, number] | undefined;
+    const prev: [number, number] = last && Math.hypot(last[0] - cx, last[1] - cy) < TILE ? last : [cx, cy];
     const W = TUNNEL_IN.west * TILE, E = TUNNEL_IN.east * TILE, y0 = TUNNEL_IN.y * TILE, y1 = y0 + TILE;
     if (isPlayer) {
       const inRow = cy > y0 - 4 && cy < y1 + 4;
