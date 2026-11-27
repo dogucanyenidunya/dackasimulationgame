@@ -307,6 +307,8 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 @media (max-width: 640px) { .hud-clock { width: 170px; } .hud-right { width: 150px; } .hud-mini canvas { width: 138px; } }
 .hud-countdown { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(29, 35, 38, 0.9); color: #fff; padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: 14px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 3; }
 .hud-countdown.urgent { background: #b03a2e; animation: pulse-bg 1.2s infinite; }
+.hud-cam { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); background: rgba(29, 35, 38, 0.88); color: #fff; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(242, 193, 78, 0.6); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; pointer-events: auto; z-index: 3; }
+.hud-buttons button.cam-btn.on, #hud .hud-buttons button.cam-btn.on { outline: 2px solid #f2c14e; }
 @keyframes pulse-bg { 50% { background: #d0503f; } }
 .hud-countdown:not(.hidden) ~ .hud-toasts { top: 56px; }
 

@@ -524,6 +524,13 @@ export class CampusScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.outdoorZoom = 1; // 100% outdoors by default; the mouse wheel zooms
     this.setCameraArea();
+    // where the mouse is in the window (over the HUD too), for pushing the free camera along at the edges
+    const onMouse = (e: MouseEvent) => { this.mouseAt = { x: e.clientX, y: e.clientY }; };
+    const offMouse = () => { this.mouseAt = null; };
+    window.addEventListener('mousemove', onMouse);
+    document.documentElement.addEventListener('mouseleave', offMouse);
+    window.addEventListener('blur', offMouse);
+    this.events.once('shutdown', () => { window.removeEventListener('mousemove', onMouse); document.documentElement.removeEventListener('mouseleave', offMouse); window.removeEventListener('blur', offMouse); });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => this.zoomBy(dy > 0 ? 0.9 : 1.1));
 
     // input
@@ -539,6 +546,31 @@ export class CampusScene extends Phaser.Scene {
     kb.on('keydown-F', () => { if (!this.menuBlocked()) this.showFriends(); });
     kb.on('keydown-ESC', () => this.hud.toggleMap(false));
     kb.on('keydown-T', () => this.toggleFast());
+    // the free camera, as in a MOBA: Y frees it (or locks it again), Space brings it back to you
+    kb.on('keydown-Y', () => { if (!this.blocked()) this.setFreeCam(!this.freeCam); });
+    kb.on('keydown-SPACE', () => { if (this.freeCam && !this.blocked()) this.setFreeCam(false); });
+    this.input.mouse?.disableContextMenu();
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.room || this.blocked()) return;
+      // right- or middle-drag looks around (and frees the camera); with it free, any drag does (a finger, too)
+      const other = p.rightButtonDown() || p.middleButtonDown();
+      if (!other && !this.freeCam) return;
+      if (p.event && (p.event as PointerEvent).pointerType === 'touch' && this.input.pointer2?.isDown) return; // (two fingers: that's a pinch)
+      this.camDrag = { x: p.x, y: p.y, moved: 0 };
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const d = this.camDrag;
+      if (!d || !p.isDown) { this.camDrag = null; return; }
+      if (this.input.pointer2?.isDown) { this.camDrag = null; return; }
+      const dx = p.x - d.x, dy = p.y - d.y;
+      d.moved += Math.abs(dx) + Math.abs(dy);
+      d.x = p.x; d.y = p.y;
+      if (d.moved < 6) return;
+      if (!this.freeCam) this.setFreeCam(true);
+      const cam = this.cameras.main;
+      cam.setScroll(cam.scrollX - dx / cam.zoom, cam.scrollY - dy / cam.zoom);
+    });
+    this.input.on('pointerup', () => { this.camDrag = null; });
 
     // HUD
     this.hud = new Hud(this.map);
@@ -548,6 +580,12 @@ export class CampusScene extends Phaser.Scene {
     this.hud.onMissions = () => { if (!this.menuBlocked()) this.showMissions(); };
     this.hud.onRelationships = () => { if (!this.menuBlocked()) this.showRelationships(); };
     this.hud.onFriends = () => { if (!this.menuBlocked()) this.showFriends(); };
+    this.hud.onCamera = (free) => this.setFreeCam(free);
+    this.hud.onMiniTap = (x, y) => {
+      if (!this.freeCam || this.room) return false;
+      this.cameras.main.centerOn(x * TILE, y * TILE);
+      return true;
+    };
     this.panel = new Panel(this.hud.host, (open) => { this.player.setVelocity(0, 0); if (!open) this.checkMissions(); });
     this.panel.onRefuse = (why) => this.hud.toast(why);
     this.panel.onAction = (title, a) => this.logAction(title, a);
@@ -2977,6 +3015,11 @@ export class CampusScene extends Phaser.Scene {
   private watching = false;
   /** on-screen joystick and buttons (touch screens only) */
   private touch: TouchControls | null = null;
+  /** the camera has been let go of the player (look around like in a MOBA), and a drag in progress */
+  private freeCam = false;
+  private camDrag: { x: number; y: number; moved: number } | null = null;
+  /** where the mouse is in the window (null once it has left it) */
+  private mouseAt: { x: number; y: number } | null = null;
   private blocked() { return this.watching || this.hud.modalOpen || this.hud.bigOpen || this.panel.isOpen || this.hud.chatOpen || this.sleepRun !== null || this.escort !== null; }
   /** the menu pages (profile, missions, relationships, friends) only look things up, so they open while you sleep or
    *  wait something out too; just not over another window, the chat, or while you're being marched back to the dorm */
@@ -4831,7 +4874,36 @@ export class CampusScene extends Phaser.Scene {
 
   // ---------- loop ----------
 
+  /** the camera off the player (you look around the campus yourself) or following them again */
+  private setFreeCam(free: boolean) {
+    if (free && this.room) { this.hud.toast(L({ tr: 'İçerideyken kamera sende kalır.', en: 'Indoors, the camera stays on you.' })); free = false; }
+    if (free === this.freeCam) { this.hud.setCamFree(free); return; }
+    this.freeCam = free;
+    const cam = this.cameras.main;
+    if (free) cam.stopFollow();
+    else { this.camDrag = null; cam.startFollow(this.player, true, 0.12, 0.12); }
+    this.hud.setCamFree(free);
+  }
+
+  /** the free camera: pushed along by the mouse at the edges of the window */
+  private updateFreeCam(delta: number) {
+    if (!this.freeCam) return;
+    if (this.room) { this.setFreeCam(false); return; }
+    if (this.camDrag || this.blocked() || this.hud.bigOpen) return;
+    const m = this.mouseAt;
+    if (!m || isTouch()) return;
+    const r = this.game.canvas.getBoundingClientRect(), edge = 22;
+    const x = m.x - r.left, y = m.y - r.top;
+    let dx = 0, dy = 0;
+    if (x < edge) dx = -1; else if (x > r.width - edge) dx = 1;
+    if (y < edge) dy = -1; else if (y > r.height - edge) dy = 1;
+    if (!dx && !dy) return;
+    const cam = this.cameras.main, sp = (900 / cam.zoom) * (delta / 1000);
+    cam.setScroll(cam.scrollX + dx * sp, cam.scrollY + dy * sp);
+  }
+
   update(time: number, delta: number) {
+    this.updateFreeCam(delta);
     // inactive: nothing pressed, clicked or touched for AFK_MS (the game stops until you're back)
     if (this.afkExempt()) this.lastActive = performance.now();
     else if (performance.now() - this.lastActive >= AFK_MS) { this.goAway(); return; }

@@ -44,7 +44,7 @@ const STRINGS = {
   enter: { tr: 'Kapıya bak', en: 'Check the door' },
   coming_soon: { tr: 'İçerisi 3. adımda gelecek.', en: 'Interiors come in step 3.' },
   close: { tr: 'Kapat', en: 'Close' },
-  controls: { tr: 'WASD/oklar: yürü · E: etkileşim · J: görevler · R: ilişkiler · M: harita · C: profil · T: hızlı zaman', en: 'WASD/arrows: walk · E: interact · J: missions · R: people · M: map · C: profile · T: fast time' },
+  controls: { tr: 'WASD/oklar: yürü · E: etkileşim · J: görevler · R: ilişkiler · M: harita · C: profil · Y: serbest kamera · T: hızlı zaman', en: 'WASD/arrows: walk · E: interact · J: missions · R: people · M: map · C: profile · Y: free camera · T: fast time' },
   morning: { tr: 'Günaydın! Yeni bir gün başladı.', en: 'Good morning! A new day has begun.' },
   map_title: { tr: 'Kampüs haritası', en: 'Campus map' },
   fast_on: { tr: 'Zaman hızlı (×6)', en: 'Fast time (×6)' },

@@ -281,6 +281,11 @@ export class Hud {
   }
   onRelationships: () => void = () => {};
   onFriends: () => void = () => {};
+  /** the camera button: free the camera (true) or put it back on you (false) */
+  onCamera: (free: boolean) => void = () => {};
+  /** a tap on the minimap at this tile; return true if the scene used it (the free camera looks there) */
+  onMiniTap: (x: number, y: number) => boolean = () => false;
+  private camFree = false;
   private friendRequests = 0;
 
   /** shows the friends button (online only) */
@@ -317,6 +322,7 @@ export class Hud {
           <button class="rel-btn" type="button"></button>
           <button class="friends-btn hidden" type="button"></button>
           <button class="profile-btn" type="button"></button>
+          <button class="cam-btn" type="button"></button>
           <button class="lang-btn" type="button"></button>
           <button class="music-btn" type="button"></button>
           <button class="mute-btn" type="button"></button>
@@ -328,6 +334,7 @@ export class Hud {
         <button type="button" class="card tracker"></button>
       </div>
       <div class="hud-countdown hidden"></div>
+      <button type="button" class="hud-cam hidden"></button>
       <div class="hud-toasts"></div>
       <div class="hud-prompt hidden"></div>
       <div class="hud-banner hidden"><span></span><button type="button" class="secondary"></button></div>
@@ -403,6 +410,8 @@ export class Hud {
     q('.missions-btn').addEventListener('click', () => this.onMissions());
     q('.rel-btn').addEventListener('click', () => this.onRelationships());
     q('.friends-btn').addEventListener('click', () => this.onFriends());
+    q('.cam-btn').addEventListener('click', () => this.onCamera(!this.camFree));
+    q('.hud-cam').addEventListener('click', () => this.onCamera(false));
     const mute = q<HTMLButtonElement>('.mute-btn');
     const setMute = () => { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; };
     mute.addEventListener('click', () => { sfx.toggle(); setMute(); });
@@ -452,11 +461,18 @@ export class Hud {
       this.mini.panBy(dx * k, dy * k);
       browse();
     });
-    const end = () => {
+    let lastUp: { x: number; y: number } | null = null;
+    const end = (e?: PointerEvent) => {
+      lastUp = e ? { x: e.clientX, y: e.clientY } : null;
       const tap = drag && drag.moved < 5;
       drag = null;
       canvas.classList.remove('dragging');
-      // a tap (not a drag) opens the big map
+      // a tap (not a drag): with the free camera, look there; otherwise open the big map
+      if (tap && lastUp) {
+        const r = canvas.getBoundingClientRect(), v = this.mini.view();
+        const px = (lastUp.x - r.left) * (canvas.width / r.width), py = (lastUp.y - r.top) * (canvas.height / r.height);
+        if (this.onMiniTap((px - v.ox) / v.s, (py - v.oy) / v.s)) return;
+      }
       if (tap && !this.modalOpen && !this.chatOpen) this.toggleMap(true);
     };
     canvas.addEventListener('pointerup', end);
@@ -563,6 +579,8 @@ export class Hud {
     icon('.missions-btn', '📋', L({ tr: 'Görevler (J)', en: 'Missions (J)' }));
     icon('.rel-btn', '👥', L({ tr: 'İlişkiler (R)', en: 'People (R)' }));
     icon('.profile-btn', '👤', L({ tr: 'Profil (C)', en: 'Profile (C)' }));
+    icon('.cam-btn', '🎥', L({ tr: 'Serbest kamera (Y)', en: 'Free camera (Y)' }));
+    this.setCamFree(this.camFree);
     this.setFriendRequests(this.friendRequests);
     (this.root.querySelector('.collapse-btn') as HTMLElement).title = L({ tr: 'Küçült / büyüt', en: 'Collapse / expand' });
   }
@@ -592,6 +610,17 @@ export class Hud {
       `<div class="money-xp"><span>💰 ${st.money} ₺</span><span title="XP">⭐ ${st.xp} / ${YEAR1_XP}</span></div>` +
       `<div class="lvl-tag${attrPoints(st.growth) + perkPoints(st.growth) ? ' pts' : ''}" title="${L({ tr: 'Profilinde (C) harca', en: 'Spend in your profile (C)' })}">${L({ tr: 'Seviye', en: 'Level' })} ${levelOf(st.growth)}${attrPoints(st.growth) + perkPoints(st.growth) ? ` · ${L({ tr: 'puanın var', en: 'points to spend' })} ●` : ''}</div>` +
       `<div class="nbar xp"><i style="width:${xpPct}%"></i></div>`;
+  }
+
+  /** the free camera is on: the button lit, and a strip saying how to get back */
+  setCamFree(free: boolean) {
+    this.camFree = free;
+    this.root.querySelector('.cam-btn')!.classList.toggle('on', free);
+    const strip = this.root.querySelector('.hud-cam') as HTMLElement;
+    strip.classList.toggle('hidden', !free);
+    strip.textContent = isTouch()
+      ? L({ tr: '🎥 Serbest kamera · ekranı sürükleyerek gez · karakterine dönmek için dokun', en: '🎥 Free camera · drag to look around · tap to go back to you' })
+      : L({ tr: '🎥 Serbest kamera · kenarlara götür ya da sağ tıkla sürükle · Boşluk: karakterine dön · Y: kilitle', en: '🎥 Free camera · push the mouse to the edges or right-drag · Space: back to you · Y: lock' });
   }
 
   setDiscovery(found: number, total: number) {
