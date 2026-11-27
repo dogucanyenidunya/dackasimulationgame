@@ -3102,8 +3102,10 @@ export class CampusScene extends Phaser.Scene {
     if (loc.id === 'egitim') { this.enterClass(); return; }
     // the dining hall is open only while something is being served
     if (loc.id === 'yemekhane') { if (diningOpen(this.save.clock.minutes)) this.enterDining(); else this.panel.open(() => yemekhaneClosed(ctx)); return; }
-    // in the evening only your own dorm is reachable anyway; outside study hours other doors stay shut (the Revir never does)
-    if (phaseOf(this.save.clock.minutes, this.save.clock.day) !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && this.settled() && !(loc.id === 'spor' && matchFree(this.save.clock.day, this.save.clock.minutes))) {
+    // in the evening only your own dorm is reachable anyway; outside study hours other doors stay shut (the Revir never
+    // does, and the Kapalı Saha by the dorms is open in the free time after study hour too)
+    const evPhase = phaseOf(this.save.clock.minutes, this.save.clock.day);
+    if (evPhase !== 'day' && loc.id !== ownDorm && loc.id !== 'revir' && !(loc.id === 'kapali_saha' && evPhase === 'plaza') && this.settled() && !(loc.id === 'spor' && matchFree(this.save.clock.day, this.save.clock.minutes))) {
       this.hud.toast(L({ tr: 'Bu saatte kapalı.', en: 'Closed at this hour.' }));
       return;
     }
