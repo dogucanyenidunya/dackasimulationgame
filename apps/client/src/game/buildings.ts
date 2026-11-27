@@ -25,6 +25,7 @@ import type { FootballResult } from '../ui/football';
 import type { NetResult, NetSport } from '../ui/netgame';
 import type { MarblesResult } from '../ui/marbles';
 import type { DodgeResult } from '../ui/dodgeball';
+import type { HideResult, HideRole } from '../ui/hideseek';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -93,6 +94,8 @@ export interface GameCtx {
   playMarbles(npc: NpcDef): Promise<MarblesResult>;
   /** dodgeball: you and `mates` in the middle, the two `ebes` throwing */
   playDodgeball(mates: NpcDef[], ebes: [NpcDef, NpcDef]): Promise<DodgeResult>;
+  /** hide-and-seek: hiding from `others[0]`, or seeking all of `others` */
+  playHideSeek(role: HideRole, others: NpcDef[]): Promise<HideResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1611,10 +1614,22 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
             else { ctx.gain({ mood: 3 }); await say(`${r.seconds} saniye dayandın, sonra yandın. Fena değil!`, `You lasted ${r.seconds} seconds before you were out. Not bad!`); }
           }
         } else {
+          const role = await ctx.panel.choose(T('Kim ebe?', "Who's it?"), [
+            { id: 'hide', label: T(`🙈 ${npc.name} ebe olsun, ben saklanayım`, `🙈 ${npc.name} is it, I'll hide`) },
+            { id: 'seek', label: T('👁 Ben ebe olayım', "👁 I'll be it") },
+          ]) as HideRole | undefined;
+          if (!role) return;
+          const others = NPCS.filter((n) => n.id !== npc.id && (n.kind === 'classmate' || n.kind === 'student')).sort(() => Math.random() - 0.5).slice(0, 2);
+          const r = await ctx.playHideSeek(role, [npc, ...others]);
           ctx.advance(40);
-          ctx.befriend(npc.id, 12);
-          if (Math.random() < 0.2) { ctx.gain({ mood: -2 }); await say(`O kadar iyi saklandın ki ${npc.name} seni aramayı unutup yemeğe gitti. 🙃`, `You hid so well that ${npc.name} forgot about you and went to eat. 🙃`); }
-          else { ctx.gain({ mood: 6 }); await say('Ranzanın altında gizlendin; kimse bulamadı!', 'You hid under a bunk bed; nobody found you!'); }
+          if (r.quit) { ctx.befriend(npc.id, -1); await say(`Oyunu yarıda bıraktın. ${npc.name}: "Hey, daha bitmedi!"`, `You walked off mid-game. ${npc.name}: "Hey, we weren't done!"`); }
+          else {
+            ctx.befriend(npc.id, 12);
+            if (role === 'hide' && r.safe) { ctx.gain({ mood: 6 }); await say(`"Sobe!" ${npc.name} seni yakalayamadı. 😎`, `"Home free!" ${npc.name} never caught you. 😎`); }
+            else if (role === 'hide') { ctx.gain({ mood: 2 }); await say(`${npc.name} seni sobeledi. "Bir dahakine sen ebesin!"`, `${npc.name} caught you. "You're it next time!"`); }
+            else if (r.caught * 2 >= r.of) { ctx.gain({ mood: 6 }); await say(`${r.of} kişiden ${r.caught} tanesini sobeledin! Kimse senden saklanamıyor. 👁`, `You caught ${r.caught} of ${r.of}! Nobody can hide from you. 👁`); }
+            else { ctx.gain({ mood: 2 }); await say(`${r.of} kişiden ${r.caught} tanesini yakalayabildin; ötekiler seni atlatıp sobeledi.`, `You caught ${r.caught} of ${r.of}; the others gave you the slip and got home.`); }
+          }
         }
       },
     },

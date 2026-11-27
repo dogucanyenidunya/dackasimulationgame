@@ -34,6 +34,7 @@ import { NetGameView, type NetResult, type NetSport } from '../ui/netgame';
 import { RpsView } from '../ui/rps';
 import { MarblesView, type MarblesResult } from '../ui/marbles';
 import { DodgeballView, type DodgeResult } from '../ui/dodgeball';
+import { HideSeekView, type HideResult, type HideRole } from '../ui/hideseek';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3158,9 +3159,25 @@ export class CampusScene extends Phaser.Scene {
       playRps: (npc) => this.playRps(npc),
       playMarbles: (npc) => this.playMarbles(npc),
       playDodgeball: (mates, ebes) => this.playDodgeball(mates, ebes),
+      playHideSeek: (role, others) => this.playHideSeek(role, others),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** hide-and-seek: the game screen holds you still until you close it */
+  private playHideSeek(role: HideRole, others: NpcDef[]): Promise<HideResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    const ch = this.save.character;
+    const info = (d: NpcDef) => { const look = { ...DEFAULT_LOOK, ...d.look }; return { name: d.name, skill: yetimballSkill(d), skin: look.skin, hair: look.hair }; };
+    const view = new HideSeekView(document.body, { role, me: { name: ch.first, skill: 0.5, skin: ch.look.skin, hair: ch.look.hair, speed: 118 + ch.attributes.fitness * 0.5 }, others: others.map(info) });
+    return view.result.then((r) => new Promise<HideResult>((resolve) => {
+      const close = view.close.bind(view);
+      if (!view.el.isConnected) { this.watching = false; this.refreshClockAndNeeds(); resolve(r); return; }
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(r); };
+    }));
   }
 
   /** dodgeball out on the campus: the game screen holds you still until you close it */
