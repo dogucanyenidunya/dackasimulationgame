@@ -201,15 +201,6 @@ export const MISSIONS: Mission[] = [
     failed: (c) => c.st.once.matchMissed === true && !c.st.once.matchWatched,
     reward: { xp: 60, text: { tr: 'Maç gecesinin anısı · +moral', en: 'A match night to remember · +mood' } },
   },
-  {
-    id: 'saglikli_yil', kind: 'challenge',
-    title: { tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' },
-    desc: { tr: 'Yılı hiç hastalanmadan bitir. Öğünlerini atlama, uyu, yağmurda montsuz dolaşma, geceleri dışarıda kalma.', en: "Finish the year without getting sick. Don't skip meals, get your sleep, keep your coat on in the rain and don't stay out at night." },
-    requires: [],
-    objectives: [{ id: 'healthy', text: { tr: 'Karne gününe kadar hastalanma', en: "Don't get sick before report card day" }, done: (c) => c.st.yearDone && !c.st.everSick }],
-    failed: (c) => c.st.everSick,
-    reward: { xp: 150, text: { tr: '"Demir Gibi" madalyası · +10 Kondisyon · +50 Saygınlık', en: '"Iron Kid" medal · +10 Fitness · +50 Respect' } },
-  },
   // ---- side quests: taken from Kerem Abi (boys' dorm door) and Selin Abla (girls' dorm door), new ones every year ----
   {
     id: 'abilerle_tanis', kind: 'side', giver: QUEST_GIVERS.abi, giverAt: { tr: 'Erkek Yurdu önü', en: "boys' dorm door" }, year: 1,

@@ -4154,10 +4154,6 @@ export class CampusScene extends Phaser.Scene {
           st.missionsDone.push(m.id);
           this.log({ kind: 'mission', a: L(m.title) });
           this.addXp(m.reward.xp);
-          if (m.id === 'saglikli_yil') {
-            this.save.character.attributes.fitness = growAttr(this.save.character.attributes.fitness, 10, st.year);
-            this.save.character.respect = growRespect(this.save.character.respect, 50, st.year);
-          }
           sfx.success();
           this.hud.toast(L({ tr: `✓ Görev tamamlandı: ${m.title.tr}${m.reward.xp ? ` (+${m.reward.xp} XP)` : ''}`, en: `✓ Mission complete: ${m.title.en}${m.reward.xp ? ` (+${m.reward.xp} XP)` : ''}` }), 'good');
           changed = true;
@@ -4333,7 +4329,6 @@ export class CampusScene extends Phaser.Scene {
       <div class="sum-row"><span>${L({ tr: 'Dönem odağı', en: 'Term focus' })}</span><b>${focusLine(st)}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Kim oluyorsun', en: "Who you're becoming" })}</span><b>${(() => { const mix = traitMix(ch); return arcLine(st, mixName(mix), mixLean(mix)); })()}</b></div>
       <div class="sum-row"><span>${L({ tr: 'Arkadaşların', en: 'Your friends' })}</span><b>${friends.join(', ') || '—'}</b></div>
-      <div class="sum-row"><span>${L({ tr: 'Sağlıklı Bir Yıl', en: 'A Healthy Year' })}</span><b>${st.everSick ? L({ tr: '✕ Hastalandın', en: '✕ You got sick' }) : L({ tr: '✓ Demir Gibi madalyası!', en: '✓ Iron Kid medal!' })}</b></div>
       <p style="line-height:1.5">${L({ tr: 'Yaz tatili başlıyor. 2. yıl (5. sınıf) bir sonraki güncellemede geliyor!', en: 'Summer break begins. Year 2 (Grade 5) arrives in a future update!' })}</p>
       <div style="text-align:right"><button type="button" class="primary">${L({ tr: 'Harika!', en: 'Great!' })}</button></div>`;
     el.querySelector('h2')!.textContent = `${ch.first} ${ch.last}`;
