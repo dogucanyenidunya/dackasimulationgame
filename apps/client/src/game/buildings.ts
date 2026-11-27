@@ -23,6 +23,7 @@ import type { YbResult } from '../ui/yetimball';
 import type { BasketResult } from '../ui/basketball';
 import type { FootballResult } from '../ui/football';
 import type { NetResult, NetSport } from '../ui/netgame';
+import type { MarblesResult } from '../ui/marbles';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -87,6 +88,8 @@ export interface GameCtx {
   playNetGame(sport: NetSport, mate: NpcDef | null, opps: NpcDef[]): Promise<NetResult>;
   /** rock-paper-scissors with a classmate, best of three: true won, false lost, null walked off */
   playRps(npc: NpcDef): Promise<boolean | null>;
+  /** a game of marbles in the ring with a classmate */
+  playMarbles(npc: NpcDef): Promise<MarblesResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1584,9 +1587,12 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
           else if (won) { ctx.befriend(npc.id, 10); ctx.gain({ mood: 6 }); await say(`Kazandın! 🎉 ${npc.name}: "Bir dahakine görürsün!"`, `You win! 🎉 ${npc.name}: "Just you wait till next time!"`); }
           else { ctx.befriend(npc.id, 6); ctx.gain({ mood: -1 }); await say(`${npc.name} kazandı. "Rövanş ister misin?" 😏`, `${npc.name} won. "Want a rematch?" 😏`); }
         } else if (game === 'misket') {
+          const r = await ctx.playMarbles(npc);
           ctx.advance(20);
-          if (Math.random() < 0.5) { ctx.befriend(npc.id, 6); ctx.gain({ mood: 6 }); await say('Tam isabet! Onun en güzel misketini kazandın.', 'Bullseye! You won their best marble.'); }
-          else { ctx.befriend(npc.id, 9); ctx.gain({ mood: -2 }); await say(`${npc.name} senin mavi misketini kazandı ve çok sevindi.`, `${npc.name} won your blue marble and is over the moon.`); }
+          if (r.quit) { ctx.befriend(npc.id, -1); await say(`Oyunu yarıda bıraktın. ${npc.name}: "Misketlerimi geri ver ama!"`, `You walked off mid-game. ${npc.name}: "Give me my marbles back, then!"`); }
+          else if (r.mine > r.theirs) { ctx.befriend(npc.id, 6); ctx.gain({ mood: 6 }); await say(`${r.mine}–${r.theirs}! Onun en güzel misketini de kazandın.`, `${r.mine}–${r.theirs}! You won their best marble too.`); }
+          else if (r.mine < r.theirs) { ctx.befriend(npc.id, 9); ctx.gain({ mood: -2 }); await say(`${r.theirs}–${r.mine}: ${npc.name} senin mavi misketini kazandı ve çok sevindi.`, `${r.theirs}–${r.mine}: ${npc.name} won your blue marble and is over the moon.`); }
+          else { ctx.befriend(npc.id, 7); ctx.gain({ mood: 2 }); await say(`${r.mine}–${r.theirs}, berabere! Herkes kendi misketini aldı.`, `${r.mine}–${r.theirs}, a draw! Everyone took their own marbles back.`); }
         } else if (game === 'yakar') {
           ctx.advance(30);
           ctx.befriend(npc.id, 10);

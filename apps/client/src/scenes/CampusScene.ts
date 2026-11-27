@@ -32,6 +32,7 @@ import { BasketballView, type BasketResult } from '../ui/basketball';
 import { FootballView, type FootballResult } from '../ui/football';
 import { NetGameView, type NetResult, type NetSport } from '../ui/netgame';
 import { RpsView } from '../ui/rps';
+import { MarblesView, type MarblesResult } from '../ui/marbles';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3154,9 +3155,23 @@ export class CampusScene extends Phaser.Scene {
       playFootball: (team, opps, variant) => this.playFootball(team, opps, variant),
       playNetGame: (sport, mate, opps) => this.playNetGame(sport, mate, opps),
       playRps: (npc) => this.playRps(npc),
+      playMarbles: (npc) => this.playMarbles(npc),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** marbles with a classmate: the game screen holds you still until you close it */
+  private playMarbles(npc: NpcDef): Promise<MarblesResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    const view = new MarblesView(document.body, { me: this.save.character.first, them: npc.name, skill: yetimballSkill(npc) });
+    return view.result.then((r) => new Promise<MarblesResult>((resolve) => {
+      const close = view.close.bind(view);
+      if (!view.el.isConnected) { this.watching = false; this.refreshClockAndNeeds(); resolve(r); return; }
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(r); };
+    }));
   }
 
   /** rock-paper-scissors with a classmate: the game screen holds you still until you close it */
