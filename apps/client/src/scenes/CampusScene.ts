@@ -30,6 +30,7 @@ import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeavi
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
 import { BasketballView, type BasketResult } from '../ui/basketball';
 import { FootballView, type FootballResult } from '../ui/football';
+import { NetGameView, type NetResult, type NetSport } from '../ui/netgame';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3149,14 +3150,33 @@ export class CampusScene extends Phaser.Scene {
       watchMatch: () => void this.watchMatch(),
       playYetimball: (opponent, skill) => this.playYetimball(opponent, skill),
       playBasketball: (mate, opps) => this.playBasketball(mate, opps),
-      playFootball: (team, opps) => this.playFootball(team, opps),
+      playFootball: (team, opps, variant) => this.playFootball(team, opps, variant),
+      playNetGame: (sport, mate, opps) => this.playNetGame(sport, mate, opps),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
   }
 
+  /** badminton or volleyball in the Kapalı Saha: the game screen holds you still until you close it */
+  private playNetGame(sport: NetSport, mate: NpcDef | null, opps: NpcDef[]): Promise<NetResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    const ch = this.save.character;
+    const info = (d: NpcDef) => { const look = { ...DEFAULT_LOOK, ...d.look }; return { name: d.name, skill: yetimballSkill(d), skin: look.skin, hair: look.hair }; };
+    const view = new NetGameView(document.body, {
+      sport, me: { name: ch.first, skill: Math.min(1, 0.3 + ch.attributes.fitness / 200), skin: ch.look.skin, hair: ch.look.hair, speed: 165 + ch.attributes.fitness * 0.6 },
+      mate: mate ? info(mate) : undefined, opps: opps.map(info),
+    });
+    return view.result.then((r) => new Promise<NetResult>((resolve) => {
+      const close = view.close.bind(view);
+      if (!view.el.isConnected) { this.watching = false; this.refreshClockAndNeeds(); resolve(r); return; }
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(r); };
+    }));
+  }
+
   /** 3-on-3 football on the pitch: the game screen holds you still until you close it */
-  private playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef]): Promise<FootballResult> {
+  private playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef], variant: 'football' | 'futsal' | 'handball' = 'football'): Promise<FootballResult> {
     this.watching = true;
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
@@ -3165,7 +3185,7 @@ export class CampusScene extends Phaser.Scene {
     const view = new FootballView(document.body, {
       me: { name: ch.first, skill: Math.min(1, 0.25 + st.skills.football / 140 + ch.attributes.fitness / 400), skin: ch.look.skin, hair: ch.look.hair, speed: 130 + ch.attributes.fitness * 0.5 },
       mates: [info(team[0]), info(team[1])], opps: [info(opps[0]), info(opps[1]), info(opps[2])],
-      bonus: hasPerk(st, 'takimOyuncusu') ? 0.04 : 0,
+      bonus: hasPerk(st, 'takimOyuncusu') ? 0.04 : 0, variant,
     });
     return view.result.then((r) => new Promise<FootballResult>((resolve) => {
       const close = view.close.bind(view);

@@ -16,6 +16,8 @@ export interface FootballOpts {
   /** their two outfield players, then their keeper */
   opps: [BallerInfo, BallerInfo, BallerInfo];
   bonus?: number;
+  /** out on the pitch (default), indoor football on the parquet, or handball (thrown, a keeper's area nobody else may enter) */
+  variant?: 'football' | 'futsal' | 'handball';
 }
 export interface FootballResult { us: number; them: number; goals: number; shots: number; quit: boolean }
 
@@ -25,7 +27,8 @@ const MID_Y = H / 2;
 const MOUTH = 50; // half the goal's width
 const BOX = { d: 62, h: 84 }; // the keeper's area: depth, half height
 const R = 10, BR = 5;
-const TARGET = 5;
+/** the handball goal area: a half circle round each goal only the keeper may stand in */
+const AREA = 84;
 const GAME_MS = 4 * 60_000;
 const METER_MS = 1000;
 const SWEET: [number, number] = [0.72, 0.92];
@@ -63,6 +66,8 @@ export class FootballView {
   private flash = ''; private flashUntil = 0;
   private goals = 0; private shots = 0;
   private suddenDeath = false;
+  private hb: boolean;
+  private target: number;
   /** the kick-off: the other team stays out of the centre circle until the ball is kicked or carried out of it */
   private kickoffTeam: 0 | 1 | null = null;
   private over = false;
@@ -89,6 +94,8 @@ export class FootballView {
   constructor(host: HTMLElement, private o: FootballOpts) {
     injectPeerGameStyles();
     injectStyles();
+    this.hb = o.variant === 'handball';
+    this.target = this.hb ? 7 : 5;
     this.result = new Promise((r) => { this.done = r; });
     const mk = (i: BallerInfo, team: 0 | 1, me: boolean, keeper: boolean, speed: number): Player => ({
       ...i, team, me, keeper, x: 0, y: 0, vx: 0, vy: 0, face: team === 0 ? 0 : Math.PI, speed, think: 0, spot: [W / 2, MID_Y], spotAt: 0, cd: 0, stumble: 0, holdSince: 0,
@@ -104,7 +111,7 @@ export class FootballView {
     this.el.className = 'yb-overlay';
     this.el.innerHTML = `
       <div class="yb-card fb-card">
-        <div class="yb-head"><b>⚽ ${L({ tr: 'Halı saha · 3\'e 3', en: 'Five-a-side · 3-on-3' })}</b><span class="fb-time"></span></div>
+        <div class="yb-head"><b>${L(o.variant === 'handball' ? { tr: '🤾 Hentbol · 3\'e 3', en: '🤾 Handball · 3-on-3' } : o.variant === 'futsal' ? { tr: '⚽ Salon futbolu · 3\'e 3', en: '⚽ Indoor football · 3-on-3' } : { tr: '⚽ Halı saha · 3\'e 3', en: '⚽ Five-a-side · 3-on-3' })}</b><span class="fb-time"></span></div>
         <div class="fb-score"><span class="fb-us"></span><b class="fb-pts"></b><span class="fb-them"></span></div>
         <canvas width="${W}" height="${H}"></canvas>
         <div class="yb-status fb-status"></div>
@@ -144,7 +151,9 @@ export class FootballView {
     window.addEventListener('keyup', this.onKey, true);
     host.appendChild(this.el);
     this.kickOff(0);
-    this.say(L({ tr: 'Santra sizde, sağdaki kaleye hücum ediyorsunuz! WASD: koş · Boşluk basılı tut, yeşilde bırak: şut · E: pas.', en: 'Your kick-off, attacking the goal on the right! WASD: run · hold Space, let go in the green: shoot · E: pass.' }), 5500);
+    this.say(this.hb
+      ? L({ tr: 'Başlama atışı sizde, sağdaki kaleye! WASD: koş · Boşluk basılı tut, yeşilde bırak: atış · E: pas. Mavi alana yalnızca kaleci girer.', en: 'Your throw-off, attacking the goal on the right! WASD: run · hold Space, let go in the green: throw · E: pass. Only keepers may enter the blue area.' })
+      : L({ tr: 'Santra sizde, sağdaki kaleye hücum ediyorsunuz! WASD: koş · Boşluk basılı tut, yeşilde bırak: şut · E: pas.', en: 'Your kick-off, attacking the goal on the right! WASD: run · hold Space, let go in the green: shoot · E: pass.' }), 5500);
     const loop = () => { this.tick(); this.draw(); this.raf = requestAnimationFrame(loop); };
     this.raf = requestAnimationFrame(loop);
     if (import.meta.env.DEV) (window as unknown as { dackaFootball: FootballView }).dackaFootball = this;
@@ -248,10 +257,10 @@ export class FootballView {
     const tx = goalX(q.team) + (q.team === 0 ? 14 : -14);
     const ty = MID_Y + aim * (MOUTH - 12) + (aim === 0 ? (Math.random() - 0.5) * 30 : 0);
     const inSweet = m >= SWEET[0] && m <= SWEET[1];
-    const acc = Math.min(1, q.skill * 0.45 + (inSweet ? 0.55 + (this.o.bonus ?? 0) * 4 : 0.25));
+    const acc = Math.min(1, q.skill * 0.45 + (inSweet ? 0.55 + (this.o.bonus ?? 0) * 4 : 0.25) + (this.hb ? 0.15 : 0));
     let a = Math.atan2(ty - q.y, tx - q.x) + (Math.random() - 0.5) * (1 - acc) * 0.7;
     if (m > SWEET[1]) a += (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.2); // leaned back: it flies wide
-    const speed = 200 + 400 * Math.min(1, m / SWEET[1]);
+    const speed = (this.hb ? 260 : 200) + (this.hb ? 380 : 400) * Math.min(1, m / SWEET[1]);
     q.face = a;
     this.kick(q, Math.cos(a) * speed, Math.sin(a) * speed, true);
     if (q.me) {
@@ -301,11 +310,20 @@ export class FootballView {
       if (Math.hypot(q.vx, q.vy) > 8) q.face = Math.atan2(q.vy, q.vx);
     }
     this.separate();
+    if (this.hb) for (const q of this.p) {
+      if (q.keeper) continue;
+      for (const gx of [CL, CR]) {
+        const d = dist(q.x, q.y, gx, MID_Y);
+        if (d < AREA + R) { const a = d > 1 ? Math.atan2(q.y - MID_Y, q.x - gx) : 0; q.x = gx + Math.cos(a) * (AREA + R); q.y = MID_Y + Math.sin(a) * (AREA + R); }
+      }
+    }
     if (this.kickoffTeam !== null) {
       const b = this.ball;
       if (!b.owner || dist(b.x, b.y, W / 2, MID_Y) > 46) this.kickoffTeam = null;
       else for (const q of this.p) {
         if (q.team === this.kickoffTeam) continue;
+        // (in their own half, and out of the circle)
+        q.x = q.team === 0 ? Math.min(q.x, W / 2 - R) : Math.max(q.x, W / 2 + R);
         const d = dist(q.x, q.y, W / 2, MID_Y);
         if (d < 50) { const a = d > 1 ? Math.atan2(q.y - MID_Y, q.x - W / 2) : (q.team === 0 ? Math.PI : 0); q.x = W / 2 + Math.cos(a) * 50; q.y = MID_Y + Math.sin(a) * 50; }
       }
@@ -422,6 +440,8 @@ export class FootballView {
     this.steer(q, own + out * 16, ty, dt, 1.1);
   }
 
+  private inArea(x: number, y: number) { return dist(x, y, CL, MID_Y) < AREA || dist(x, y, CR, MID_Y) < AREA; }
+
   private separate() {
     for (let i = 0; i < this.p.length; i++) for (let j = i + 1; j < this.p.length; j++) {
       const a = this.p[i], b = this.p[j];
@@ -441,7 +461,7 @@ export class FootballView {
       return;
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
-    const f = Math.pow(0.42, dt); b.vx *= f; b.vy *= f;
+    const f = Math.pow(this.hb ? 0.55 : 0.42, dt); b.vx *= f; b.vy *= f;
     if (Math.hypot(b.vx, b.vy) < 6) { b.vx = 0; b.vy = 0; b.shot = false; }
     // the goals
     const inMouth = Math.abs(b.y - MID_Y) < MOUTH;
@@ -456,10 +476,12 @@ export class FootballView {
     const speed = Math.hypot(b.vx, b.vy);
     for (const q of [...this.p].sort((a, c) => dist(a.x, a.y, b.x, b.y) - dist(c.x, c.y, b.x, b.y))) {
       if (q === b.lastKick && now - b.kickAt < 280) continue;
+      // (in handball, a ball lying in a goal area is the keeper's)
+      if (this.hb && !q.keeper && this.inArea(b.x, b.y)) continue;
       const reach = q.keeper ? R + 11 : R + BR + 2;
       if (dist(q.x, q.y, b.x, b.y) > reach || q.cd > 0.95) continue;
       if (q.keeper && b.shot && b.lastKick?.team !== q.team) {
-        const save = clamp(0.5 + q.skill * 0.35 - (speed - 300) / 900, 0.15, 0.92);
+        const save = clamp((this.hb ? 0.36 : 0.5) + q.skill * (this.hb ? 0.3 : 0.35) - (speed - 300) / 900, 0.15, 0.92);
         q.cd = 1; // one go at it
         if (Math.random() < save) {
           if (speed > 420 && Math.random() < 0.5) { b.vx = -b.vx * 0.4 + (Math.random() - 0.5) * 120; b.vy = (Math.random() - 0.5) * 260; b.lastKick = q; b.kickAt = now; b.shot = false; }
@@ -482,7 +504,7 @@ export class FootballView {
     if (team === 0) sfx.success(); else sfx.bump();
     this.flashText(team === 0 ? `GOOOL! ${scorer?.name ?? ''}` : L({ tr: `Gol yediniz · ${scorer?.name ?? ''}`, en: `They scored · ${scorer?.name ?? ''}` }));
     this.ball.vx = 0; this.ball.vy = 0;
-    if (this.score[team] >= TARGET || this.suddenDeath) { this.pause(1400, () => this.end()); return; }
+    if (this.score[team] >= this.target || this.suddenDeath) { this.pause(1400, () => this.end()); return; }
     this.pause(1400, () => this.kickOff(team === 0 ? 1 : 0));
   }
 
@@ -502,7 +524,20 @@ export class FootballView {
     const c = this.c, now = performance.now();
     c.fillStyle = '#5b6168'; c.fillRect(0, 0, W, H);
     // the turf, mown in stripes
-    for (let i = 0; i < 10; i++) { c.fillStyle = i % 2 ? '#3f8a45' : '#479a4d'; c.fillRect(CL + ((CR - CL) / 10) * i, CT, (CR - CL) / 10 + 1, CB - CT); }
+    const indoor = this.o.variant === 'futsal' || this.hb;
+    // the turf mown in stripes, or the sports hall's parquet
+    for (let i = 0; i < (indoor ? 28 : 10); i++) {
+      const n = indoor ? 28 : 10;
+      c.fillStyle = indoor ? (i % 2 ? '#c99a62' : '#d2a56d') : i % 2 ? '#3f8a45' : '#479a4d';
+      c.fillRect(CL + ((CR - CL) / n) * i, CT, (CR - CL) / n + 1, CB - CT);
+    }
+    if (this.hb) {
+      c.fillStyle = 'rgba(46,111,176,0.55)';
+      for (const gx of [CL, CR]) { c.beginPath(); c.moveTo(gx, MID_Y - AREA); c.arc(gx, MID_Y, AREA, -Math.PI / 2, Math.PI / 2, gx === CR); c.closePath(); c.fill(); }
+      c.setLineDash([6, 6]); c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 2;
+      for (const gx of [CL, CR]) { c.beginPath(); c.arc(gx, MID_Y, AREA + 40, -Math.PI / 2, Math.PI / 2, gx === CR); c.stroke(); }
+      c.setLineDash([]);
+    }
     c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 2;
     c.strokeRect(CL, CT, CR - CL, CB - CT);
     c.beginPath(); c.moveTo(W / 2, CT); c.lineTo(W / 2, CB); c.stroke();
@@ -510,7 +545,7 @@ export class FootballView {
     c.fillStyle = '#fff'; c.beginPath(); c.arc(W / 2, MID_Y, 2.5, 0, Math.PI * 2); c.fill();
     for (const x of [CL, CR]) {
       const s = x === CL ? 1 : -1;
-      c.beginPath(); c.moveTo(x, MID_Y - BOX.h); c.arc(x, MID_Y, BOX.h, -Math.PI / 2, Math.PI / 2, s < 0); c.stroke();
+      if (!this.hb) { c.beginPath(); c.moveTo(x, MID_Y - BOX.h); c.arc(x, MID_Y, BOX.h, -Math.PI / 2, Math.PI / 2, s < 0); c.stroke(); }
       // the goal and its net
       const gx = x === CL ? x - 16 : x;
       c.fillStyle = 'rgba(255,255,255,0.16)'; c.fillRect(gx, MID_Y - MOUTH, 16, MOUTH * 2);
@@ -564,7 +599,7 @@ export class FootballView {
   private drawBall() {
     const c = this.c, b = this.ball;
     c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(b.x + 1, b.y + 3, BR, 2, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(b.x, b.y, BR, 0, Math.PI * 2); c.fill();
+    c.fillStyle = this.hb ? '#e8c33a' : '#ffffff'; c.beginPath(); c.arc(b.x, b.y, BR, 0, Math.PI * 2); c.fill();
     c.strokeStyle = '#333'; c.lineWidth = 1; c.stroke();
     c.fillStyle = '#333'; c.beginPath(); c.arc(b.x, b.y, 1.8, 0, Math.PI * 2); c.fill();
   }
@@ -572,16 +607,20 @@ export class FootballView {
   private hud(now: number) {
     const left = Math.max(0, GAME_MS - (now - this.startAt));
     const mm = Math.floor(left / 60000), ss = Math.floor((left % 60000) / 1000);
-    (this.el.querySelector('.fb-time') as HTMLElement).textContent = this.suddenDeath ? L({ tr: 'Altın gol', en: 'Golden goal' }) : `⏱ ${mm}:${String(ss).padStart(2, '0')} · ${L({ tr: `${TARGET} gole kadar`, en: `first to ${TARGET}` })}`;
+    (this.el.querySelector('.fb-time') as HTMLElement).textContent = this.suddenDeath ? L({ tr: 'Altın gol', en: 'Golden goal' }) : `⏱ ${mm}:${String(ss).padStart(2, '0')} · ${L({ tr: `${this.target} gole kadar`, en: `first to ${this.target}` })}`;
     (this.el.querySelector('.fb-pts') as HTMLElement).textContent = `${this.score[0]} – ${this.score[1]}`;
     const owner = this.ball.owner;
     const act = this.el.querySelector('.fb-act') as HTMLButtonElement;
     const pass = this.el.querySelector('.fb-pass') as HTMLButtonElement;
-    act.textContent = owner === this.me ? L({ tr: '⚽ Şut (Boşluk, basılı tut)', en: '⚽ Shoot (hold Space)' }) : owner?.team === 1 ? L({ tr: '🦵 Top kap (Boşluk)', en: '🦵 Tackle (Space)' }) : '⚽';
+    act.textContent = this.hb
+      ? (owner === this.me ? L({ tr: '🤾 Atış (Boşluk, basılı tut)', en: '🤾 Throw (hold Space)' }) : owner?.team === 1 ? L({ tr: '✋ Top çal (Boşluk)', en: '✋ Steal (Space)' }) : '🤾')
+      : owner === this.me ? L({ tr: '⚽ Şut (Boşluk, basılı tut)', en: '⚽ Shoot (hold Space)' }) : owner?.team === 1 ? L({ tr: '🦵 Top kap (Boşluk)', en: '🦵 Tackle (Space)' }) : '⚽';
     pass.textContent = owner && owner.team === 0 && owner !== this.me ? L({ tr: '🙋 Pas iste (E)', en: '🙋 Call for it (E)' }) : L({ tr: '↪ Pas (E)', en: '↪ Pass (E)' });
     let line = now < this.msgUntil ? this.msg : '';
     if (!line) {
-      if (owner === this.me) line = L({ tr: 'Sağdaki kaleye sür. Şutta W/S basılıysa üst/alt köşeye vurursun.', en: 'Take it at the goal on the right. Hold W or S as you shoot to aim high or low.' });
+      if (owner === this.me) line = this.hb
+        ? L({ tr: 'Sağdaki kaleye git ve mavi alanın dışından at. W/S basılıysa üst/alt köşeye.', en: 'Head for the goal on the right and throw from outside the blue area. W/S aims high/low.' })
+        : L({ tr: 'Sağdaki kaleye sür. Şutta W/S basılıysa üst/alt köşeye vurursun.', en: 'Take it at the goal on the right. Hold W or S as you shoot to aim high or low.' });
       else if (owner?.team === 0) line = L({ tr: 'Boşa koş; topu istemek için E.', en: 'Run into space; press E to call for the ball.' });
       else if (owner?.team === 1) line = L({ tr: 'Savunma: topa bas, yanına gelince Boşluk ile top kap.', en: 'Defence: close them down, press Space next to the ball to tackle.' });
       else line = L({ tr: 'Top boşta! Kap onu.', en: 'Loose ball! Get it.' });

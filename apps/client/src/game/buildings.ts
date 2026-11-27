@@ -22,6 +22,7 @@ import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
 import type { BasketResult } from '../ui/basketball';
 import type { FootballResult } from '../ui/football';
+import type { NetResult, NetSport } from '../ui/netgame';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -81,7 +82,9 @@ export interface GameCtx {
   /** a game of 2-on-2 basketball: you and `mate` against `opps` */
   playBasketball(mate: NpcDef, opps: [NpcDef, NpcDef]): Promise<BasketResult>;
   /** a game of 3-on-3 football: you, `team[0]` and `team[1]` in goal, against `opps` (the last of them in goal) */
-  playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef]): Promise<FootballResult>;
+  playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef], variant?: 'football' | 'futsal' | 'handball'): Promise<FootballResult>;
+  /** badminton against one, or volleyball with `mate` against two */
+  playNetGame(sport: NetSport, mate: NpcDef | null, opps: NpcDef[]): Promise<NetResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1456,10 +1459,39 @@ function kapaliSaha(ctx: GameCtx): PanelView {
       const id = await ctx.panel.choose(T('Ne oynanıyor?', "What's on?"), games.map((g) => ({ id: g.id, label: g.name })));
       const g = games.find((x) => x.id === id);
       if (!g) return;
+      // whoever's in tonight: your closest friends on your side, the others against you
+      const pool = NPCS.filter((n) => n.kind === 'classmate' || n.kind === 'student');
+      const friends = pool.filter((n) => (st.friends[n.id] ?? 0) >= 0).sort((a, b) => (st.friends[b.id] ?? 0) - (st.friends[a.id] ?? 0));
+      const pick = (n: number, not: NpcDef[]) => pool.filter((x) => !not.includes(x)).sort(() => Math.random() - 0.5).slice(0, n);
+      let r: { us: number; them: number; quit: boolean };
+      let side: NpcDef[] = [], others: NpcDef[] = [];
+      if (g.id === 'futbol' || g.id === 'hentbol') {
+        side = friends.slice(0, 2); others = pick(3, side);
+        r = await ctx.playFootball([side[0], side[1]], [others[0], others[1], others[2]], g.id === 'futbol' ? 'futsal' : 'handball');
+      } else if (g.id === 'voleybol') {
+        side = friends.slice(0, 1); others = pick(2, side);
+        r = await ctx.playNetGame('voleybol', side[0], others);
+      } else {
+        others = pick(1, friends.slice(0, 1));
+        r = await ctx.playNetGame('badminton', null, others);
+      }
       markToday(ctx, 'kapali_saha');
+      if (r.quit) {
+        ctx.advance(15);
+        ctx.gain({ mood: -3, energy: -5 });
+        for (const m of [...side, ...others]) ctx.befriend(m.id, -1);
+        ctx.toast(T('Oyunu yarıda bıraktın; ötekiler biraz bozuldu.', 'You walked out of the game; the others were a bit put out.'));
+        return;
+      }
+      const won = r.us > r.them;
       ctx.advance(45);
-      ctx.gain({ xp: 15, mood: g.mood, energy: -15, hunger: -8, attrs: { fitness: g.fitness, social: 1 } });
-      ctx.toast(T(`${g.name}: iyi bir maçtı!`, `${g.name}: a good game!`), 'good');
+      ctx.gain({ xp: 15 + (won ? 20 : 0), mood: g.mood + (won ? 5 : 0), energy: -15, hunger: -8, attrs: { fitness: g.fitness + (won ? 1 : 0), social: 1 } });
+      for (const m of side) ctx.befriend(m.id, won ? 4 : 2);
+      for (const m of others) ctx.befriend(m.id, 1);
+      await ctx.panel.message(won ? T('Kazandınız! 🎉', 'You won! 🎉') : T('Maç bitti', 'Full time'), T(
+        `${g.name.replace(/^\S+\s/, '')}: ${r.us}–${r.them}. ${side.length ? `Takımında: ${side.map((m) => m.name).join(', ')}. ` : ''}Rakipler: ${others.map((m) => m.name).join(', ')}.`,
+        `${g.name.replace(/^\S+\s/, '')}: ${r.us}–${r.them}. ${side.length ? `On your side: ${side.map((m) => m.name).join(', ')}. ` : ''}Against you: ${others.map((m) => m.name).join(', ')}.`,
+      ));
     },
   };
   return {
