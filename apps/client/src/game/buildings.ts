@@ -85,6 +85,8 @@ export interface GameCtx {
   playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef], variant?: 'football' | 'futsal' | 'handball'): Promise<FootballResult>;
   /** badminton against one, or volleyball with `mate` against two */
   playNetGame(sport: NetSport, mate: NpcDef | null, opps: NpcDef[]): Promise<NetResult>;
+  /** rock-paper-scissors with a classmate, best of three: true won, false lost, null walked off */
+  playRps(npc: NpcDef): Promise<boolean | null>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1576,16 +1578,11 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
         if (!game) return;
         mark('play');
         if (game === 'rps') {
-          const moves = [{ id: 'tas', label: T('✊ Taş', '✊ Rock') }, { id: 'kagit', label: T('✋ Kâğıt', '✋ Paper') }, { id: 'makas', label: T('✌️ Makas', '✌️ Scissors') }];
-          const mine = await ctx.panel.choose(T('Taş, kâğıt, makas…', 'Rock, paper, scissors…'), moves);
-          if (!mine) return;
-          const theirs = pickRandom(moves).id;
-          const beats: Record<string, string> = { tas: 'makas', kagit: 'tas', makas: 'kagit' };
-          const theirLabel = moves.find((m) => m.id === theirs)!.label;
+          const won = await ctx.playRps(npc);
           ctx.advance(5);
-          if (mine === theirs) { ctx.befriend(npc.id, 8); await say(`İkiniz de ${theirLabel}! Berabere, bir daha!`, `You both picked ${theirLabel}! A draw, again!`); }
-          else if (beats[mine] === theirs) { ctx.befriend(npc.id, 10); ctx.gain({ mood: 6 }); await say(`${npc.name} ${theirLabel} yaptı. Kazandın! 🎉`, `${npc.name} picked ${theirLabel}. You win! 🎉`); }
-          else { ctx.befriend(npc.id, 6); ctx.gain({ mood: -1 }); await say(`${npc.name} ${theirLabel} yaptı ve kazandı. "Rövanş ister misin?" 😏`, `${npc.name} picked ${theirLabel} and won. "Want a rematch?" 😏`); }
+          if (won === null) { ctx.befriend(npc.id, -1); await say(`Oyunu yarıda bıraktın. ${npc.name}: "Korktun mu yoksa?" 😏`, `You walked off mid-game. ${npc.name}: "Scared, were you?" 😏`); }
+          else if (won) { ctx.befriend(npc.id, 10); ctx.gain({ mood: 6 }); await say(`Kazandın! 🎉 ${npc.name}: "Bir dahakine görürsün!"`, `You win! 🎉 ${npc.name}: "Just you wait till next time!"`); }
+          else { ctx.befriend(npc.id, 6); ctx.gain({ mood: -1 }); await say(`${npc.name} kazandı. "Rövanş ister misin?" 😏`, `${npc.name} won. "Want a rematch?" 😏`); }
         } else if (game === 'misket') {
           ctx.advance(20);
           if (Math.random() < 0.5) { ctx.befriend(npc.id, 6); ctx.gain({ mood: 6 }); await say('Tam isabet! Onun en güzel misketini kazandın.', 'Bullseye! You won their best marble.'); }

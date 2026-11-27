@@ -7,7 +7,8 @@ import { sfx } from '../audio';
 import { askConfirm } from '../ui/confirm';
 import type { ActionView } from '../ui/panel';
 import type { PeerGame, PeerMsg } from '../net/multiplayer';
-import { YetimballView, injectPeerGameStyles, type YbResult } from '../ui/yetimball';
+import { YetimballView, type YbResult } from '../ui/yetimball';
+import { RpsView } from '../ui/rps';
 import type { GameCtx } from './buildings';
 
 const T = (tr: string, en: string) => L({ tr, en });
@@ -39,8 +40,6 @@ const JOKES: Text[] = [
   { tr: '"Etütte uyumak yasak değil ki, horlamak yasak."', en: '"Sleeping in study isn\'t against the rules. Snoring is."' },
 ];
 const NICKS = ['Kirpi', 'Uzay Adam', 'Profesör', 'Turbo', 'Fasulye', 'Şimşek', 'Kaptan', 'Pamuk'];
-const RPS = [{ id: 'tas', icon: '✊', name: { tr: 'Taş', en: 'Rock' } }, { id: 'kagit', icon: '✋', name: { tr: 'Kâğıt', en: 'Paper' } }, { id: 'makas', icon: '✌️', name: { tr: 'Makas', en: 'Scissors' } }];
-const BEATS: Record<string, string> = { tas: 'makas', kagit: 'tas', makas: 'kagit' };
 const pick = <X,>(a: X[]) => a[Math.floor(Math.random() * a.length)];
 
 export class PeerPlay {
@@ -226,13 +225,12 @@ export class PeerPlay {
     this.h.setPlaying(true);
     const view = game === 'yetimball'
       ? new YetimballView(this.h.uiHost, { me, them, host, send: (n, q) => send(n, q), quit, onEnd: (r: YbResult) => done(r === 'win' ? true : r === 'lose' ? false : null) })
-      : new RpsDuel(this.h.uiHost, { me, them, send, quit, onEnd: done });
+      : new RpsView(this.h.uiHost, { me, them, host, send, quit, onEnd: done });
     // the view removes itself when closed; the scene lets you move again then
     const close = view.close.bind(view);
     view.close = () => { close(); if (this.session?.gid === gid) this.session = null; this.h.setPlaying(false); };
     const receive = (n: number, v: number | string) => {
-      if (view instanceof YetimballView) view.receive(n, v);
-      else if (typeof v === 'string') view.receive(n, v);
+      view.receive(n, v);
     };
     this.session = { gid, peer, game, host, view: { receive, abandoned: () => view.abandoned(), close: () => view.close() } };
   }
@@ -256,98 +254,4 @@ export class PeerPlay {
 
 function gameName(g: PeerGame): string {
   return g === 'yetimball' ? 'Yetimball' : T('taş-kâğıt-makas', 'rock-paper-scissors');
-}
-
-/** rock-paper-scissors against a real player: both pick, then both see; best of three */
-class RpsDuel {
-  private el: HTMLElement;
-  private round = 0;
-  private mine = new Map<number, string>();
-  private theirs = new Map<number, string>();
-  private score: [number, number] = [0, 0];
-  private ended = false;
-  private waitTimer = 0;
-
-  constructor(host: HTMLElement, private o: { me: string; them: string; send: (n: number, v: string) => void; quit: () => void; onEnd: (won: boolean | null) => void }) {
-    injectPeerGameStyles();
-    this.el = document.createElement('div');
-    this.el.className = 'pg-overlay';
-    this.el.innerHTML = `<div class="pg-card"><div class="yb-head"><b>✊ ${T('Taş-kâğıt-makas', 'Rock-paper-scissors')}</b><span class="yb-vs"></span></div>
-      <div class="pg-score"></div><div class="pg-picks">${RPS.map((r) => `<button type="button" class="secondary" data-pick="${r.id}" title="${L(r.name)}">${r.icon}</button>`).join('')}</div>
-      <div class="pg-status"></div><div class="pg-row"><button type="button" class="secondary pg-quit"></button></div></div>`;
-    this.el.querySelector('.yb-vs')!.textContent = `${o.me} · ${o.them}`;
-    (this.el.querySelector('.pg-quit') as HTMLElement).textContent = T('Oyundan çık', 'Leave the game');
-    this.el.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => this.choose(b.dataset.pick!)));
-    this.el.querySelector('.pg-quit')!.addEventListener('click', () => { if (!this.ended) { this.o.quit(); this.finish(null); } this.close(); });
-    host.appendChild(this.el);
-    this.render(T('Seçimini yap! Rakibin seçimini sen seçince görürsün.', "Make your pick! You'll see theirs once you've picked."));
-  }
-
-  private render(status: string) {
-    (this.el.querySelector('.pg-score') as HTMLElement).textContent = `${this.o.me} ${this.score[0]} – ${this.score[1]} ${this.o.them}`;
-    (this.el.querySelector('.pg-status') as HTMLElement).textContent = status;
-    const locked = this.ended || this.mine.has(this.round);
-    this.el.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => { b.disabled = locked; });
-  }
-
-  private choose(id: string) {
-    if (this.ended || this.mine.has(this.round)) return;
-    this.mine.set(this.round, id);
-    this.o.send(this.round, id);
-    sfx.click();
-    window.clearTimeout(this.waitTimer);
-    this.waitTimer = window.setTimeout(() => { if (!this.ended && !this.theirs.has(this.round)) { this.render(T(`${this.o.them} ile bağlantı koptu.`, `Lost the connection to ${this.o.them}.`)); this.finish(null); } }, 30_000);
-    this.settle();
-  }
-
-  receive(n: number, v: string) {
-    if (this.ended || !RPS.some((r) => r.id === v) || this.theirs.has(n)) return;
-    this.theirs.set(n, v);
-    if (n === this.round) this.settle();
-  }
-
-  private settle() {
-    const a = this.mine.get(this.round), b = this.theirs.get(this.round);
-    if (!a) { this.render(T(`${this.o.them} seçti. Sıra sende!`, `${this.o.them} has picked. Your turn!`)); return; }
-    if (!b) { this.render(T(`${this.o.them} bekleniyor…`, `Waiting for ${this.o.them}…`)); return; }
-    window.clearTimeout(this.waitTimer);
-    const ra = RPS.find((r) => r.id === a)!, rb = RPS.find((r) => r.id === b)!;
-    let line = `${ra.icon} ${L(ra.name)} – ${rb.icon} ${L(rb.name)}: `;
-    if (a === b) line += T('berabere!', 'a draw!');
-    else if (BEATS[a] === b) { this.score[0]++; line += T('bu el senin!', 'this round is yours!'); }
-    else { this.score[1]++; line += T(`bu el ${this.o.them}'ın.`, `this round goes to ${this.o.them}.`); }
-    this.round++;
-    if (this.score[0] === 2 || this.score[1] === 2) {
-      const won = this.score[0] === 2;
-      if (won) sfx.success();
-      this.render(`${line} ${won ? T('🏆 Kazandın!', '🏆 You win!') : T(`${this.o.them} kazandı.`, `${this.o.them} wins.`)}`);
-      this.finish(won);
-      return;
-    }
-    this.render(`${line} ${T('Sıradaki el!', 'Next round!')}`);
-    if (this.theirs.has(this.round)) this.settle();
-  }
-
-  abandoned() {
-    if (this.ended) return;
-    // walking out while losing doesn't save you: whoever was ahead gets the win
-    if (this.score[0] > this.score[1]) {
-      this.render(T(`🏆 ${this.o.them} sen öndeyken oyundan çıktı: kazandın!`, `🏆 ${this.o.them} left while you were ahead: you win!`));
-      this.finish(true);
-      return;
-    }
-    this.render(T(`${this.o.them} oyundan çıktı.`, `${this.o.them} left the game.`));
-    this.finish(null);
-  }
-
-  private finish(won: boolean | null) {
-    if (this.ended) return;
-    this.ended = true;
-    window.clearTimeout(this.waitTimer);
-    (this.el.querySelector('.pg-quit') as HTMLElement).textContent = T('Kapat', 'Close');
-    this.el.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => { b.disabled = true; });
-    this.o.onEnd(won);
-  }
-
-  close() { window.clearTimeout(this.waitTimer); this.el.remove(); }
 }

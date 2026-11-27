@@ -31,6 +31,7 @@ import { YetimballView, type YbResult } from '../ui/yetimball';
 import { BasketballView, type BasketResult } from '../ui/basketball';
 import { FootballView, type FootballResult } from '../ui/football';
 import { NetGameView, type NetResult, type NetSport } from '../ui/netgame';
+import { RpsView } from '../ui/rps';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3152,9 +3153,23 @@ export class CampusScene extends Phaser.Scene {
       playBasketball: (mate, opps) => this.playBasketball(mate, opps),
       playFootball: (team, opps, variant) => this.playFootball(team, opps, variant),
       playNetGame: (sport, mate, opps) => this.playNetGame(sport, mate, opps),
+      playRps: (npc) => this.playRps(npc),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** rock-paper-scissors with a classmate: the game screen holds you still until you close it */
+  private playRps(npc: NpcDef): Promise<boolean | null> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    return new Promise((resolve) => {
+      let result: boolean | null = null;
+      const view = new RpsView(document.body, { me: this.save.character.first, them: npc.name, host: true, bot: npc.id, quit: () => {}, onEnd: (r) => { result = r; } });
+      const close = view.close.bind(view);
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(result); };
+    });
   }
 
   /** badminton or volleyball in the Kapalı Saha: the game screen holds you still until you close it */
