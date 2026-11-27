@@ -5,7 +5,7 @@
 // Middle: Yemekhane (Teknik Alan behind it, on Ayaz Cd) and the Merkez Meydan, with the pyramid in its centre
 // and the Atatürk bust in its south-east corner. The Meydan is a terrace some 20 m above the Spor Salonu side:
 // a covered stairway/tunnel, a sloping road and an open flight of steps lead down from it. East: Spor Salonu (canteen and stores inside, the grandstand
-// along its east wall) and the football pitch. South: Cemiyet + Müze, a small court and the basketball court;
+// along its east wall) and the football pitch. South: Cemiyet + Müze and a row of four basketball courts;
 // Ana Kapı opens onto Darüşşafaka Cd. Buildings have true outlines (polygons and circles) instead of tile rectangles.
 
 import type { Text } from '../i18n';
@@ -249,19 +249,19 @@ export const COURTS = {
 };
 /** the basketball court on the lawn east of the boys' dorm */
 export const DORM_COURT: Rect = { x: 30, y: 9, w: 4, h: 6 };
-/** the small court on the south lawn, west of the big one (just for show) */
-export const SMALL_COURT: Rect = { x: 65, y: 43, w: 4, h: 6 };
-/** courts drawn besides the main two: the small one on the south lawn and the dorm court */
-export const EXTRA_COURTS: Rect[] = [SMALL_COURT, DORM_COURT];
+/** the row of four basketball courts on the south lawn, side by side, west to east (the third is COURTS.basketball) */
+export const SOUTH_COURTS: Rect[] = [{ x: 60, y: 42, w: 5, h: 8 }, { x: 68, y: 42, w: 5, h: 8 }, COURTS.basketball, { x: 84, y: 42, w: 5, h: 8 }];
+/** courts drawn besides the main two: the other three on the south lawn and the dorm court */
+export const EXTRA_COURTS: Rect[] = [...SOUTH_COURTS.filter((c) => c !== COURTS.basketball), DORM_COURT];
 /** the running track round the football pitch: a rounded rectangle, its outer edge, corner radius and width (tiles) */
 export const TRACK = { x: 74.6, y: 14.3, w: 17.1, h: 23.6, r: 4, width: 1.25, lanes: 3 };
-/** the two courts on the south lawn are fenced in with wire, each with a few gates (sides: n/s/e/w; from–to along
+/** the courts on the south lawn are fenced in with wire, each with a few gates (sides: n/s/e/w; from–to along
  *  that side, in tiles). Fence lines run along tile edges. */
 export interface Cage { rect: Rect; gates: Array<{ side: 'n' | 's' | 'e' | 'w'; from: number; to: number }> }
-export const CAGES: Cage[] = [
-  { rect: { x: 64, y: 42, w: 6, h: 8 }, gates: [{ side: 'n', from: 66, to: 68 }, { side: 'e', from: 45, to: 47 }] },
-  { rect: { x: 75, y: 41, w: 7, h: 10 }, gates: [{ side: 'n', from: 77, to: 80 }, { side: 'w', from: 45, to: 47 }, { side: 'e', from: 45, to: 47 }] },
-];
+export const CAGES: Cage[] = SOUTH_COURTS.map((c) => ({
+  rect: { x: c.x - 1, y: c.y - 1, w: c.w + 2, h: c.h + 2 },
+  gates: [{ side: 'n' as const, from: c.x + 1, to: c.x + 4 }, { side: 'w' as const, from: c.y + 3, to: c.y + 5 }, { side: 'e' as const, from: c.y + 3, to: c.y + 5 }],
+}));
 /** a cage's fence as lines along tile edges, with the gates left open */
 export function cageLines(c: Cage): Array<[number, number, number, number]> {
   const { x, y, w, h } = c.rect, out: Array<[number, number, number, number]> = [];
@@ -281,7 +281,7 @@ export const PE_AREA: Rect = { x: 73, y: 14, w: 19, h: 38 };
 export const inPeArea = (x: number, y: number) => x >= PE_AREA.x && x < PE_AREA.x + PE_AREA.w && y >= PE_AREA.y && y < PE_AREA.y + PE_AREA.h;
 /** where you can call friends over for a pick-up game */
 export const PLAY_COURTS: Array<{ sport: 'basketball' | 'football'; rect: Rect }> = [
-  { sport: 'basketball', rect: COURTS.basketball }, { sport: 'basketball', rect: DORM_COURT }, { sport: 'football', rect: COURTS.football },
+  ...SOUTH_COURTS.map((rect) => ({ sport: 'basketball' as const, rect })), { sport: 'basketball', rect: DORM_COURT }, { sport: 'football', rect: COURTS.football },
 ];
 
 /** garden walls closing off the dorm side: one from the north fence to Eğitim (between it and the Yemekhane),
@@ -365,12 +365,12 @@ export const TRIBUNE: Rect[] = [{ x: 70, y: 17, w: 3, h: 9.7 }, { x: 70, y: 29.3
 export const TREES: Array<[number, number]> = [
   [5, 10], [5, 15], [5, 20], [31.5, 6.6], [30.3, 16.6], [4, 26], [4, 30],
   [9, 40], [18, 43], [22, 36], [33, 37], [23, 47], [34, 46],
-  [90, 40], [72.4, 47], [87, 49], [72, 50], [60, 50], [59, 44], [62, 46],
+  [90, 40],
   [49.6, 34.7], [52.7, 34.3], // either side of the Atatürk bust
 ];
 
 export const BENCHES: Array<[number, number]> = [
-  [12, 23], [23, 20], [16, 27], [43, 27], [46, 36], [52, 27], [43, 34], [33, 43], [60, 42],
+  [12, 23], [23, 20], [16, 27], [43, 27], [46, 36], [52, 27], [43, 34], [33, 43],
 ];
 
 /** street lamps: they light up at night */
@@ -379,7 +379,7 @@ export const LAMPS: Array<[number, number]> = [
 ];
 
 export const FLOWERS: Array<[number, number]> = [
-  [11, 24], [22, 22], [44, 25], [51, 25], [34, 40], [60, 48], [28, 30],
+  [11, 24], [22, 22], [44, 25], [51, 25], [34, 40], [28, 30],
 ];
 
 /** landmarks: on the Merkez Meydan the three-sided pyramid in the very centre,
