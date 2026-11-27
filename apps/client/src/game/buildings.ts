@@ -20,6 +20,7 @@ import { DEPUTY, NPCS, ablativeTr, dativeTr, friendLevel, genitiveTr, type NpcDe
 import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
+import type { BasketResult } from '../ui/basketball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -76,6 +77,8 @@ export interface GameCtx {
   watchMatch(): void;
   /** a game of Yetimball against a classmate of this skill (0–1); resolves with how it ended */
   playYetimball(opponent: string, skill: number): Promise<YbResult>;
+  /** a game of 2-on-2 basketball: you and `mate` against `opps` */
+  playBasketball(mate: NpcDef, opps: [NpcDef, NpcDef]): Promise<BasketResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1377,7 +1380,7 @@ function spor(ctx: GameCtx): PanelView {
   const train: ActionView = {
     id: 'train', label: sport ? T(`Antrenman: ${L(sport.name)}`, `Training: ${L(sport.name)}`) : T('Antrenman', 'Training'),
     hint: T('1 saat · −15 enerji · +2 Kondisyon · +15 XP', '1 hour · −15 energy · +2 Fitness · +15 XP'),
-    locked: sickLock(ctx) ?? (!trainingTime ? T('Antrenmanlar hafta içi 15:30–17:00 (hafta sonu 10:00–17:00).', 'Training is weekdays 15:30–17:00 (weekends 10:00–17:00).')
+    locked: sickLock(ctx) ?? (!trainingTime ? T('Antrenmanlar hafta içi 15:30–17:00 (hafta sonu antrenman yok).', 'Training is weekdays 15:30–17:00 (none at weekends).')
       : ctx.st.energy < 15 ? T('Çok yorgunsun.', "You're too tired.") : undefined),
     run: () => { nudge(ctx, { ambition: 1, loyalty: TEAM_SPORTS.includes(st.sport!) ? 1 : -1 }); focusTick(ctx, 'sport');
       ctx.st.health = clamp(ctx.st.health + 2);
@@ -2758,11 +2761,25 @@ export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]
   const st = ctx.st;
   focusTick(ctx, 'sport');
   const skill = st.skills[sport];
-  const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800 + (hasPerk(ctx.st, 'takimOyuncusu') ? 0.04 : 0);
-  const rounds = 5;
-  const hits = await ctx.panel.timing(sport === 'basketball' ? T('Şut at!', 'Shoot!') : T('Gole vur!', 'Shoot at goal!'), rounds, zone, 1.3);
-  const theirs = Math.floor(Math.random() * 4) + 1;
-  const ours = hits + (Math.random() < 0.5 ? 1 : 0);
+  let ours: number, theirs: number, hits: number;
+  if (sport === 'basketball' && mates.length >= 3) {
+    // a real game: you and your closest friend against the other two
+    const r = await ctx.playBasketball(mates[0], [mates[1], mates[2]]);
+    if (r.quit) {
+      ctx.advance(15);
+      ctx.gain({ mood: -3, energy: -5 });
+      for (const m of mates) ctx.befriend(m.id, -1);
+      ctx.toast(T('Maçı yarıda bıraktın; arkadaşların biraz bozuldu.', 'You walked out of the game; your friends were a bit put out.'));
+      return;
+    }
+    ours = r.us; theirs = r.them;
+    hits = Math.min(5, r.made);
+  } else {
+    const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800 + (hasPerk(ctx.st, 'takimOyuncusu') ? 0.04 : 0);
+    hits = await ctx.panel.timing(T('Gole vur!', 'Shoot at goal!'), 5, zone, 1.3);
+    theirs = Math.floor(Math.random() * 4) + 1;
+    ours = hits + (Math.random() < 0.5 ? 1 : 0);
+  }
   const won = ours > theirs;
   ctx.advance(45);
   st.skills[sport] = growSkill(skill, 2 + hits, st.year);

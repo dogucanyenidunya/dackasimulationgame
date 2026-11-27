@@ -24,10 +24,11 @@ import { ClassLife } from './classLife';
 import { Multiplayer, type FriendNudge, type PeerProfile, type PeerPos } from '../net/multiplayer';
 import { PeerPlay } from '../game/peerPlay';
 import { ATTR_STEP, PERKS, PERK_EVERY, attrPoints, hasPerk, levelOf, perkPoints } from '../game/growth';
-import { lateGrace } from '../game/buildings';
+import { lateGrace, yetimballSkill } from '../game/buildings';
 import { CLASSIC, NPC_BEDS, NPC_CLASS_DESKS, settle, spotKey, storeSpots, storedSpots, readSpots, type Spots } from '../game/spots';
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
+import { BasketballView, type BasketResult } from '../ui/basketball';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3146,9 +3147,32 @@ export class CampusScene extends Phaser.Scene {
       log: (e) => this.log(e),
       watchMatch: () => void this.watchMatch(),
       playYetimball: (opponent, skill) => this.playYetimball(opponent, skill),
+      playBasketball: (mate, opps) => this.playBasketball(mate, opps),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** 2-on-2 basketball on the court: the game screen holds you still until you close it */
+  private playBasketball(mate: NpcDef, opps: [NpcDef, NpcDef]): Promise<BasketResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    const st = this.save.state, ch = this.save.character;
+    const info = (d: NpcDef) => { const look = { ...DEFAULT_LOOK, ...d.look }; return { name: d.name, skill: yetimballSkill(d), skin: look.skin, hair: look.hair }; };
+    const view = new BasketballView(document.body, {
+      me: { name: ch.first, skill: Math.min(1, 0.25 + st.skills.basketball / 140 + ch.attributes.fitness / 400), skin: ch.look.skin, hair: ch.look.hair, speed: 135 + ch.attributes.fitness * 0.5 },
+      mate: info(mate), opps: [info(opps[0]), info(opps[1])],
+      bonus: hasPerk(st, 'takimOyuncusu') ? 0.04 : 0,
+    });
+    return view.result.then((r) => {
+      // (the result comes when the final whistle goes; the screen stays up until you close it)
+      return new Promise<BasketResult>((resolve) => {
+        const close = view.close.bind(view);
+        if (!view.el.isConnected) { this.watching = false; this.refreshClockAndNeeds(); resolve(r); return; }
+        view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(r); };
+      });
+    });
   }
 
   /** Yetimball against a classmate: you hit first; the game screen holds you still until you close it */
