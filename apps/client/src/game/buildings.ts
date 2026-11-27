@@ -1606,7 +1606,7 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
     },
     {
       id: 'yetimball', label: T('🪢 Yetimball oyna', '🪢 Play Yetimball'),
-      hint: T(`Karşılıklı ip sarma · doğru açı + doğru güç kazandırır · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'iyi oyuncu' : yetimballSkill(npc) >= 0.56 ? 'fena değil' : 'pek iyi değil'}`, `A rope-winding duel · the right angle and strength win · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'a strong player' : yetimballSkill(npc) >= 0.56 ? 'not bad' : 'not much good'}`),
+      hint: T(`Karşılıklı ip sarma · topu yanından geçerken kendi yönüne vur · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'iyi oyuncu' : yetimballSkill(npc) >= 0.56 ? 'fena değil' : 'pek iyi değil'}`, `A rope-winding duel · hit the ball your way as it swings past · ${npc.name}: ${yetimballSkill(npc) >= 0.68 ? 'a strong player' : yetimballSkill(npc) >= 0.56 ? 'not bad' : 'not much good'}`),
       locked: lock ?? (indoors ? T(`Yetimball dışarıda, direğin başında oynanır (${where} olmaz).`, `Yetimball is played outside at the pole (not ${where}).`) : once('yetimball')),
       run: async () => { nudge(ctx, { heart: 1 }); focusTick(ctx, 'sport'); mark('yetimball'); await yetimballWith(npc, ctx); },
     },

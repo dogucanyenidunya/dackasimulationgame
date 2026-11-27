@@ -66,7 +66,7 @@ export class PeerPlay {
         run: () => { ctx.panel.close(); this.h.openChat(); },
       },
       {
-        id: 'p-yetimball', label: T('🪢 Yetimball oyna', '🪢 Play Yetimball'), hint: T('İkiniz karşılıklı · doğru açı + doğru güç ipi senin tarafına sarar', 'Head to head · the right angle and strength wind the rope your way'),
+        id: 'p-yetimball', label: T('🪢 Yetimball oyna', '🪢 Play Yetimball'), hint: T('İkiniz karşılıklı · topu kendi yönüne vurup ipi direğe sar', 'Head to head · hit the ball your way round and wind the rope round the pole'),
         locked: busyGame,
         run: () => { ctx.panel.close(); this.invite(peerId, 'yetimball'); },
       },
@@ -231,7 +231,7 @@ export class PeerPlay {
     const close = view.close.bind(view);
     view.close = () => { close(); if (this.session?.gid === gid) this.session = null; this.h.setPlaying(false); };
     const receive = (n: number, v: number | string) => {
-      if (view instanceof YetimballView) { if (typeof v === 'number') view.receive(n, v); }
+      if (view instanceof YetimballView) view.receive(n, v);
       else if (typeof v === 'string') view.receive(n, v);
     };
     this.session = { gid, peer, game, host, view: { receive, abandoned: () => view.abandoned(), close: () => view.close() } };

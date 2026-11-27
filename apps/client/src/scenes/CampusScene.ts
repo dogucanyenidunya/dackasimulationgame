@@ -27,7 +27,7 @@ import { ATTR_STEP, PERKS, PERK_EVERY, attrPoints, hasPerk, levelOf, perkPoints 
 import { lateGrace, yetimballSkill } from '../game/buildings';
 import { CLASSIC, NPC_BEDS, NPC_CLASS_DESKS, settle, spotKey, storeSpots, storedSpots, readSpots, type Spots } from '../game/spots';
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
-import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
+import { YetimballView, type YbResult } from '../ui/yetimball';
 import { BasketballView, type BasketResult } from '../ui/basketball';
 import { FootballView, type FootballResult } from '../ui/football';
 import { NetGameView, type NetResult, type NetSport } from '../ui/netgame';
@@ -3225,7 +3225,7 @@ export class CampusScene extends Phaser.Scene {
       const view = new YetimballView(document.body, {
         me: this.save.character.first, them: opponent, host: true,
         send: () => {}, quit: () => {},
-        bot: (tension) => botHit(skill, tension),
+        bot: skill,
         onEnd: resolve,
       });
       const close = view.close.bind(view);
