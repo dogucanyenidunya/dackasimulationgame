@@ -21,6 +21,7 @@ import type { CharacterLook } from '../art/textures';
 import type { DiaryEvent } from '../content/diary';
 import type { YbResult } from '../ui/yetimball';
 import type { BasketResult } from '../ui/basketball';
+import type { FootballResult } from '../ui/football';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -79,6 +80,8 @@ export interface GameCtx {
   playYetimball(opponent: string, skill: number): Promise<YbResult>;
   /** a game of 2-on-2 basketball: you and `mate` against `opps` */
   playBasketball(mate: NpcDef, opps: [NpcDef, NpcDef]): Promise<BasketResult>;
+  /** a game of 3-on-3 football: you, `team[0]` and `team[1]` in goal, against `opps` (the last of them in goal) */
+  playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef]): Promise<FootballResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -2774,6 +2777,18 @@ export async function playMatch(ctx: GameCtx, sport: CourtSport, mates: NpcDef[]
     }
     ours = r.us; theirs = r.them;
     hits = Math.min(5, r.made);
+  } else if (sport === 'football' && mates.length >= 5) {
+    // a real game: you and your two closest friends (the second in goal) against the other three
+    const r = await ctx.playFootball([mates[0], mates[1]], [mates[2], mates[3], mates[4]]);
+    if (r.quit) {
+      ctx.advance(15);
+      ctx.gain({ mood: -3, energy: -5 });
+      for (const m of mates) ctx.befriend(m.id, -1);
+      ctx.toast(T('Maçı yarıda bıraktın; arkadaşların biraz bozuldu.', 'You walked out of the game; your friends were a bit put out.'));
+      return;
+    }
+    ours = r.us; theirs = r.them;
+    hits = Math.min(5, r.goals * 2 + Math.min(1, r.shots));
   } else {
     const zone = 0.16 + skill / 600 + ctx.ch.attributes.fitness / 800 + (hasPerk(ctx.st, 'takimOyuncusu') ? 0.04 : 0);
     hits = await ctx.panel.timing(T('Gole vur!', 'Shoot at goal!'), 5, zone, 1.3);

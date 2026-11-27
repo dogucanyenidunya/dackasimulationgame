@@ -29,6 +29,7 @@ import { CLASSIC, NPC_BEDS, NPC_CLASS_DESKS, settle, spotKey, storeSpots, stored
 import { QUIET_MS, cancelLeaving, leftMessage, showAway, startLeaving, stepLeaving, type Leaving } from './peerExit';
 import { YetimballView, botHit, type YbResult } from '../ui/yetimball';
 import { BasketballView, type BasketResult } from '../ui/basketball';
+import { FootballView, type FootballResult } from '../ui/football';
 import { PhoneRunView, type PhoneRunResult } from '../ui/phoneRun';
 import { listFriends, myInviteCode, removeFriend, requestFriend, respondFriend, setMyName, type Friend } from '../net/friends';
 import { friendName, friendsCard } from '../ui/friends';
@@ -3148,9 +3149,29 @@ export class CampusScene extends Phaser.Scene {
       watchMatch: () => void this.watchMatch(),
       playYetimball: (opponent, skill) => this.playYetimball(opponent, skill),
       playBasketball: (mate, opps) => this.playBasketball(mate, opps),
+      playFootball: (team, opps) => this.playFootball(team, opps),
       runToPhone: (caller, belletmen) => this.runToPhone(caller, belletmen),
       beltNear: () => this.roomBelletmen.visible && Phaser.Math.Distance.Between(this.roomBelletmen.x, this.roomBelletmen.y, this.player.x, this.player.y) < 4 * TILE,
     };
+  }
+
+  /** 3-on-3 football on the pitch: the game screen holds you still until you close it */
+  private playFootball(team: [NpcDef, NpcDef], opps: [NpcDef, NpcDef, NpcDef]): Promise<FootballResult> {
+    this.watching = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    const st = this.save.state, ch = this.save.character;
+    const info = (d: NpcDef) => { const look = { ...DEFAULT_LOOK, ...d.look }; return { name: d.name, skill: yetimballSkill(d), skin: look.skin, hair: look.hair }; };
+    const view = new FootballView(document.body, {
+      me: { name: ch.first, skill: Math.min(1, 0.25 + st.skills.football / 140 + ch.attributes.fitness / 400), skin: ch.look.skin, hair: ch.look.hair, speed: 130 + ch.attributes.fitness * 0.5 },
+      mates: [info(team[0]), info(team[1])], opps: [info(opps[0]), info(opps[1]), info(opps[2])],
+      bonus: hasPerk(st, 'takimOyuncusu') ? 0.04 : 0,
+    });
+    return view.result.then((r) => new Promise<FootballResult>((resolve) => {
+      const close = view.close.bind(view);
+      if (!view.el.isConnected) { this.watching = false; this.refreshClockAndNeeds(); resolve(r); return; }
+      view.close = () => { close(); this.watching = false; this.refreshClockAndNeeds(); resolve(r); };
+    }));
   }
 
   /** 2-on-2 basketball on the court: the game screen holds you still until you close it */
