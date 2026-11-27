@@ -24,6 +24,7 @@ import type { BasketResult } from '../ui/basketball';
 import type { FootballResult } from '../ui/football';
 import type { NetResult, NetSport } from '../ui/netgame';
 import type { MarblesResult } from '../ui/marbles';
+import type { DodgeResult } from '../ui/dodgeball';
 import type { PhoneRunResult } from '../ui/phoneRun';
 import { hasSecret } from './secrets';
 import { chooseFocus, focusLine, focusTick } from './focus';
@@ -90,6 +91,8 @@ export interface GameCtx {
   playRps(npc: NpcDef): Promise<boolean | null>;
   /** a game of marbles in the ring with a classmate */
   playMarbles(npc: NpcDef): Promise<MarblesResult>;
+  /** dodgeball: you and `mates` in the middle, the two `ebes` throwing */
+  playDodgeball(mates: NpcDef[], ebes: [NpcDef, NpcDef]): Promise<DodgeResult>;
   /** the run down the dorm corridor to the phone (`caller` is ringing, `belletmen` is on duty); resolves at the phone */
   runToPhone(caller: string, belletmen: string): Promise<PhoneRunResult>;
 }
@@ -1594,11 +1597,19 @@ function socialActions(npc: NpcDef, ctx: GameCtx, f: number, lock: string | unde
           else if (r.mine < r.theirs) { ctx.befriend(npc.id, 9); ctx.gain({ mood: -2 }); await say(`${r.theirs}–${r.mine}: ${npc.name} senin mavi misketini kazandı ve çok sevindi.`, `${r.theirs}–${r.mine}: ${npc.name} won your blue marble and is over the moon.`); }
           else { ctx.befriend(npc.id, 7); ctx.gain({ mood: 2 }); await say(`${r.mine}–${r.theirs}, berabere! Herkes kendi misketini aldı.`, `${r.mine}–${r.theirs}, a draw! Everyone took their own marbles back.`); }
         } else if (game === 'yakar') {
+          // whoever's about: your friend and a few others in the middle with you, two more throwing
+          const others = NPCS.filter((n) => n.id !== npc.id && (n.kind === 'classmate' || n.kind === 'student')).sort(() => Math.random() - 0.5);
+          const r = await ctx.playDodgeball([npc, ...others.slice(0, 3)], [others[3], others[4]]);
           ctx.advance(30);
-          ctx.befriend(npc.id, 10);
-          ctx.gain({ energy: -8, attrs: { fitness: 1 } });
-          if (Math.random() < 0.25) { ctx.gain({ mood: -3 }); await say('Top tam suratına geldi! Herkes güldü… sen de güldün sonunda. 😅', 'The ball hit you right in the face! Everyone laughed… eventually you did too. 😅'); }
-          else { ctx.gain({ mood: 6 }); await say('Son kalan sen oldun ve takımını kurtardın!', 'You were the last one standing and saved your team!'); }
+          if (r.quit) { ctx.befriend(npc.id, -1); await say(`Oyunu yarıda bıraktın. ${npc.name}: "Yanmaktan mı korktun?"`, `You walked off mid-game. ${npc.name}: "Scared of getting hit?"`); }
+          else {
+            ctx.befriend(npc.id, 10);
+            ctx.gain({ energy: -8, attrs: { fitness: 1 } });
+            if (r.last) { ctx.gain({ mood: 8, xp: 10 }); await say(`Ortada son kalan sen oldun!${r.catches ? ` ${r.catches} kez topu tuttun.` : ''} Herkes seni alkışladı. 🏆`, `You were the last one left in the middle!${r.catches ? ` You caught the ball ${r.catches} times.` : ''} Everyone cheered. 🏆`); }
+            else if (r.won) { ctx.gain({ mood: 6, xp: 6 }); await say('Süre bitene kadar yanmadın! 💪', "You lasted till the end without getting hit! 💪"); }
+            else if (r.seconds < 12) { ctx.gain({ mood: -3 }); await say('Top daha başta tam suratına geldi! Herkes güldü… sen de güldün sonunda. 😅', 'The ball hit you right in the face straight away! Everyone laughed… eventually you did too. 😅'); }
+            else { ctx.gain({ mood: 3 }); await say(`${r.seconds} saniye dayandın, sonra yandın. Fena değil!`, `You lasted ${r.seconds} seconds before you were out. Not bad!`); }
+          }
         } else {
           ctx.advance(40);
           ctx.befriend(npc.id, 12);
