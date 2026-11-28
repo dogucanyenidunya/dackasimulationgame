@@ -125,10 +125,10 @@ const FREE_TIME: Text = { tr: 'Serbest zaman', en: 'Free time' };
 
 export const isWeekend = (day: number) => weekday(day) >= 5;
 
-/** the weekend goes by in one jump, for everyone: from Friday 18:00 straight to Sunday 15:00 (nothing happens in
+/** the weekend goes by in one jump, for everyone: from Friday 17:00 straight to Sunday 17:00 (nothing happens in
  *  between: no hunger, no tiredness, no lessons missed). The registration days (before the first Monday) keep theirs. */
-export const WEEKEND_FROM = h(18);
-export const WEEKEND_TO = h(15);
+export const WEEKEND_FROM = h(17);
+export const WEEKEND_TO = h(17);
 /** inside the skipped stretch: Friday evening, all of Saturday, Sunday morning */
 export function inWeekendGap(day: number, minutes: number): boolean {
   if (day < FIRST_MONDAY) return false;
@@ -137,7 +137,7 @@ export function inWeekendGap(day: number, minutes: number): boolean {
 }
 /** where the jump lands: that weekend's Sunday at 15:00 */
 export const afterWeekend = (day: number) => ({ day: day + ((6 - weekday(day) + 7) % 7), minutes: WEEKEND_TO });
-/** does a jump from one moment to another (absolute minutes) pass a Friday 18:00, i.e. skip a weekend? */
+/** does a jump from one moment to another (absolute minutes) pass a Friday 17:00, i.e. skip a weekend? */
 export function skipsWeekend(fromAbs: number, toAbs: number): boolean {
   const d = Math.floor(fromAbs / (24 * 60));
   let t = (d + ((4 - weekday(d) + 7) % 7)) * 24 * 60 + WEEKEND_FROM;

@@ -83,6 +83,8 @@ export const RULES: Record<string, Rule> = {
   // older students (abi / abla): what they can do for a little one they know
   advice: { group: 'talk', min: 'known', ages: ['older'] },
   errand: { group: 'help', min: 'known', ages: ['older'] },
+  'errand-give': { group: 'help', ages: ['older'] },
+  'errand-wait': { group: 'help', ages: ['older'] },
   protect: { group: 'help', min: 'friend', ages: ['older'] },
   notes: { group: 'help', min: 'close', ages: ['older'] },
 

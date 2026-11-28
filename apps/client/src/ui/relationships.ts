@@ -12,7 +12,7 @@ function bar(v: number): string {
   return `<div class="rel-bar"><span class="mid"></span><i class="${v < 0 ? 'neg' : 'pos'}" style="${v < 0 ? `right:50%` : `left:50%`};width:${w}%"></i></div>`;
 }
 
-export function relationshipsCard(st: PlayerState, classDrawn: boolean, onRename: (name: string) => void): HTMLElement {
+export function relationshipsCard(st: PlayerState, classDrawn: boolean): HTMLElement {
   const el = document.createElement('div');
   el.className = 'card missions-card rel-card';
   const gid = myGroup(st);
@@ -44,10 +44,9 @@ export function relationshipsCard(st: PlayerState, classDrawn: boolean, onRename
     <div class="strength-card" style="margin-top:12px">
       <div class="sc-label">${L({ tr: 'Grubun', en: 'Your group' })}</div>
       ${group
-        ? `<div class="sc-name">${esc(st.groupName || L({ tr: 'İsimsiz grup', en: 'Unnamed group' }))}</div>
+        ? `<div class="sc-name">${esc(groupLabel(group.id, st))}</div>
            <p>${esc(members(group.id))}</p>
            <p>${L({ tr: 'Grubundakilerle arkadaşlığın %25 daha hızlı gelişir ve seni kötü sürprizlere karşı korurlar.', en: 'Friendships with your group grow 25% faster, and they protect you from nasty surprises.' })}</p>
-           <div class="rename"><input type="text" maxlength="20" placeholder="${L({ tr: 'Grubuna bir isim ver (isteğe bağlı)', en: 'Name your group (optional)' })}" value="${esc(st.groupName ?? '')}"><button type="button" class="secondary save-name">${L({ tr: 'Kaydet', en: 'Save' })}</button></div>
            <div class="sc-keep">⚔ ${L({ tr: 'Rakip grup', en: 'Rival group' })}: <b>${esc(groupLabel(rival!.id, st))}</b></div>`
         : `<p>${L({ tr: 'Henüz bir grubun yok. Aynı arkadaş grubundan en az 2 kişiyle arkadaş olunca o gruba katılırsın.', en: "You don't have a group yet. Become friends with at least 2 people from the same circle to join it." })}</p>`}
     </div>
@@ -55,12 +54,5 @@ export function relationshipsCard(st: PlayerState, classDrawn: boolean, onRename
     ${groupCounts}
     <div class="m-section">${L({ tr: 'Tanıdığın herkes', en: 'Everyone you know' })} (${sorted.length})</div>
     ${sorted.length ? sorted.map((n) => row(n.id)).join('') : `<p>${L({ tr: 'Henüz kimseyle tanışmadın.', en: "You haven't met anyone yet." })}</p>`}`;
-  el.querySelector('.save-name')?.addEventListener('click', () => {
-    const v = (el.querySelector('.rename input') as HTMLInputElement).value.trim().slice(0, 20);
-    onRename(v);
-    (el.querySelector('.sc-name') as HTMLElement).textContent = v || L({ tr: 'İsimsiz grup', en: 'Unnamed group' });
-  });
-  // typing in the name field shouldn't trigger game hotkeys
-  el.querySelector('.rename input')?.addEventListener('keydown', (e) => e.stopPropagation());
   return el;
 }

@@ -275,8 +275,6 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .rel-level { font-size: 13px; text-align: right; }
 .sum-row small { color: #7b8387; font-weight: 400; }
 @media (max-width: 560px) { .rel-row { grid-template-columns: 1fr; gap: 4px; } .rel-level { text-align: left; } }
-.rename { display: flex; gap: 6px; margin: 8px 0; }
-.rename input { flex: 1; font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
 .night-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; mix-blend-mode: multiply; }
 #game { z-index: 0; }
 #hud { z-index: 2; }

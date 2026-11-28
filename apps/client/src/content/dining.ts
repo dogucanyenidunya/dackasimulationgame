@@ -10,20 +10,24 @@ export const DINING_OX = CLASS_OX + CLASS_W + 80;
 export const DT = { COUNTER: 29, TABLE: 30, SINK: 31, KANTIN: 32 } as const;
 export const DINING_SOLID = [DT.COUNTER, DT.TABLE, DT.SINK, DT.KANTIN];
 
-/** long tables: [x, y, length]: two full rows of three, and a third row either side of the aisle to the door */
+/** long tables: [x, y, length]: three rows of three */
 export const TABLES: Array<[number, number, number]> = [
   [3, 6, 5], [11, 6, 5], [19, 6, 5],
   [3, 10, 5], [11, 10, 5], [19, 10, 5],
-  [3, 13, 5], [19, 13, 5],
+  [3, 13, 5], [11, 13, 5], [19, 13, 5],
 ];
 /** seats: the tiles just above and below every table tile; `faces` is the sprite direction (0 down, 3 up) */
 export const SEATS: Array<{ x: number; y: number; faces: 0 | 3 }> = [];
 for (const [tx, ty, len] of TABLES) for (let x = tx; x < tx + len; x++) { SEATS.push({ x, y: ty - 1, faces: 0 }); SEATS.push({ x, y: ty + 1, faces: 3 }); }
 export const COUNTER_TILES: Array<[number, number]> = [];
 for (let x = 7; x <= 19; x++) COUNTER_TILES.push([x, 3]);
-export const SINKS: Array<[number, number]> = [[1, 9], [1, 10]];
-export const DINING_EXIT: Array<[number, number]> = [[13, 16], [14, 16]];
-export const DINING_SPAWN: [number, number] = [13.9, 15.2];
+/** (you wash your hands outside now, at the basins between the two doors: see OUTDOOR_SINK) */
+export const SINKS: Array<[number, number]> = [];
+/** the two doors, in the south-west and south-east corners (matching the building's two doors outside) */
+export const DINING_EXIT: Array<[number, number]> = [[2, 16], [3, 16], [23, 16], [24, 16]];
+/** where you come in: by the west door, or the east one */
+export const DINING_SPAWN: [number, number] = [2.9, 15.2];
+export const DINING_SPAWN_EAST: [number, number] = [23.9, 15.2];
 export const COOKS: Array<[number, number]> = [[9, 2.4], [13.5, 2.4], [18, 2.4]];
 
 export function buildDining(): number[][] {

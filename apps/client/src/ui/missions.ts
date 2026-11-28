@@ -69,6 +69,14 @@ function takenHtml(c: MissionCtx): string {
       f.stage === 'accepted' ? L({ tr: 'Kitabı Kütüphane\'ye iade et', en: 'Return the book to the library' }) : L({ tr: `${dativeTr(g)} dön ve sandviçini al`, en: `Go back to ${g} for your sandwich` }),
       f.stage === 'accepted' ? placesOf(['kutuphane']) : placesOf(['yurt_meydani']));
   }
+  // an errand for an abi or abla (a soda from the canteen)
+  const e = c.st.errand;
+  if (e.giver && e.stage !== 'none') {
+    const g = NPCS.find((n) => n.id === e.giver)?.name ?? '';
+    row('', `🏃 ${g}`, L({ tr: `${genitiveTr(g)} ayak işi: gazoz`, en: `An errand for ${g}: a soda` }),
+      e.stage === 'fetch' ? L({ tr: 'Şakir Abi\'nin kantininden gazoz al', en: "Buy a soda at Şakir's canteen" }) : L({ tr: `Gazozu ${dativeTr(g)} götür`, en: `Take the soda to ${g}` }),
+      e.stage === 'fetch' ? placesOf(['spor']) : placesOf(['yurt_meydani']));
+  }
   // side quests you've taken
   for (const id of c.st.side.taken) {
     const m = MISSIONS.find((x) => x.id === id);
@@ -146,6 +154,7 @@ export function missionsCard(c: MissionCtx): HTMLElement {
   };
   el.querySelectorAll<HTMLButtonElement>('.tnode').forEach((b) => b.addEventListener('click', () => select(b.dataset.id!)));
   el.querySelectorAll<HTMLButtonElement>('.taken-row').forEach((b) => b.addEventListener('click', () => {
+    if (!b.dataset.id) return; // (an errand isn't a mission in the tree)
     select(b.dataset.id!);
     el.querySelector('.tnode.sel')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }));

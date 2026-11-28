@@ -35,9 +35,8 @@ export const SURPRISES: Surprise[] = [
   { text: (w) => ({ tr: `${w} kahvaltıda yerini kaptı ve gülüp geçti.`, en: `${w} grabbed your seat at breakfast and laughed it off.` }), effect: { mood: -4 } },
 ];
 
-/** "Mert'in grubu" / "Mert's group", or your own name for your group */
-export function groupLabel(gid: GroupId, st: PlayerState): string {
-  if (gid === myGroup(st) && st.groupName) return st.groupName;
+/** "Mert'in grubu" / "Mert's group" */
+export function groupLabel(gid: GroupId, _st: PlayerState): string {
   const leader = NPCS.find((n) => n.id === GROUPS.find((g) => g.id === gid)!.leader)!.name;
   return L({ tr: `${genitiveTr(leader)} grubu`, en: `${leader}'s group` });
 }

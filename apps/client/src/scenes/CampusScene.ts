@@ -3,7 +3,7 @@ import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import { onboardingCard } from '../ui/onboarding';
 import { BODY_FONT, TITLE_FONT, titleCase } from '../ui/fonts';
 import {
-  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, DORM_COURT, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, timWallAt, wallAt,
+  AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, DORM_COURT, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, OUTDOOR_SINK, timWallAt, wallAt,
   MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, BARRIERS, CAGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
   AGE_ZONES, CENTER_ZONES, inDormBacks, liseYard, EVENING_CENTER, EVENING_ZONES, buildMap, doorInPassage, doorStandTile, inPoly, nearestEdge, passageAt, type Building, type Location, type Rect,
 } from '../content/campus';
@@ -57,13 +57,13 @@ import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, ty
 import { SECRETS, dueSecrets, hasSecret } from '../game/secrets';
 import { chooseFocus, focusLine, focusMult, focusTick } from '../game/focus';
 import { AXES, arcLine, dilemmaDone, matchState, runDilemma, shape, type DilemmaId } from '../game/dilemmas';
-import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
+import { COOKS, COUNTER_TILES, DINING_EXIT, DINING_H, DINING_OX, DINING_SOLID, DINING_SPAWN, DINING_SPAWN_EAST, DINING_W, SEATS, SINKS, TABLES, buildDining } from '../content/dining';
 import { BELLETMENS, DEPUTY, GROUPS, NPCS, TEACHER_NPCS, ageGroup, genitiveTr, type NpcDef } from '../content/npcs';
 import { BORROWED, PYJAMAS, wornLook } from '../content/wardrobe';
 import { writeDiary, type DiaryEvent } from '../content/diary';
 import { myGroup, dislikers, groupLabel, SURPRISES } from '../game/social';
 import { relationshipsCard } from '../ui/relationships';
-import { CEREMONY, ETUT_START, FIRST_MONDAY, lightsOut, setLightsOut, afterWeekend, inWeekendGap, skipsWeekend, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
+import { CEREMONY, ETUT_START, FIRST_MONDAY, lightsOut, setLightsOut, afterWeekend, inWeekendGap, skipsWeekend, WEEKEND_TO, presentKey, RUSH_DAYS, RUSH_END, RUSH_MORNING, RUSH_NIGHT, RUSH_TOTAL, WAKE_UP, ceremonyNow, ceremonyWindow, diningOpen, phaseOf, rushLeft, weekOf, weekday as weekdayOf, type DayPhase } from '../game/schedule';
 import {
   GIVER_IDS, MISSIONS, missionById, nextObjective, questMark, reached, statusOf, trackedMission, type MissionCtx,
 } from '../game/missions';
@@ -376,6 +376,26 @@ export class CampusScene extends Phaser.Scene {
 
     // decor
     const trees = this.physics.add.staticGroup();
+    // the wash basins against the Yemekhane's south wall, between its two doors
+    {
+      const k = 'outdoor-sink', w = OUTDOOR_SINK.w * TILE, h = 34;
+      if (!this.textures.exists(k)) {
+        const t = this.textures.createCanvas(k, w * ART_RES, h * ART_RES)!;
+        const c = t.getContext(); c.setTransform(ART_RES, 0, 0, ART_RES, 0, 0);
+        // a tiled splashback on the wall, the stone trough, three taps
+        c.fillStyle = '#dfe6e9'; c.fillRect(4, 0, w - 8, 16);
+        c.fillStyle = '#c8d1d6'; for (let x = 4; x < w - 4; x += 6) c.fillRect(x, 0, 1, 16); for (let y = 0; y < 16; y += 6) c.fillRect(4, y, w - 8, 1);
+        c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(2, h - 4, w - 2, 4);
+        c.fillStyle = '#b9b2a3'; c.beginPath(); c.roundRect(0, 14, w, h - 16, 3); c.fill();
+        c.fillStyle = '#8f8778'; c.beginPath(); c.roundRect(4, 17, w - 8, h - 24, 2); c.fill();
+        c.fillStyle = '#9fc3d6'; c.beginPath(); c.roundRect(6, 19, w - 12, h - 28, 2); c.fill();
+        for (let i = 0; i < 3; i++) { const tx = w * (i + 0.5) / 3; c.fillStyle = '#c4c8cc'; c.fillRect(tx - 1.5, 6, 3, 12); c.fillRect(tx - 4, 6, 8, 3); c.fillStyle = '#f4f4f2'; c.fillRect(tx - 1, 7, 1, 10); }
+        t.refresh(); t.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      }
+      const sink = trees.create(OUTDOOR_SINK.x * TILE, OUTDOOR_SINK.y * TILE + 8, k) as Phaser.Physics.Arcade.Sprite;
+      sink.setOrigin(0, 1).setScale(1 / ART_RES).setDepth(OUTDOOR_SINK.y * TILE + 8).refreshBody();
+      sink.body!.setSize(w, 12).setOffset(0, h - 12);
+    }
     for (const [x, y] of TREES) {
       const tree = trees.create(x * TILE + 16, y * TILE - 4, 'tree') as Phaser.Physics.Arcade.Sprite;
       tree.setScale(1 / ART_RES).setDepth(y * TILE + 30).refreshBody();
@@ -1197,14 +1217,16 @@ export class CampusScene extends Phaser.Scene {
   private enterDining() {
     if (!this.room) this.outdoorZoom = this.cameras.main.zoom;
     this.room = 'dining';
-    this.player.setPosition((DINING_OX + DINING_SPAWN[0]) * TILE, DINING_SPAWN[1] * TILE).setVelocity(0, 0);
+    // in by the door you came to: the west one or the east one
+    const spawn = this.lastDoor && this.lastDoor.x >= 48 ? DINING_SPAWN_EAST : DINING_SPAWN;
+    this.player.setPosition((DINING_OX + spawn[0]) * TILE, spawn[1] * TILE).setVelocity(0, 0);
     this.dir = 3;
     this.setCameraArea();
     this.cameras.main.fadeIn(280, 10, 14, 20);
     this.hud.setPrompt(null);
     const m = currentMeal(this.gameCtx());
     if (m || isSnackTime(this.save.clock.minutes)) this.hud.toast(m
-      ? L({ tr: `${m.name} servisi var: ellerini yıka, tezgâhtan tepsini al ve boş bir yere otur.`, en: `${m.name} is being served: wash your hands, get a tray at the counter and find a free seat.` })
+      ? L({ tr: `${m.name} servisi var: tezgâhtan tepsini al ve boş bir yere otur. (Ellerini kapıların arasındaki lavabolarda yıkayabilirsin.)`, en: `${m.name} is being served: get a tray at the counter and find a free seat. (You can wash your hands at the basins between the doors outside.)` })
       : L({ tr: 'Ara öğün saati: tezgâhta poğaça, simit ve kek var.', en: 'Snack time: poğaça, simit and cake at the counter.' }));
     // (the first time: how the tables work)
     if (m && !this.save.state.once.devreTip) {
@@ -1707,6 +1729,13 @@ export class CampusScene extends Phaser.Scene {
     }
     if (this.cemilOut.visible && Phaser.Math.Distance.Between(this.cemilOut.x, this.cemilOut.y, this.player.x, this.player.y) < TALK_RANGE) {
       return { label: 'Cemil Emmi', open: () => { const g = ctx(); this.panel.open(() => cemilPanel(g)); } };
+    }
+    // the wash basins outside the Yemekhane
+    {
+      const sx = (OUTDOOR_SINK.x + OUTDOOR_SINK.w / 2) * TILE, sy = (OUTDOOR_SINK.y + 0.4) * TILE;
+      if (Math.abs(this.player.x - sx) < (OUTDOOR_SINK.w / 2 + 0.4) * TILE && Math.abs(this.player.y - sy) < 0.9 * TILE) {
+        return { label: L({ tr: 'Ellerini yıka', en: 'Wash your hands' }), open: () => washHands(ctx()) };
+      }
     }
     // in a PE lesson the pitch and the court are the classroom
     const pe = this.npcById.get('ogr-beden');
@@ -4109,7 +4138,7 @@ export class CampusScene extends Phaser.Scene {
 
   private showRelationships() {
     this.player.setVelocity(0, 0);
-    this.hud.openCard(relationshipsCard(this.save.state, !!this.save.state.once.classDrawn, (name) => { this.save.state.groupName = name || undefined; this.persist(); }), ['Escape']);
+    this.hud.openCard(relationshipsCard(this.save.state, !!this.save.state.once.classDrawn), ['Escape']);
   }
 
   private mc(): MissionCtx {
@@ -4132,9 +4161,8 @@ export class CampusScene extends Phaser.Scene {
       this.groupId = g;
       const info = GROUPS.find((x) => x.id === g);
       if (info) {
-        st.groupName = undefined; // a new circle starts unnamed
         const names = NPCS.filter((n) => n.group === info.id && (st.friends[n.id] ?? 0) >= FRIEND_AT).map((n) => n.name);
-        this.hud.toast(L({ tr: `👥 Artık bir arkadaş grubun var: ${names.join(', ')}. İstersen ona bir isim ver (R).`, en: `👥 You have a friend group now: ${names.join(', ')}. Give it a name if you like (R).` }), 'good');
+        this.hud.toast(L({ tr: `👥 Artık bir arkadaş grubun var: ${names.join(', ')}.`, en: `👥 You have a friend group now: ${names.join(', ')}.` }), 'good');
         sfx.friend();
         const rival = GROUPS.find((x) => x.id === info.rival)!;
         if (!st.once[`rival-${rival.id}`]) {
@@ -4476,7 +4504,7 @@ export class CampusScene extends Phaser.Scene {
     const before = c.minutes;
     c.minutes += 1;
     if (c.minutes >= 24 * 60) { c.minutes = 0; c.day += 1; }
-    // Friday 18:00: the weekend goes by in one jump, to Sunday 15:00 (after the registration days)
+    // Friday 17:00: the weekend goes by in one jump, to Sunday 17:00 (after the registration days)
     if (!this.rushOn() && inWeekendGap(c.day, c.minutes)) { this.skipWeekend(); return; }
     // in class when a lesson begins (out on the pitch for PE): you can sit down any time in it without a late slip
     const lp = currentPeriod(c.day, c.minutes);
@@ -4615,7 +4643,7 @@ export class CampusScene extends Phaser.Scene {
     this.hud.toast(L({ tr: `💌 ${L(from)} harçlık gönderdi: +${amount} ₺`, en: `💌 ${L(from)} sent pocket money: +${amount} ₺` }), 'good');
   }
 
-  /** Friday 18:00 → Sunday 15:00 in one go (solo play; online the campus clock does the same): nothing happens in
+  /** Friday 17:00 → Sunday 17:00 in one go (solo play; online the campus clock does the same): nothing happens in
    *  between, hunger, energy and health stay as they were; whatever you were doing has had that much time */
   private skipWeekend() {
     const c = this.save.clock;
@@ -4635,7 +4663,7 @@ export class CampusScene extends Phaser.Scene {
   private weekendGone(atHome: boolean) {
     this.sendAllowance();
     if (atHome) return; // (the weekend at home has its own card when you're back)
-    this.hud.toast(L({ tr: '🌙 Hafta sonu geçti: Pazar 15:00. Etüt 18:00\'de.', en: "🌙 The weekend went by: it's Sunday 15:00. Study time is at 18:00." }), 'good');
+    this.hud.toast(L({ tr: `🌙 Hafta sonu geçti: Pazar ${fmtTime(WEEKEND_TO)}. Etüt 18:00'de.`, en: `🌙 The weekend went by: it's Sunday ${fmtTime(WEEKEND_TO)}. Study time is at 18:00.` }), 'good');
   }
 
   /** time passes because of an action. Offline the clock jumps ahead. Online there's one shared clock: you only wait it

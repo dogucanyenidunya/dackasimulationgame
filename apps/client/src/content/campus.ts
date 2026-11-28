@@ -228,8 +228,8 @@ export const PATHS: Rect[] = [
   { x: 56, y: 40, w: 16, h: 1 },   // the wide stretch of the south street
   { x: 41, y: 49, w: 17, h: 2 },   // behind the Cemiyet
   { x: 29, y: 26, w: 4, h: 4 },    // the corridor's west mouth ↔ Yurt Meydanı
-  { x: 26, y: 47, w: 2, h: 2 },    // TIM door…
-  { x: 26, y: 48, w: 8, h: 2 },    // …across its yard…
+  { x: 24, y: 46, w: 2, h: 3 },    // TIM door (on the south-west of the dome)…
+  { x: 24, y: 48, w: 10, h: 2 },   // …across its yard…
   { x: 31, y: 48, w: 3, h: 4 },    // …to its own gate
   { x: 30, y: 53, w: 13, h: 1 },   // the pavement on Darüşşafaka Cd, from Ana Kapı to the TIM gate
   { x: 36, y: 44, w: 3, h: 2 },    // behind the Eğitim wing, off the main street
@@ -303,6 +303,8 @@ export const GATES: Rect[] = [GATE, TIM_GATE];
 
 /** player spawn (tile coords, can be fractional) */
 export const SPAWN = { x: 40.5, y: 50.5 };
+/** the wash basins outside the Yemekhane, against its south wall between its two doors (tiles; y is the wall's foot) */
+export const OUTDOOR_SINK = { x: 46.75, y: 23, w: 3 };
 /** the guards' gatehouse, built into the wall right against the gate's east pillar (its window looks out on the road) */
 export const CABIN: Rect = { x: 42.9, y: 51, w: 2.4, h: 2 };
 /** the campus is walled in: every fence tile carries a tall stretch of wall, except where the gate's pillars
@@ -501,7 +503,7 @@ export const LOCATIONS: Location[] = [
     id: 'tim', kind: 'building',
     name: { tr: 'TIM Gösteri Merkezi', en: 'TIM Gösteri Merkezi' }, sub: { tr: 'Konferans salonu · sahne', en: 'Auditorium · stage' },
     info: { tr: 'Kırmızı koltuklar ve büyük bir sahne. Törenler, seçimler ve tiyatro gösterileri burada yapılır. Duvarlarla çevrili kendi bahçesinde durur: kampüsten geçiş yoktur, yalnızca sokaktaki kendi kapısından girilir (Ana Kapı\'nın biraz batısında).', en: 'Red seats and a big stage. Ceremonies, elections and plays happen here. It stands in its own walled yard: there is no way in from the campus, only through its own gate on the street, a little west of Ana Kapı.' },
-    rect: { x: TIM_C[0] - TIM_R, y: TIM_C[1] - TIM_R, w: TIM_R * 2, h: TIM_R * 2 }, doors: [{ x: 26, y: 46, side: 's' }, { x: 27, y: 46, side: 's' }], minimapColor: '#e2c48f',
+    rect: { x: TIM_C[0] - TIM_R, y: TIM_C[1] - TIM_R, w: TIM_R * 2, h: TIM_R * 2 }, doors: [{ x: 24, y: 45, side: 's' }, { x: 25, y: 45, side: 's' }], minimapColor: '#e2c48f',
   },
   {
     id: 'egitim', kind: 'building',
@@ -519,7 +521,7 @@ export const LOCATIONS: Location[] = [
     id: 'yemekhane', kind: 'building',
     name: { tr: 'Yemekhane', en: 'Yemekhane' }, sub: { tr: 'Yemek salonu · çatı terası', en: 'Dining hall · roof terrace' },
     info: { tr: 'Kahvaltı 07:00, öğle 12:20, ara öğün 16:00–17:00 (poğaça, simit, kek), akşam 17:00. Kulüp odaları ve çatı terası da burada; arkasında Teknik Alan var.', en: 'Breakfast 07:00, lunch 12:20, afternoon snack 16:00–17:00 (poğaça, simit, cake), dinner 17:00. Club rooms and the roof terrace too; the Teknik Alan is at the back.' },
-    rect: { x: 41.5, y: 14, w: 13.5, h: 9 }, label: { x: 48.2, y: 19.5 }, doors: [{ x: 47, y: 22, side: 's' }, { x: 48, y: 22, side: 's' }], minimapColor: '#9fb3c8',
+    rect: { x: 41.5, y: 14, w: 13.5, h: 9 }, label: { x: 48.2, y: 19.5 }, doors: [{ x: 42, y: 22, side: 's' }, { x: 54, y: 22, side: 's' }], minimapColor: '#9fb3c8',
   },
   {
     id: 'teknik', kind: 'building',

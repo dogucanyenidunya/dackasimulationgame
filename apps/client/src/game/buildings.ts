@@ -893,6 +893,23 @@ function sakirActions(ctx: GameCtx): ActionView[] {
 }
 
 /** Şakir Abi's canteen, inside the Spor Salonu */
+/** an abi or abla sent you for a soda: buy it here (with their money) */
+function errandAtKantin(ctx: GameCtx, open: boolean): ActionView[] {
+  const e = ctx.st.errand;
+  if (e.stage !== 'fetch' || !e.giver) return [];
+  const g = NPCS.find((n) => n.id === e.giver)?.name ?? '';
+  return [{
+    id: 'errand-buy', label: T(`🥤 ${g} için gazoz al`, `🥤 Buy a soda for ${g}`), hint: T('Onun parasıyla', 'With their money'),
+    locked: open ? undefined : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).'),
+    run: () => {
+      e.stage = 'got';
+      ctx.advance(5);
+      ctx.befriend(SAKIR, 1);
+      ctx.toast(T(`🥤 Gazoz elinde. Şimdi ${g}'a götür.`, `🥤 You've got the soda. Now take it to ${g}.`), 'good');
+    },
+  }];
+}
+
 function kantinRoom(ctx: GameCtx): RoomView {
   const minutes = ctx.clock.minutes;
   const kantinOpen = minutes >= 8 * 60 && minutes < 18 * 60;
@@ -904,6 +921,7 @@ function kantinRoom(ctx: GameCtx): RoomView {
       : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).'),
     actions: [
       ...visitActions(ctx),
+      ...errandAtKantin(ctx, kantinOpen),
       ...(kantinOpen ? sakirActions(ctx) : []),
       ...KANTIN.map((k) => ({
         id: k.id, label: `${L(k.name)} · ${price(ctx, k.price)} ₺`, hint: T(`Sıcak, hemen yenir · +${k.hunger} tokluk · +${k.mood} moral`, `Hot, eaten on the spot · +${k.hunger} fullness · +${k.mood} mood`),
@@ -2047,19 +2065,34 @@ function olderActions(npc: NpcDef, ctx: GameCtx, lock: string | undefined): Acti
         await say(`"${tr}"`, `"${en}"`);
       },
     },
-    {
-      id: 'errand', label: T('🏃 Ayak işi yap', '🏃 Run an errand for them'), hint: T('15 dk · kantinden bir şey getirirsin · +10 arkadaşlık · günde bir', '15 min · fetch something from the canteen · +10 friendship · once a day'),
-      locked: lock ?? once('errand') ?? (kantinOpen ? undefined : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).')),
+    // the errand is a little side quest: take it here, buy the soda at Şakir's canteen (Spor Salonu), bring it back
+    ...(st.errand.giver === npc.id && st.errand.stage === 'got' ? [{
+      id: 'errand-give', label: T('🥤 Gazozu ver', '🥤 Hand over the soda'), hint: T('+10 arkadaşlık', '+10 friendship'),
       run: async () => {
-        mark('errand'); nudge(ctx, { warmth: -1, loyalty: 1 }); ctx.advance(15); ctx.befriend(npc.id, 10); ctx.gain({ xp: 5, energy: -3 });
+        st.errand = { giver: null, stage: 'none' };
+        nudge(ctx, { warmth: -1, loyalty: 1 }); ctx.befriend(npc.id, 10); ctx.gain({ xp: 10, energy: -3 });
         const tip = Math.random() < 0.5;
         if (tip) ctx.gain({ money: 5 });
         await say(
-          `Kantine koşup ${girl ? 'ablana' : 'abine'} bir gazozla bir paket bisküvi getirdin.${tip ? ' "Üstü sende kalsın ufaklık." +5 ₺' : ' "Eyvallah, sağ ol."'}`,
-          `You ran to the canteen and brought back a soda and a packet of biscuits.${tip ? ' "Keep the change, little one." +5 ₺' : ' "Cheers, thanks."'}`,
+          `Gazozu ${girl ? 'ablana' : 'abine'} uzattın, buz gibiydi.${tip ? ' "Üstü sende kalsın ufaklık." +5 ₺' : ' "Eyvallah, sağ ol."'}`,
+          `You handed over the soda, ice cold.${tip ? ' "Keep the change, little one." +5 ₺' : ' "Cheers, thanks."'}`,
         );
       },
-    },
+    } as ActionView] : st.errand.giver === npc.id && st.errand.stage === 'fetch' ? [{
+      id: 'errand-wait', label: T('🥤 Gazoz hâlâ alınmadı', "🥤 You haven't got the soda yet"),
+      locked: T('Spor Salonu\'ndaki Şakir Abi\'nin kantininden gazozu al, sonra getir.', "Get the soda at Şakir's canteen in the Spor Salonu, then bring it here."), run: () => {},
+    } as ActionView] : [{
+      id: 'errand', label: T('🏃 Ayak işi yap', '🏃 Run an errand for them'), hint: T('Kantinden gazoz getir · +10 arkadaşlık · günde bir', 'Fetch a soda from the canteen · +10 friendship · once a day'),
+      locked: lock ?? once('errand') ?? (st.errand.stage !== 'none' ? T('Önce üstlendiğin ayak işini bitir.', 'Finish the errand you already took on first.') : kantinOpen ? undefined : T('Kantin kapalı (08:00–18:00).', 'The canteen is closed (08:00–18:00).')),
+      run: async () => {
+        mark('errand');
+        st.errand = { giver: npc.id, stage: 'fetch' };
+        await say(
+          `"Ufaklık, bana kantinden bir gazoz getirir misin? Al şu parayı. Şakir Abi\'nin kantini, Spor Salonu\'nda."`,
+          `"Hey kid, could you get me a soda from the canteen? Here's the money. Şakir's canteen, in the Spor Salonu."`,
+        );
+      },
+    } as ActionView]),
     {
       id: 'protect', label: T(`🛡️ ${girl ? 'Ablandan' : 'Abinden'} arka çıkmasını iste`, '🛡️ Ask them to have your back'), hint: worst ? T(`${worst.name} seninle uğraşıyor · bir hafta kimse sana bulaşmaz · haftada bir`, `${worst.name} keeps picking on you · nobody messes with you for a week · once a week`) : T('Biri sana bulaşırsa', 'When someone picks on you'),
       locked: lock ?? (!worst ? T('Şu an sana bulaşan kimse yok.', 'Nobody is picking on you right now.') : (st.daily.protectNext ?? 0) > day ? T('Bu hafta zaten konuştu.', 'They already had a word this week.') : undefined),
