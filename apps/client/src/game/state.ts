@@ -22,7 +22,7 @@ export const SUBJECTS: Array<{ id: SubjectId; name: Text }> = [
 const emptyScores = (): Record<SubjectId, number[]> => Object.fromEntries(SUBJECTS.map((s) => [s.id, []])) as unknown as Record<SubjectId, number[]>;
 const zeroLessons = (): Record<SubjectId, number> => Object.fromEntries(SUBJECTS.map((s) => [s.id, 0])) as unknown as Record<SubjectId, number>;
 /** the year-end exam opens once you've sat in on every subject this many times */
-export const LESSONS_PER_SUBJECT = 3;
+export const LESSONS_PER_SUBJECT = 2;
 export const lessonsLeft = (st: PlayerState) => SUBJECTS.reduce((n, s) => n + Math.max(0, LESSONS_PER_SUBJECT - (st.school.lessons[s.id] ?? 0)), 0);
 
 export interface PlayerState {
