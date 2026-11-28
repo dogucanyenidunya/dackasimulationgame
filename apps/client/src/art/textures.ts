@@ -231,8 +231,8 @@ const TILE_PAINTERS: Record<number, (ctx: Ctx, ox: number) => void> = {
   30: (c, o) => { // long dining table
     TILE_PAINTERS[17](c, o);
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(o, 25, 32, 4);
-    c.fillStyle = '#e8d6b4'; c.fillRect(o, 6, 32, 19);
-    c.fillStyle = '#d4bf98'; c.fillRect(o, 23, 32, 2); c.fillRect(o, 6, 32, 1);
+    c.fillStyle = '#c0392b'; c.fillRect(o, 6, 32, 19);
+    c.fillStyle = '#7e231d'; c.fillRect(o, 23, 32, 2); c.fillRect(o, 6, 32, 1);
     c.fillStyle = '#ffffff'; c.fillRect(o + 4, 10, 8, 6); c.fillRect(o + 20, 14, 8, 6);
     c.fillStyle = '#4f8fc0'; c.fillRect(o + 14, 9, 3, 5);
   },

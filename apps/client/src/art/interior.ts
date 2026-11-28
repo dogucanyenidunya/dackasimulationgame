@@ -232,9 +232,11 @@ function counter(c: Ctx, o: number, y: number, seed: number) {
 function diningTable(c: Ctx, o: number, y: number, left: boolean, right: boolean, seed: number) {
   const x0 = left ? o + 1.5 : o, x1 = right ? o + 30.5 : o + 32;
   softShadow(c, x0, y + 6, x1 - x0, 19, 0.22);
-  c.fillStyle = lin(c, 0, y + 6, 0, y + 25, [[0, '#f4e6c8'], [1, '#dcc59c']]);
+  // a red tabletop with a darker edge
+  c.fillStyle = lin(c, 0, y + 6, 0, y + 25, [[0, '#d24a3c'], [1, '#a9322a']]);
   c.beginPath(); c.roundRect(x0, y + 6, x1 - x0, 19, [left ? 1.5 : 0, right ? 1.5 : 0, right ? 1.5 : 0, left ? 1.5 : 0]); c.fill();
-  c.fillStyle = '#c4ab80'; c.fillRect(x0, y + 23.4, x1 - x0, 1.6);
+  c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(x0, y + 6, x1 - x0, 1.2);
+  c.fillStyle = '#7e231d'; c.fillRect(x0, y + 23.4, x1 - x0, 1.6);
   const r = rng(seed);
   const plate = (px: number, py: number) => {
     c.fillStyle = 'rgba(0,0,0,0.12)'; c.beginPath(); c.ellipse(px + 0.5, py + 0.8, 4.2, 3.2, 0, 0, Math.PI * 2); c.fill();
