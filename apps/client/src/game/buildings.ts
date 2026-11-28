@@ -11,7 +11,7 @@ import { BAG_MAX, BORROWED, LOCKER_MAX, loanOf, outfitById, ownedOutfits, snackB
 import { MATCH_TIP, lightsOut, matchOn, ceremonyNow, ETUT_START, currentPeriod, diningOpen, fmtTime, hasEtut, isSnackTime, isWeekend, LATE_AFTER, LATE_AFTER_PE, presentKey, PERIODS, periodLabel, phaseOf, PLAZA_START, SNACK_END, SNACK_START, subjectFor } from './schedule';
 import { CLASS_LETTERS, SCHOOL_PRESIDENT_GRADE, DEV, ESCAPE_FROM_YEAR, grade, dormPlace, LESSONS_PER_SUBJECT, SUBJECTS, FRIEND_AT, YEAR1_XP, clamp, COURT_PLAYERS, MANDOLIN_LESSONS, PEE_LAST_YEAR, lessonsLeft, type CourtSport, type InstrumentId, type MealId, type PlayerState, type SportId } from './state';
 import { GIVER_IDS, MISSIONS, missionById, missionDone, oldersToMeet, questsFrom, reached, statusOf, type Mission, type MissionCtx } from './missions';
-import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, carsiNow, isFriday, npcIsEvci } from './weekend';
+import { BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_OUT_FROM_YEAR, CARSI_START, FAMILY_VISIT_END, carsiNow, familyVisitNow, isFriday, npcIsEvci } from './weekend';
 import { activityOf } from './routine';
 import { lineFor, type Moment } from '../content/lines';
 import { dilemmaDone, runDilemma, shape } from './dilemmas';
@@ -2347,19 +2347,22 @@ function guardianName(ctx: GameCtx): string {
 
 /** on Wednesday afternoons your family waits for you at the canteen */
 function visitActions(ctx: GameCtx): ActionView[] {
-  if (!carsiNow(ctx.clock.day, ctx.clock.minutes)) return [];
+  if (!familyVisitNow(ctx.clock.day, ctx.clock.minutes)) return [];
   const g = guardianName(ctx);
+  // the visit runs until a quarter of an hour before evening study, however late it starts
+  const left = FAMILY_VISIT_END - ctx.clock.minutes;
+  const until = fmtTime(FAMILY_VISIT_END);
   return [{
-    id: 'wedvisit', label: T(`👪 ${g} seni bekliyor!`, `👪 ${g} is waiting for you!`), hint: T('Çarşı izni · 60 dk · +18 moral · harçlık', 'Wednesday visit · 60 min · +18 mood · pocket money'),
+    id: 'wedvisit', label: T(`👪 ${g} seni bekliyor!`, `👪 ${g} is waiting for you!`), hint: T(`Çarşı izni · ${until}'e kadar (${left} dk) · +18 moral · harçlık`, `Wednesday visit · until ${until} (${left} min) · +18 mood · pocket money`),
     locked: doneToday(ctx, 'wedvisit') ? T('Bugün ailenle zaten görüştün.', 'You already saw your family today.') : undefined,
     run: async () => {
       markToday(ctx, 'wedvisit');
-      ctx.advance(60, { wait: true, label: T(`👪 ${g} ile kantindesin`, `👪 At the canteen with ${g}`) }); // (online you spend this hour, counted down)
+      ctx.advance(left, { wait: true, label: T(`👪 ${g} ile kantindesin · ${until}'te biter`, `👪 At the canteen with ${g} · ends at ${until}`) }); // (online you spend it, counted down; you can cut it short)
       ctx.gain({ mood: 18, money: 20, hunger: 30 });
       const where = familyTreat(ctx, 'kurabiye');
       await ctx.panel.message(T('Çarşı izni', 'Wednesday visit'), T(
-        `${g} kantinde seni bekliyordu. Şakir Abi'den iki sosisli aldınız, haftanı anlattın. Giderken eline 20 ₺ ve ev yapımı kurabiye tutuşturdu.${where.tr}`,
-        `${g} was waiting at the canteen. You got two of Şakir's hot dogs and told them all about your week. On the way out they slipped you 20 ₺ and homemade cookies.${where.en}`,
+        `${g} kantinde seni bekliyordu. Şakir Abi'den iki sosisli aldınız, haftanı anlattın. Saat ${until}'te etüt için vedalaştınız; giderken eline 20 ₺ ve ev yapımı kurabiye tutuşturdu. Etüt 18:00'de: yurduna yetiş!${where.tr}`,
+        `${g} was waiting at the canteen. You got two of Şakir's hot dogs and told them all about your week. At ${until} you said goodbye for evening study; on the way out they slipped you 20 ₺ and homemade cookies. Study starts at 18:00: get back to your dorm!${where.en}`,
       ));
     },
   }];

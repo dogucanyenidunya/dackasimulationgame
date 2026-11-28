@@ -49,7 +49,7 @@ import {
 } from '../content/dormroom';
 import { CLASS_EXIT, CLASS_H, CLASS_OX, CLASS_SPAWN, CLASS_W, TEACHERS, TEACHER_ROUTE, buildClassroom } from '../content/classroom';
 import { araOgun, currentMeal, eatMeal, egitim, gatePanel, timEventNow, trayLock, washHands, yemekhane, yemekhaneClosed } from '../game/buildings';
-import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_END, CARSI_START, carsiNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
+import { BACK_ON_SUNDAY, BUS_BOARDING, BUS_LEAVES, CARSI_START, FAMILY_VISIT_END, familyVisitNow, isFriday, isSunday, isWednesday, weekday } from '../game/weekend';
 import { MATCH_END, MATCH_FREE, MATCH_OPEN, MATCH_TIP, getMatchDay, isMatchDay, matchFree, matchOn, setMatchDay } from '../game/schedule';
 import { MatchView } from '../ui/match';
 import { DRESS_MINUTES, activityOf, teacherActivity, wakeTime, type Activity, type Indoors, type RoutineClock } from '../game/routine';
@@ -3938,8 +3938,8 @@ export class CampusScene extends Phaser.Scene {
     if (evci && isFriday(c.day) && m >= BUS_BOARDING && m < BUS_LEAVES && st.daily.weekendHome !== c.day) {
       return { text: L({ tr: `🚌 Hafta sonu servisi Ana Kapı'da · 17:00'de kalkıyor · ${BUS_LEAVES - m} dk`, en: `🚌 The weekend bus is at the main gate · leaves at 17:00 · ${BUS_LEAVES - m} min` }), urgent: m >= BUS_LEAVES - 20, progress: bar(BUS_LEAVES, BUS_BOARDING) };
     }
-    if (carsiNow(c.day, m) && st.daily.wedvisit !== c.day) {
-      return { text: L({ tr: `👪 Çarşı izni: ${g} kantinde (Spor Salonu) seni bekliyor · ${fmtTime(CARSI_END)}'e kadar · ${CARSI_END - m} dk`, en: `👪 Wednesday visit: ${g} is waiting at the canteen (Spor Salonu) · until ${fmtTime(CARSI_END)} · ${CARSI_END - m} min` }), urgent: CARSI_END - m <= 30, progress: bar(CARSI_END, CARSI_START) };
+    if (familyVisitNow(c.day, m) && st.daily.wedvisit !== c.day) {
+      return { text: L({ tr: `👪 Çarşı izni: ${g} kantinde (Spor Salonu) seni bekliyor · ${fmtTime(FAMILY_VISIT_END)}'e kadar · ${FAMILY_VISIT_END - m} dk`, en: `👪 Wednesday visit: ${g} is waiting at the canteen (Spor Salonu) · until ${fmtTime(FAMILY_VISIT_END)} · ${FAMILY_VISIT_END - m} min` }), urgent: FAMILY_VISIT_END - m <= 30, progress: bar(FAMILY_VISIT_END, CARSI_START) };
     }
     const cer = this.isRaining() ? null : ceremonyWindow(c.day);
     if (cer && m >= cer[0] - 15 && m < cer[1]) {

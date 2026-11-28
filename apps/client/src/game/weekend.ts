@@ -32,3 +32,7 @@ export const CARSI_END = 18 * 60;
 /** going out into town is allowed from the 6th grade (school year 3) */
 export const CARSI_OUT_FROM_YEAR = 3;
 export const carsiNow = (day: number, minutes: number) => isWednesday(day) && minutes >= CARSI_START && minutes < CARSI_END;
+/** the family visit at the canteen lasts until this (15 minutes before evening study), whenever it began */
+export const FAMILY_VISIT_END = CARSI_END - 15;
+/** your family is at the canteen and there's still time for a visit */
+export const familyVisitNow = (day: number, minutes: number) => isWednesday(day) && minutes >= CARSI_START && minutes < FAMILY_VISIT_END;
