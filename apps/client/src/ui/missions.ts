@@ -119,9 +119,11 @@ export function missionsCard(c: MissionCtx): HTMLElement {
     const st = statusOf(m, c);
     const icon = m.kind === 'side' && st === 'locked' ? '📜' : ICON[st];
     const ok = m.objectives.filter((o) => o.done(c)).length;
+    // (a mission with one counted objective shows the count itself: 6/16 rather than 0/1)
+    const one = m.objectives.length === 1 ? m.objectives[0].progress?.(c) : undefined;
     return `<button type="button" class="tnode ${st} ${m.kind}" data-id="${m.id}">
       <span class="tn-icon">${icon}</span>
-      <span class="tn-text"><b>${esc(L(m.title))}</b><span>${m.kind === 'challenge' ? `⚑ ${L({ tr: 'Meydan okuma', en: 'Challenge' })} · ` : m.kind === 'side' ? `✦ ${L({ tr: 'Yan görev', en: 'Side quest' })} · ` : ''}${ok}/${m.objectives.length}${m.reward.xp ? ` · +${m.reward.xp} XP` : ''}</span></span>
+      <span class="tn-text"><b>${esc(L(m.title))}</b><span>${m.kind === 'challenge' ? `⚑ ${L({ tr: 'Meydan okuma', en: 'Challenge' })} · ` : m.kind === 'side' ? `✦ ${L({ tr: 'Yan görev', en: 'Side quest' })} · ` : ''}${one ?? `${ok}/${m.objectives.length}`}${m.reward.xp ? ` · +${m.reward.xp} XP` : ''}</span></span>
     </button>`;
   };
   el.innerHTML = `

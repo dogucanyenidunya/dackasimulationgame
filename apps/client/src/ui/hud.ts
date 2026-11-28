@@ -624,6 +624,8 @@ export class Hud {
   }
 
   setDiscovery(found: number, total: number) {
+    // once everything is found, the counter goes (the mission in the missions page keeps the record)
+    this.discovery.classList.toggle('hidden', found >= total);
     this.discovery.innerHTML = `${t('discovered')}: <b>${found}/${total}</b><div class="bar"><span style="width:${(found / total) * 100}%"></span></div>`;
   }
 

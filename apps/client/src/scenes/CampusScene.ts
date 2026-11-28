@@ -2888,11 +2888,12 @@ export class CampusScene extends Phaser.Scene {
     this.updatePrompt(true);
     if (!silent) { this.hud.toast(t('discovered_toast', { name: L(loc.name) }), 'good'); sfx.discover(); this.log({ kind: 'discover', a: L(loc.name) }); }
     if (!silent) this.save.state.xp += 20;
-    // nobody makes you explore, but finding every corner of the campus is worth something
+    // finding every corner of the campus completes "Explore the Campus" (below); the respect and mood come here
     if (LOCATIONS.every((l) => this.discovered.has(l.id)) && !this.save.state.once.exploredAll) {
       this.save.state.once.exploredAll = true;
       this.save.character.respect = growRespect(this.save.character.respect, 5, this.save.state.year);
-      this.time.delayedCall(900, () => { this.gain({ xp: 150, mood: 10 }); sfx.success(); this.hud.toast(t('all_found'), 'good'); });
+      // (the XP comes with the "Explore the Campus" mission)
+      this.time.delayedCall(900, () => { this.gain({ mood: 10 }); this.hud.toast(t('all_found'), 'good'); });
     }
     this.checkMissions();
     this.persist();

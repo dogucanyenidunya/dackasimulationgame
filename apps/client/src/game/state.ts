@@ -199,6 +199,8 @@ export function withDefaults(s: Partial<PlayerState> | undefined): PlayerState {
   // saves from before the registration weekend: whoever had registered is past it, and already in uniform
   if (!s.wardrobe && merged.school.kit) merged.wardrobe.wearing = 'uniforma';
   if (merged.missionsDone.includes('kayit')) merged.once.rushDone = true;
+  // explored everything before "Explore the Campus" was a mission: it's done, and its XP was paid then
+  if (merged.once.exploredAll && !merged.missionsDone.includes('kampusu_kesfet')) { merged.missionsDone.push('kampusu_kesfet'); merged.announced.push('kampusu_kesfet'); }
   if (!s.school?.lessons) for (const sub of SUBJECTS) merged.school.lessons[sub.id] = Math.min(LESSONS_PER_SUBJECT, Math.floor(merged.school.scores[sub.id].length / 2));
   // older saves stored homework as plain subject ids
   merged.school.homework = (merged.school.homework as unknown[]).map((h) => (typeof h === 'string' ? { s: h as SubjectId, day: 1 } : h as { s: SubjectId; day: number }));

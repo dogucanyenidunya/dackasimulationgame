@@ -2,6 +2,7 @@
 // and finishing it unlocks the next part of school life.
 import type { Text } from '../i18n';
 import { NPCS } from '../content/npcs';
+import { LOCATIONS } from '../content/campus';
 import type { CharacterData } from '../content/character';
 import { FRIEND_AT, LESSONS_PER_SUBJECT, SUBJECTS, YEAR1_XP, lessonsLeft, type PlayerState } from './state';
 
@@ -121,7 +122,7 @@ export const MISSIONS: Mission[] = [
     requires: ['uc_ogun'],
     objectives: [{
       id: 'friends', text: { tr: '5 sınıf arkadaşınla arkadaş ol', en: 'Become friends with 5 classmates' },
-      done: (c) => friendCount(c) >= 5, progress: (c) => `${friendCount(c)}/5`, targets: at('merkez_meydan', 'yurt_meydani'),
+      done: (c) => friendCount(c) >= 5, progress: (c) => `${Math.min(5, friendCount(c))}/5`, targets: at('merkez_meydan', 'yurt_meydani'),
     }],
     reward: { xp: 120 },
   },
@@ -167,6 +168,20 @@ export const MISSIONS: Mission[] = [
       { id: 'exam', text: { tr: 'Yıl sonu sınavını geç (sınıfında)', en: 'Pass the year-end exam (in your classroom)' }, done: (c) => c.st.examPassed, targets: at('egitim') },
     ],
     reward: { xp: 200 },
+  },
+  {
+    id: 'kampusu_kesfet', kind: 'main',
+    title: { tr: 'Kampüsü Keşfet', en: 'Explore the Campus' },
+    desc: { tr: 'Kampüsün her köşesini keşfet: binalar, meydanlar, sahalar. Sisle kaplı yerler yanlarına gidince ortaya çıkar.', en: 'Discover every corner of the campus: the buildings, the squares, the courts. Places under the fog show once you go near them.' },
+    requires: [],
+    objectives: [{
+      id: 'all', text: { tr: `Kampüsteki ${LOCATIONS.length} yerin hepsini keşfet`, en: `Discover all ${LOCATIONS.length} places on the campus` },
+      done: (c) => LOCATIONS.every((l) => c.discovered.has(l.id)),
+      progress: (c) => `${LOCATIONS.filter((l) => c.discovered.has(l.id)).length}/${LOCATIONS.length}`,
+      // (the tracker points at the nearest one still to find)
+      targets: (c) => LOCATIONS.filter((l) => !c.discovered.has(l.id)).map((l) => l.id),
+    }],
+    reward: { xp: 150, text: { tr: '+5 Saygınlık · +10 moral', en: '+5 Respect · +10 mood' } },
   },
   {
     id: 'karne', kind: 'main',
