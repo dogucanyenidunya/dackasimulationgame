@@ -3,7 +3,8 @@ import { L } from '../i18n';
 import {
   MISSIONS, missionById, nextObjective, statusOf, trackedMission, type Mission, type MissionCtx, type MissionStatus,
 } from '../game/missions';
-import { NPCS } from '../content/npcs';
+import { NPCS, dativeTr, genitiveTr } from '../content/npcs';
+import { LOCATIONS } from '../content/campus';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
@@ -43,6 +44,42 @@ function missionHtml(m: Mission, c: MissionCtx): string {
       ${objectivesHtml(m, c)}
       ${m.unlocks ? `<div class="m-unlocks"><b>${L({ tr: 'Açar', en: 'Unlocks' })}:</b> ${esc(L(m.unlocks))}</div>` : ''}
       ${reward}
+    </div>`;
+}
+
+ /** where an objective is done, by name ("Kütüphane", "Yurt Meydanı"…) */
+function placesOf(targets: string[]): string {
+  return targets.map((id) => { const l = LOCATIONS.find((x) => x.id === id); return l ? L(l.name) : ''; }).filter(Boolean).join(' / ');
+}
+
+/** the jobs you've taken on and haven't finished: side quests from Kerem Abi / Selin Abla, and a favor for an abi or abla
+ *  (each with what to do next and where); a click shows the mission it belongs to */
+function takenHtml(c: MissionCtx): string {
+  const rows: string[] = [];
+  const row = (id: string, who: string, what: string, next: string, where: string) => rows.push(`
+    <button type="button" class="taken-row" data-id="${id}">
+      <span class="tk-who">${esc(who)}</span>
+      <span class="tk-what"><b>${esc(what)}</b><span>→ ${esc(next)}${where ? ` · 📍 ${esc(where)}` : ''}</span></span>
+    </button>`);
+  // a favor for an older student (the book to return, then the sandwich)
+  const f = c.st.favor;
+  if (f.giver && (f.stage === 'accepted' || f.stage === 'done')) {
+    const g = NPCS.find((n) => n.id === f.giver)?.name ?? '';
+    row('abi_sandvic', `🤝 ${g}`, L({ tr: `${genitiveTr(g)} ricası: kitap iadesi`, en: `A favor for ${g}: returning a book` }),
+      f.stage === 'accepted' ? L({ tr: 'Kitabı Kütüphane\'ye iade et', en: 'Return the book to the library' }) : L({ tr: `${dativeTr(g)} dön ve sandviçini al`, en: `Go back to ${g} for your sandwich` }),
+      f.stage === 'accepted' ? placesOf(['kutuphane']) : placesOf(['yurt_meydani']));
+  }
+  // side quests you've taken
+  for (const id of c.st.side.taken) {
+    const m = MISSIONS.find((x) => x.id === id);
+    if (!m || statusOf(m, c) !== 'active') continue;
+    const o = nextObjective(m, c);
+    row(m.id, `📜 ${giverName(m)}`, L(m.title), o ? L(o.text) : L({ tr: 'Görevi verene dön', en: 'Go back to whoever gave it' }), o?.targets ? placesOf(o.targets(c)) : '');
+  }
+  return `
+    <div class="taken-box">
+      <div class="taken-head">${L({ tr: '📌 Üstlendiğin işler', en: '📌 Jobs you have taken on' })}</div>
+      ${rows.length ? rows.join('') : `<div class="taken-empty">${L({ tr: 'Şu an üstlendiğin bir iş yok. Kerem Abi (Erkek Yurdu önü) ve Selin Abla (Kız Yurdu önü) yan görev verir; Yurt Meydanı\'ndaki öteki abi ve ablalara "Yardım teklif et" diyebilirsin.', en: 'Nothing on your plate right now. Kerem Abi (boys\' dorm door) and Selin Abla (girls\' dorm door) hand out side quests; you can offer to help the other older students on the dorm plaza.' })}</div>`}
     </div>`;
 }
 
@@ -92,6 +129,7 @@ export function missionsCard(c: MissionCtx): HTMLElement {
       <div><h2>${L({ tr: 'Görevler', en: 'Missions' })}</h2><div class="modal-sub">${L({ tr: '1. yıl · 4. sınıf', en: 'Year 1 · Grade 4' })} · ${done}/${mains.length} ${L({ tr: 'ana görev tamamlandı', en: 'main missions done' })} · ${L({ tr: 'bir göreve tıkla', en: 'click a mission' })}</div></div>
       <button type="button" class="primary">${L({ tr: 'Kapat', en: 'Close' })}</button>
     </div>
+    ${takenHtml(c)}
     <div class="tree-legend"><span class="done">✓ ${L(BADGE.done).replace(/^\S+\s/, '')}</span><span class="active">▶ ${L(BADGE.active).replace(/^\S+\s/, '')}</span><span class="locked">🔒 ${L(BADGE.locked).replace(/^\S+\s/, '')}</span></div>
     <div class="tree-wrap">
       <svg class="tree-lines" aria-hidden="true"></svg>
@@ -105,6 +143,10 @@ export function missionsCard(c: MissionCtx): HTMLElement {
     draw();
   };
   el.querySelectorAll<HTMLButtonElement>('.tnode').forEach((b) => b.addEventListener('click', () => select(b.dataset.id!)));
+  el.querySelectorAll<HTMLButtonElement>('.taken-row').forEach((b) => b.addEventListener('click', () => {
+    select(b.dataset.id!);
+    el.querySelector('.tnode.sel')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }));
   let drawn = false;
   // the connectors: from the right edge of a mission to the left edge of each one it unlocks, coloured by how far you are
   const draw = () => {

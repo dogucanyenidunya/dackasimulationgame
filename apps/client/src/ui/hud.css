@@ -460,6 +460,15 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* missions as a tree */
 .tree-card { width: min(1120px, 100%); }
+.taken-box { margin: 10px 0 4px; padding: 8px 10px; border-radius: 8px; background: rgba(201, 138, 75, 0.12); border: 1px solid rgba(201, 138, 75, 0.35); }
+.taken-head { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px; }
+.taken-row { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; font: inherit; background: none; border: none; border-top: 1px solid var(--line); padding: 6px 2px; cursor: pointer; color: inherit; }
+.taken-row:first-of-type { border-top: none; }
+.taken-row:hover { background: rgba(255, 255, 255, 0.06); }
+.tk-who { flex: 0 0 auto; font-size: 12px; font-weight: 700; opacity: 0.85; white-space: nowrap; }
+.tk-what { display: flex; flex-direction: column; font-size: 13px; }
+.tk-what span { font-size: 12px; opacity: 0.85; }
+.taken-empty { font-size: 12px; opacity: 0.8; line-height: 1.4; }
 .tree-legend { display: flex; gap: 14px; font-size: 12px; font-weight: 700; margin: 10px 0 6px; color: #5b6266; }
 .tree-legend .done { color: var(--good); } .tree-legend .active { color: var(--accent-dark); }
 .tree-wrap { position: relative; overflow: auto; padding: 6px 4px 10px; background: linear-gradient(180deg, #f3eee4, #ece5d6); border-radius: 12px; border: 1px solid var(--line); background-image: radial-gradient(rgba(122, 78, 42, 0.12) 1px, transparent 1px); background-size: 18px 18px; }
