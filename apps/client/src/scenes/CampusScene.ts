@@ -1479,15 +1479,31 @@ export class CampusScene extends Phaser.Scene {
     return { subject, name: TEACHERS[subject].name, lesson: false };
   }
 
+  /** the classroom desks real players are using right now: yours while you're in class, and those of the players in it */
+  private classSeatsInUse(): Set<string> {
+    const out = new Set<string>();
+    if (this.room === 'class') out.add(spotKey(this.spots.seat));
+    if (!this.mp) return out;
+    for (const [id, peer] of this.peers) {
+      if (peer.leaving || peer.room !== 'class') continue;
+      const prof = this.mp.peers.get(id);
+      out.add(spotKey(readSpots(prof?.spots).seat));
+    }
+    return out;
+  }
+
   private updateClass(time: number, delta: number) {
+    const occupied = this.classSeatsInUse();
     const brk = this.classBreakNow();
     const tch = this.classTeacher();
     this.classLife.update(time, delta, {
       inRoom: this.room === 'class',
       breakKey: brk?.key ?? null,
       teacher: tch && !tch.lesson ? { name: tch.name, look: TEACHERS[tch.subject].look } : null,
-      // (a classmate whose desk another player took today isn't in class)
-      present: (def) => this.whereIs(def) === 'egitim' && !this.held.seat.has(this.classDeskOf.get(def.id) ?? ''),
+      // (the classroom has a desk for everyone: when a real player comes in to a desk a classmate has, that classmate
+      // isn't in class while they're here, and is back once they've gone)
+      present: (def) => this.whereIs(def) === 'egitim' && !occupied.has(this.classDeskOf.get(def.id) ?? ''),
+      evicted: (def) => occupied.has(this.classDeskOf.get(def.id) ?? ''),
     });
     this.classLabels.forEach((l) => l.setVisible(this.room === 'class'));
     const t = this.teacher;

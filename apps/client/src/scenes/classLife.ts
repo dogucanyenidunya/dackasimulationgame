@@ -118,6 +118,8 @@ export interface ClassNow {
   teacher: { name: string; look?: { skirt?: boolean } } | null;
   /** is this student in the Eğitim Binası right now */
   present: (def: NpcDef) => boolean;
+  /** a real player has this classmate's desk: they're simply not in class (gone at once, no walking out) */
+  evicted?: (def: NpcDef) => boolean;
 }
 
 /** a steady pseudo-random sequence for one break */
@@ -240,6 +242,7 @@ export class ClassLife {
   // ---------- each kid ----------
 
   private tickKid(k: Kid, time: number, dt: number, now: ClassNow, walk: boolean) {
+    if (now.evicted?.(k.def)) { if (k.shown) this.place(k, 'out'); return; }
     const present = now.present(k.def);
     if (!present && !k.shown) return;
     const want = !present ? 'out' : now.breakKey ? this.roleKey(k.role) : 'seat';
