@@ -661,6 +661,15 @@ body.touch .collapse-btn { padding: 6px 8px; font-size: 15px; top: 2px; right: 2
 }
 /* the countdown and banner float above the campus, never above an open map, card, panel or dilemma */
 #hud:has(> .overlay:not(.hidden), > .dilemma-wrap, > .match-overlay) :is(.hud-countdown, .hud-banner) { display: none; }
+/* a popup only dims and blurs the campus behind it: the notifications always stay sharp on top of it. On a wide screen
+   the clock card, the minimap and the mission card do too, and the popups sit in the space between them so neither
+   covers the other (not over the big map, which needs the whole screen) */
+#hud > .hud-toasts { z-index: 8; }
+@media (min-width: 1280px) {
+  #hud > :is(.hud-clock, .hud-right) { z-index: 7; }
+  #hud > .overlay:is(.modal, .panel) { padding-left: 236px; padding-right: 272px; }
+  #hud:has(> .big-map:not(.hidden)) > :is(.hud-clock, .hud-right) { z-index: auto; }
+}
 /* phone held sideways: the title card in two columns (title and sign-in | your character and the buttons) */
 @media (max-height: 500px) and (min-width: 600px) {
   .title-card:has(> .tc-left) { width: min(780px, 100%); display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: center; padding: 16px 20px; }
