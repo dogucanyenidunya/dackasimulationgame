@@ -3,6 +3,7 @@
 // scene can stop it at half-time for a dilemma.
 import { L, type Text } from '../i18n';
 import { sfx } from '../audio';
+import { TITLE_FONT, fitTitleFont } from './fonts';
 
 const W = 760, H = 460;
 const COURT = { x: 40, y: 190, w: 680, h: 250 };
@@ -267,7 +268,7 @@ export class MatchView {
     }
     // a banner along the front of the stand, and you with your friends in the front row
     c.fillStyle = TEAMS[0].shirt; c.fillRect(W / 2 - 150, 172, 300, 14);
-    c.fillStyle = TEAMS[0].trim; c.font = 'bold 10px "Pixelify Sans", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = TEAMS[0].trim; c.font = fitTitleFont(c, 'HAYDİ DARÜŞŞAFAKA!', 10, 290); c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText('HAYDİ DARÜŞŞAFAKA!', W / 2, 179.5);
     const tag = [this.you, ...this.friends.slice(0, 3)].join(' · ');
     c.font = 'bold 11px system-ui, sans-serif';
@@ -314,7 +315,7 @@ export class MatchView {
     if (this.flash) {
       c.globalAlpha = Math.min(1, this.flash.t * 2);
       c.fillStyle = this.flash.team === 0 ? TEAMS[0].trim : '#ffffff';
-      c.font = 'bold 34px "Pixelify Sans", monospace';
+      c.font = `700 30px ${TITLE_FONT}`;
       c.fillText(this.flash.text, W / 2, COURT.y + 60 - (1.2 - this.flash.t) * 20);
       c.globalAlpha = 1;
     }

@@ -29,8 +29,8 @@ async function startGame(save: SaveData, net: NetUser | null = null) {
   save.state = withDefaults(save.state);
   // being on campus counts as looking after your character (GDD §6.2.2)
   markVisit(save.state);
-  // in-world labels use the pixel font; wait (briefly) so the first labels don't render in a fallback font
-  try { await Promise.race([document.fonts.load('700 16px "Pixelify Sans"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
+  // place names and signs on the campus are drawn in Cinzel: wait (briefly) so the first ones don't come out in a fallback font
+  try { await Promise.race([document.fonts.load('700 16px "Cinzel"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* offline: fallback font */ }
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',

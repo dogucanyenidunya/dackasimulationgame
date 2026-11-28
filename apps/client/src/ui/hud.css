@@ -313,7 +313,7 @@ button.action .why { font-size: 12px; color: #a0522d; font-weight: 600; }
 .hud-countdown:not(.hidden) ~ .hud-toasts { top: 56px; }
 
 /* pixel font for titles */
-.title-card h1, .announce-card h2, .yearend-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: 0.02em; }
+.title-card h1, .announce-card h2, .yearend-card h2 { font-family: var(--p-title); font-weight: 700; letter-spacing: 0.02em; }
 .title-card h1 { font-size: 64px; }
 .title-screen { background:
   radial-gradient(ellipse at 50% 120%, rgba(242, 193, 78, 0.25), transparent 60%),
@@ -398,7 +398,7 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 .dilemma-wrap { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(20, 14, 40, 0.55), rgba(8, 6, 18, 0.88)); animation: dl-fade 0.3s ease-out; }
 .dilemma-card { width: min(640px, 100%); max-height: 100%; overflow: auto; padding: 22px 24px 20px; border-radius: 16px; background: linear-gradient(180deg, #2b2346 0%, #1f1a33 100%); color: #f4eefc; border: 1px solid rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.12), 0 18px 48px rgba(0,0,0,0.5); animation: dl-pop 0.35s cubic-bezier(.2,1.4,.4,1); }
 .dl-tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #1f1a33; background: var(--gold); padding: 3px 10px; border-radius: 999px; }
-.dilemma-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; font-size: 28px; margin: 10px 0 8px; color: #fff; }
+.dilemma-card h2 { font-family: var(--p-title); font-size: 28px; margin: 10px 0 8px; color: #fff; }
 .dl-intro { line-height: 1.6; font-size: 15.5px; margin: 0 0 12px; color: #e6def5; }
 .dl-shape { font-size: 13px; font-weight: 700; color: var(--gold); background: rgba(242, 193, 78, 0.1); border-left: 3px solid var(--gold); padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; }
 .dl-q { font-weight: 800; font-size: 16px; margin-bottom: 8px; }
@@ -428,14 +428,14 @@ button.action .act-look { width: 48px; height: 48px; background: #efe8db; border
 /* the class draw popup */
 .draw-card { width: min(460px, 100%); padding: 22px; border-top: 6px solid var(--gold); }
 .draw-card .m-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-dark); }
-.draw-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0; }
+.draw-card h2 { font-family: var(--p-title); margin: 6px 0; }
 
 button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* the one-time tour on the first visit */
 .onboard-card { width: min(520px, 100%); max-height: 100%; overflow: auto; padding: 22px; border-top: 6px solid var(--gold); }
 .onboard-card .m-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-dark); }
-.onboard-card h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 12px; }
+.onboard-card h2 { font-family: var(--p-title); margin: 6px 0 12px; }
 .onboard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .onboard-list li { display: grid; grid-template-columns: 28px 1fr; gap: 8px; line-height: 1.45; }
 .onboard-list .ob-ic { font-size: 18px; text-align: center; }
@@ -448,7 +448,7 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* the diary page at bedtime */
 .diary-card { width: min(520px, 100%); max-height: 100%; display: flex; flex-direction: column; padding: 22px 24px; background: #fbf6e9; border: 1px solid #e0d3b4; box-shadow: 0 12px 34px rgba(0,0,0,0.35); background-image: repeating-linear-gradient(transparent 0 27px, rgba(70, 110, 160, 0.13) 27px 28px); }
-.diary-head h2 { font-family: "Pixelify Sans", system-ui, sans-serif; margin: 6px 0 10px; color: #3a2a18; }
+.diary-head h2 { font-family: var(--p-title); margin: 6px 0 10px; color: #3a2a18; }
 .diary-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9a5b2c; }
 .diary-body { overflow: auto; padding-right: 4px; font-family: Georgia, "Times New Roman", serif; }
 .diary-part { font-family: system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9a5b2c; margin: 12px 0 4px; }
@@ -502,10 +502,10 @@ button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .match-card { width: min(800px, 100%); background: #14161c; border: 1px solid #3a3f4a; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,0.6); }
 .match-card canvas { display: block; width: 100%; height: auto; image-rendering: auto; }
 .match-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 10px 16px 6px; background: linear-gradient(180deg, #0c0e13, #1a1d25); color: #fff; }
-.mb-team { display: flex; align-items: center; gap: 8px; font-family: "Pixelify Sans", system-ui, sans-serif; font-size: 18px; letter-spacing: 0.04em; }
+.mb-team { display: flex; align-items: center; gap: 8px; font-family: var(--p-title); font-size: 18px; letter-spacing: 0.04em; }
 .mb-team.away { justify-content: flex-end; }
 .mb-team i { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: inline-block; }
-.mb-score { font-family: "Pixelify Sans", monospace; font-size: 34px; color: #ffcf4a; background: #000; padding: 2px 14px; border-radius: 8px; border: 1px solid #333; text-shadow: 0 0 8px rgba(255, 207, 74, 0.6); }
+.mb-score { font-family: var(--p-title); font-size: 34px; color: #ffcf4a; background: #000; padding: 2px 14px; border-radius: 8px; border: 1px solid #333; text-shadow: 0 0 8px rgba(255, 207, 74, 0.6); }
 .mb-score em { font-style: normal; color: #888; margin: 0 8px; }
 .mb-clock { grid-column: 1 / -1; text-align: center; font-size: 12px; font-weight: 700; color: #b8bec8; letter-spacing: 0.06em; text-transform: uppercase; }
 .match-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #1a1d25; color: #e8e8ee; }

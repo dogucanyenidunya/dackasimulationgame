@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { CAT_FRAMES, CAT_H, CAT_KEY, makeCatTexture } from '../art/cat';
 import { CHAR_RES } from '../art/character';
 import { BUST, FLAGPOLE, FLOWERS, LAMPS, PYRAMID, TILE, TREES } from '../content/campus';
+import { BODY_FONT } from '../ui/fonts';
 
 /** where the cat may go (tiles): the Merkez Meydan, a little in from its edges */
 const AREA = { x0: 41.4, y0: 25.4, x1: 53.6, y1: 36.6 }; // (off the tunnel stairwell, the road and the south steps)
@@ -48,7 +49,7 @@ export class YetimCat {
     const start = this.pick();
     this.sprite = scene.add.sprite(start.x, start.y, CAT_KEY, CAT_FRAMES.sit).setOrigin(0.5, 17 / CAT_H).setScale(1 / CHAR_RES);
     this.label = scene.add.text(0, 0, 'Yetim', {
-      fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
+      fontFamily: BODY_FONT, fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(95_000).setVisible(false);
     this.sit(2000);
   }

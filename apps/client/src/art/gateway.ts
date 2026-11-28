@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { AQUEDUCT, AQUEDUCT_PIER, CABIN, GATE, MEYDAN_RAMP, MEYDAN_STAIRS, PYRAMID, SOUTH_STAIRS, SOUTH_WALL, STAIRS, TILE, TRIBUNE, TRIBUNE_ROWS, TUNNEL, TUNNEL_STAIRS } from '../content/campus';
 import { shade, wallColor } from './buildingArt';
 import { ART_RES } from './textures';
+import { BODY_FONT, fitTitleFont } from '../ui/fonts';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -204,7 +205,7 @@ function paintCabin(c: Ctx) {
   c.fillStyle = '#9aa1a6'; c.fillRect(0, H - 6, W, 6); c.fillStyle = '#b8bec3'; c.fillRect(0, H - 6, W, 1);
   // sign
   c.fillStyle = GATE_GREEN; c.fillRect(10, f + 8, W - 20, 8);
-  c.fillStyle = '#f2c14e'; c.font = 'bold 7px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('GÜVENLİK', W / 2, f + 12.5);
+  c.fillStyle = '#f2c14e'; c.font = `bold 7px ${BODY_FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('GÜVENLİK', W / 2, f + 12.5);
   // the guard's window, with a little counter ledge and the desk lamp glowing inside
   const wx = 9, wy = f + 19, ww = W - 18, wh = 19;
   c.fillStyle = '#c3c8cb'; c.fillRect(wx - 1, wy - 1, ww + 2, wh + 2);
@@ -226,7 +227,7 @@ function paintGateArch(c: Ctx, name: string) {
   c.fillStyle = shade(GATE_GREEN, 0.7); c.fillRect(0, H - 6, W, 2);
   // a dark name board with gold letters, and scrolls either side
   c.fillStyle = '#1f3d24'; c.fillRect(W / 2 - 46, 12, 92, 14);
-  c.fillStyle = '#f2c14e'; c.font = 'bold 10px "Pixelify Sans", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#f2c14e'; c.font = fitTitleFont(c, name, 9.5, 86); c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(name, W / 2, 19.5);
   c.strokeStyle = '#d9b44a'; c.lineWidth = 1.5;
   for (const sx of [-1, 1]) {

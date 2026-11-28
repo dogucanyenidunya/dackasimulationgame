@@ -9,6 +9,7 @@
 import Phaser from 'phaser';
 import { ART_RES } from './textures';
 import { LOCATIONS, T, TILE, doorInPassage, inBuilding, nearestEdge, type Building, type Door, type Pt, type Rect } from '../content/campus';
+import { BODY_FONT } from '../ui/fonts';
 
 /** how many tiles the roof rises above the footprint (0 when an entrance faces north: it's drawn on the roof edge) */
 export function liftOf(b: Building): number {
@@ -541,7 +542,7 @@ export function makeBuildingArt(scene: Phaser.Scene, b: Building): BuildingArt {
       for (let gx = x + 3 + (w - 6) / 4; gx < x + w - 4; gx += (w - 6) / 4) px(gx, y + 12, 2, 24, '#3e4a52');
       px(x + 6, y + 3, w - 12, 7, '#2f5d8a');
       const name = LOCATIONS.find((l) => l.id === e.loc)?.name.tr.toLocaleUpperCase('tr-TR') ?? '';
-      c.fillStyle = '#ffffff'; c.font = 'bold 7px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = '#ffffff'; c.font = `bold 7px ${BODY_FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText(name.length * 4.6 > w - 14 ? name.split(' ')[0] : name, x + w / 2, y + 7);
       px(x + 2, y + 40, w - 4, 4, 'rgba(0,0,0,0.2)');
       glow(x + 3, y + 15, w - 6, 21, '#fff0c4');

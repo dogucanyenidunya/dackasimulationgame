@@ -2,6 +2,7 @@
 // (roof grey, façade white, wood fins, solar blue, plaza green, court red).
 import Phaser from 'phaser';
 import { T, TILE } from '../content/campus';
+import { BODY_FONT } from '../ui/fonts';
 
 export { CHAR_RES, DEFAULT_LOOK, drawCharacter, fitCharacter, footBody, makeCharacterTexture, paintCharacter } from './character';
 export type { CharacterLook, FaceShape, HairStyle } from './character';
@@ -854,7 +855,7 @@ export function generateTextures(scene: Phaser.Scene) {
 
   canvas('qmark', 18, 22, (c) => {
     c.fillStyle = '#f2c14e'; c.beginPath(); c.arc(9, 9, 9, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#3a2a10'; c.font = 'bold 14px monospace'; c.textAlign = 'center'; c.fillText('?', 9, 14);
+    c.fillStyle = '#3a2a10'; c.font = `bold 14px ${BODY_FONT}`; c.textAlign = 'center'; c.fillText('?', 9, 14);
     c.fillStyle = '#f2c14e'; c.beginPath(); c.moveTo(5, 16); c.lineTo(13, 16); c.lineTo(9, 22); c.fill();
   });
 }

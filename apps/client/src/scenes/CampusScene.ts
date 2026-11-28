@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TouchControls, isTouch, onTouchMode } from '../ui/touch';
 import { onboardingCard } from '../ui/onboarding';
+import { BODY_FONT, TITLE_FONT, titleCase } from '../ui/fonts';
 import {
   AQUEDUCT, AQUEDUCT_PIER, BENCHES, BLOCK_TILES, BUST, CABIN, CEMIL_OUT, STAIRS, COURTS, DORM_COURT, EXTRA_COURTS, PLAY_COURTS, FLAGPOLE, FLOWERS, PULLUP_BARS, GATE, GATES, GATE_IN, LAYOUT, SCHOOL_FRONT, LAMPS, SPAWN, LOCATIONS, MAP_H, MAP_W, PATROL_ROUTE, PLAZA_ALLOWED, PLAZA_EVENING, SOLID_TILES, T, TILE, TREES, BUILDINGS, timWallAt, wallAt,
   MEYDAN_STAIRS, PYRAMID, TRIBUNE, inPeArea, BARRIERS, CAGES, MEYDAN_RAMP, SOUTH_STAIRS, SOUTH_WALL, TUNNEL, TUNNEL_IN, TUNNEL_STAIRS,
@@ -767,7 +768,7 @@ export class CampusScene extends Phaser.Scene {
     makeCharacterTexture(this, `peer-${p.id}`, { ...DEFAULT_LOOK, ...p.look });
     const sprite = fitCharacter(this.add.sprite(0, 0, `peer-${p.id}`, 0)).setVisible(false);
     const label = this.add.text(0, 0, `● ${p.name}`, {
-      fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
+      fontFamily: BODY_FONT, fontSize: '12px', fontStyle: 'bold', color: '#a8e6b0', stroke: '#1d2326', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(95_000).setVisible(false);
     this.peers.set(p.id, { sprite, label, profile: p, tx: 0, ty: 0, dir: 0, moving: false, lying: false, room: '', seen: false, lastPos: performance.now(), away: false, leaving: null });
     this.labelPeer(p.id);
@@ -992,7 +993,7 @@ export class CampusScene extends Phaser.Scene {
   private bubbleAbove(target: Phaser.GameObjects.Sprite | undefined, text: string) {
     if (!target || !target.visible) return;
     const b = this.add.text(target.x, target.y - 44, text.length > 40 ? `${text.slice(0, 38)}…` : text, {
-      fontFamily: 'system-ui, sans-serif', fontSize: '12px', backgroundColor: '#ffffffee', color: '#1d2326', padding: { x: 5, y: 3 }, wordWrap: { width: 180 },
+      fontFamily: BODY_FONT, fontSize: '12px', backgroundColor: '#ffffffee', color: '#1d2326', padding: { x: 5, y: 3 }, wordWrap: { width: 180 },
     }).setOrigin(0.5, 1).setDepth(97_000);
     this.tweens.add({ targets: b, alpha: 0, delay: 3500, duration: 400, onComplete: () => b.destroy() });
     this.time.addEvent({ delay: 16, repeat: 240, callback: () => b.active && b.setPosition(target.x, target.y - 44) });
@@ -1015,7 +1016,7 @@ export class CampusScene extends Phaser.Scene {
     void tileset;
     // your desk and bed get a little name tag
     const tag = (x: number, y: number, text: string) => { const t = this.add.text((ROOM_OX + x + 0.5) * TILE, (y + 0.1) * TILE, text, {
-      fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
+      fontFamily: BODY_FONT, fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(95_000); this.roomLabels.push(t); return t; };
     this.spotTags.desk = tag(this.spots.desk[0], this.spots.desk[1], L({ tr: 'Senin masan', en: 'Your desk' }));
     this.spotTags.bed = tag(this.spots.bed[0], this.spots.bed[1], L({ tr: 'Yatağın', en: 'Your bed' }));
@@ -1092,7 +1093,7 @@ export class CampusScene extends Phaser.Scene {
       this.physics.add.collider(this.player, sp);
       // a name tag over each diner, so you can see who's at which table before you sit down
       sp.setData('label', this.add.text(0, 0, '', {
-        fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffffff', stroke: '#1d2326', strokeThickness: 3,
+        fontFamily: BODY_FONT, fontSize: '11px', fontStyle: 'bold', color: '#ffffff', stroke: '#1d2326', strokeThickness: 3,
       }).setOrigin(0.5, 1).setDepth(95_000).setVisible(false));
       // their tray on the table in front of them, and the spoon going between it and their mouth
       sp.setData('tray', this.add.image(0, 0, 'tray').setVisible(false));
@@ -1390,7 +1391,7 @@ export class CampusScene extends Phaser.Scene {
     this.add.image(CLASS_OX * TILE, 0, bakeRoom(this, 'room-class', classData)).setOrigin(0).setScale(1 / ART_RES).setDepth(0.01);
     this.physics.add.collider(this.player, layer);
     this.spotTags.seat = this.add.text((CLASS_OX + this.spots.seat[0] + 0.5) * TILE, (this.spots.seat[1] + 0.1) * TILE, L({ tr: 'Senin sıran', en: 'Your desk' }), {
-      fontFamily: 'system-ui, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
+      fontFamily: BODY_FONT, fontSize: '11px', fontStyle: 'bold', color: '#ffe7a8', stroke: '#1d2326', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(95_000);
     this.classLabels.push(this.spotTags.seat);
     const mates = NPCS.filter((n) => n.kind === 'classmate');
@@ -1650,7 +1651,7 @@ export class CampusScene extends Phaser.Scene {
   private updateZzz(on: boolean, time: number) {
     const sleepers = on ? [...this.roomMates.filter((s) => s.visible && s.getData('inBed')), ...(this.sleepRun?.kind === 'sleep' ? [this.player] : [])] : [];
     while (this.zzz.length < sleepers.length) {
-      this.zzz.push(this.add.text(0, 0, 'z', { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#dfe8ff', stroke: '#1d2326', strokeThickness: 3 }).setOrigin(0.5).setDepth(95_500));
+      this.zzz.push(this.add.text(0, 0, 'z', { fontFamily: BODY_FONT, fontSize: '13px', fontStyle: 'bold', color: '#dfe8ff', stroke: '#1d2326', strokeThickness: 3 }).setOrigin(0.5).setDepth(95_500));
     }
     this.zzz.forEach((z, i) => {
       const s = sleepers[i];
@@ -2195,7 +2196,7 @@ export class CampusScene extends Phaser.Scene {
       this.npcs.push(npc);
       this.npcById.set(def.id, npc);
       const name = this.add.text(npc.x, npc.y - 26, def.name, {
-        fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: '12px', fontStyle: 'bold',
+        fontFamily: BODY_FONT, fontSize: '12px', fontStyle: 'bold',
         color: def.kind === 'belletmen' ? '#ffb3a8' : def.kind === 'teacher' ? '#cfe8ff' : def.kind === 'abi' ? '#ffe7a8' : '#ffffff',
         stroke: '#1d2326', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(95_000);
@@ -2468,11 +2469,11 @@ export class CampusScene extends Phaser.Scene {
     const cx = (loc.label?.x ?? r.x + r.w / 2) * TILE;
     const cy = (loc.label?.y ?? r.y + r.h / 2) * TILE;
     const name = this.add.text(0, 0, '', {
-      fontFamily: '"Pixelify Sans", system-ui, sans-serif', fontSize: loc.kind === 'building' ? '22px' : '18px', fontStyle: 'bold',
+      fontFamily: TITLE_FONT, fontSize: loc.kind === 'building' ? '21px' : '17px', fontStyle: 'bold',
       color: '#ffffff', stroke: '#1d2326', strokeThickness: 5,
     }).setOrigin(0.5);
     const sub = this.add.text(0, 18, '', {
-      fontFamily: 'system-ui, sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#1d2326', strokeThickness: 4,
+      fontFamily: BODY_FONT, fontSize: '13px', color: '#ffffff', stroke: '#1d2326', strokeThickness: 4,
     }).setOrigin(0.5);
     const c = this.add.container(cx, cy, [name, sub]).setDepth(90_000).setVisible(this.discovered.has(loc.id));
     this.labels.set(loc.id, c);
@@ -2490,7 +2491,7 @@ export class CampusScene extends Phaser.Scene {
     for (const loc of LOCATIONS) {
       const c = this.labels.get(loc.id);
       if (!c) continue;
-      (c.list[0] as Phaser.GameObjects.Text).setText(L(loc.name));
+      (c.list[0] as Phaser.GameObjects.Text).setText(titleCase(L(loc.name), getLang()));
       (c.list[1] as Phaser.GameObjects.Text).setText(L(loc.sub));
     }
     this.hud.setDiscovery(this.discovered.size, LOCATIONS.length);
